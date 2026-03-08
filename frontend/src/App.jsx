@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ProtectedRoute from "./routes/ProtectedRoute";
-import Chat from "./pages/Chat.js";
+import Chat from "./pages/Chat.jsx";
 
 function App() {
   return (
