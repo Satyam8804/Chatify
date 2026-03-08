@@ -25,14 +25,14 @@ const ChatHeader = ({ chat, setSelectedChat }) => {
   const isOnline = onlineUser?.has(friendObj?._id?.toString());
 
   return (
-    <div className="h-16 px-2 flex items-center gap-3 bg-white">
+    <div className="h-16 px-1 flex items-center gap-3 bg-white">
       {/* Mobile Back Button */}
       {setSelectedChat && (
         <button
           onClick={() => setSelectedChat(null)}
           className="md:hidden flex items-center justify-center cursor-pointer w-9 h-9 rounded-full hover:bg-gray-200 transition"
         >
-          <IoArrowBack size={20} />
+          <IoArrowBack size={20} color="gray-600"/>
         </button>
       )}
 

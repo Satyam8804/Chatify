@@ -240,7 +240,7 @@ const MessageInput = ({ chatId, onMessageSent }) => {
         <button
           onClick={sendMessage}
           disabled={!message.trim() && selectedFiles.length === 0}
-          className="w-9 h-9 rounded-full flex items-center justify-center bg-blue-600 text-white disabled:bg-gray-400"
+          className="w-9 h-9 rounded-full flex cursor-pointer items-center justify-center bg-blue-600 text-white disabled:bg-gray-400"
         >
           <IoSend size={18} />
         </button>
