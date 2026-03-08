@@ -1,8 +1,18 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://chatify-jux9.onrender.com/api",
-  withCredentials: true, // IMPORTANT for refresh token cookie
+  baseURL: import.meta.env.VITE_API_URL,
+  withCredentials: true,
 });
+
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401) {
+      console.log("User not authenticated");
+    }
+    return Promise.reject(err);
+  }
+);
 
 export default api;

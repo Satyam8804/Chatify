@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useMemo } from "react";
 
 import api from "../api/axios";
 
@@ -13,10 +13,12 @@ export const AuthProvider = ({ children }) => {
     const restoreSession = async () => {
       try {
         const res = await api.get("/users/me");
+
         setUser(res.data.user);
-        setAccessToken(res.data.accessToken);
+        setAccessToken(res.data.accessToken || null);
       } catch (error) {
         setUser(null);
+        setAccessToken(null);
       } finally {
         setLoading(false);
       }
@@ -43,16 +45,21 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const value = useMemo(
+    () => ({
+      user,
+      accessToken,
+      isAuthenticated: !!user,
+      login,
+      logout,
+      loading,
+    }),
+    [user, accessToken, loading]
+  );
+
   return (
     <AuthContext.Provider
-      value={{
-        user,
-        accessToken,
-        isAuthenticated: !!user,
-        login,
-        logout,
-        loading,
-      }}
+      value={value}
     >
       {children}
     </AuthContext.Provider>

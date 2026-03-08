@@ -113,6 +113,21 @@ const MessageInput = ({ chatId, onMessageSent }) => {
     }
   };
 
+  const handleTyping = (e) => {
+    setMessage(e.target.value);
+
+    socket.emit("typing", {
+      chatId,
+      user,
+    });
+
+    clearTimeout(window.typingTimeout);
+
+    window.typingTimeout = setTimeout(() => {
+      socket.emit("stop-typing", { chatId });
+    }, 1000);
+  };
+
   return (
     <div className="bg-[#ECE5DD] p-2 flex flex-col gap-2 ">
       {/* MEDIA PREVIEW */}
@@ -215,7 +230,7 @@ const MessageInput = ({ chatId, onMessageSent }) => {
         <input
           type="text"
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={handleTyping}
           placeholder="Type a message..."
           onKeyDown={handleKeyDown}
           className="flex-1 px-2 outline-none text-sm"
