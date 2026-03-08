@@ -16,7 +16,7 @@ export const SocketProvider = ({ children }) => {
   useEffect(() => {
     if (!accessToken) return;
 
-    const newSocket = io("http://localhost:5000", {
+    const newSocket = io("https://chatify-jux9.onrender.com", {
       auth: { token: accessToken },
       autoConnect: true,
       transports: ["websocket"],
