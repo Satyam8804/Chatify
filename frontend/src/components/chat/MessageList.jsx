@@ -168,12 +168,12 @@ const MediaRenderer = ({ media, uploading, setPreviewImage }) => {
   // IMAGE
   if (["png", "jpg", "jpeg", "gif", "webp"].includes(extension)) {
     return (
-      <div className="relative group">
+      <div className="relative group max-w-[70vw] sm:max-w-[300px]">
         <img
           src={url}
           alt="media"
           onClick={() => setPreviewImage(url)}
-          className="max-w-[300px] max-h-[300px] rounded-lg cursor-pointer hover:opacity-90"
+          className="w-full h-auto rounded-lg cursor-pointer hover:opacity-90 object-cover"
         />
 
         {uploading && (
@@ -188,8 +188,8 @@ const MediaRenderer = ({ media, uploading, setPreviewImage }) => {
   // VIDEO
   if (["mp4", "webm", "mov"].includes(extension)) {
     return (
-      <div className="relative">
-        <video controls className="max-w-[250px] max-h-[300px] rounded-lg cursor-pointer">
+      <div className="relative max-w-[70vw] sm:max-w-[300px]">
+        <video controls className="w-full rounded-lg cursor-pointer">
           <source src={url} />
         </video>
 
@@ -204,7 +204,11 @@ const MediaRenderer = ({ media, uploading, setPreviewImage }) => {
 
   // AUDIO
   if (["mp3", "wav", "ogg"].includes(extension)) {
-    return <AudioPlayer url={url} />;
+    return (
+      <div className="max-w-[70vw] sm:max-w-[300px]">
+        <AudioPlayer url={url} />
+      </div>
+    );
   }
 
   // DOCUMENT
@@ -213,11 +217,11 @@ const MediaRenderer = ({ media, uploading, setPreviewImage }) => {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="relative bg-gray-100 p-2 rounded-lg max-w-[250px] flex items-center gap-2 cursor-pointer hover:bg-gray-200"
+      className="relative bg-gray-100 p-2 rounded-lg max-w-[70vw] sm:max-w-[250px] flex items-center gap-2 cursor-pointer hover:bg-gray-200"
     >
-      <FaFilePdf color="red" size={24} />
+      <FaFilePdf color="red" size={22} />
 
-      <span className="text-sm truncate">{name}</span>
+      <span className="text-sm truncate break-all">{name}</span>
 
       {uploading && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/60 rounded-lg">

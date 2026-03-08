@@ -4,7 +4,7 @@ import { formatLastSeen } from "../../utils/formatMessageDate";
 import Avatar from "../common/Avatar";
 import { getAvatarColor } from "../../utils/getAvatarColor";
 import { getInitials } from "../../utils/getInitials";
-
+import { IoArrowBack } from "react-icons/io5";
 const ChatHeader = ({ chat, setSelectedChat }) => {
   const { user } = useAuth();
   const { onlineUser } = useSocket();
@@ -30,9 +30,9 @@ const ChatHeader = ({ chat, setSelectedChat }) => {
       {setSelectedChat && (
         <button
           onClick={() => setSelectedChat(null)}
-          className="md:hidden text-xl font-semibold cursor-pointer"
+          className="md:hidden flex items-center justify-center cursor-pointer w-9 h-9 rounded-full hover:bg-gray-200 transition"
         >
-          ←
+          <IoArrowBack size={20} />
         </button>
       )}
 
