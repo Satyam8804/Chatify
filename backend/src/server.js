@@ -25,6 +25,9 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
+app.get("/", (req, res) => {
+  res.send("Chatify API running");
+});
 app.use("/api/users", userRoute);
 app.use("/api/chats", chatRoutes);
 app.use("/api/messages", messageRoutes);
@@ -32,7 +35,11 @@ app.use("/api/messages", messageRoutes);
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  cors: {
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
 });
 
 // 🔥 SOCKET SETUP
