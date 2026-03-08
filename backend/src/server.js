@@ -14,8 +14,6 @@ import path from "path";
 
 const __dirname = path.resolve();
 
-
-
 dotenv.config();
 connectDB();
 
@@ -37,10 +35,12 @@ app.use("/api/users", userRoute);
 app.use("/api/chats", chatRoutes);
 app.use("/api/messages", messageRoutes);
 
-app.use(express.static(path.join(__dirname, "../frontend/dist")));
+// serve frontend
+app.use(express.static(path.join(__dirname, "../../frontend/dist")));
 
-app.get("/*", (req, res) => {
-  res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
+// catch-all for React routes
+app.use((req, res) => {
+  res.sendFile(path.join(__dirname, "../../frontend/dist/index.html"));
 });
 
 const server = http.createServer(app);
