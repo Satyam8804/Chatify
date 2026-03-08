@@ -8,6 +8,7 @@ export const uploadToCloudinary = (buffer, fileName, folder = "chat-media") => {
         resource_type: "auto",
         use_filename: true,
         unique_filename: true,
+        access_mode:"public"
       },
       (error, result) => {
         if (error) return reject(error);
