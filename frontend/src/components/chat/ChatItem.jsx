@@ -19,7 +19,8 @@ const ChatItem = ({ chat, isActive, onClick, onlineUser, unreadCounts }) => {
 
   const isOnline = onlineUser?.has(friend?._id?.toString());
   const unread = unreadCounts?.[chat._id] || 0;
-  const groupColor = getAvatarColor(chat?._id || chat?.chatName);
+  const media = chat?.lastMessage?.media?.[0]?.name || "";
+  const ext = media.split(".").pop()?.toLowerCase();
   return (
     <div
       onClick={onClick}
@@ -71,7 +72,13 @@ const ChatItem = ({ chat, isActive, onClick, onlineUser, unreadCounts }) => {
         </div>
 
         <p className="text-[12px] text-gray-500 truncate">
-          {chat?.lastMessage?.content || "No messages yet"}
+          {chat?.lastMessage?.content ||
+            (["png", "jpg", "jpeg", "webp", "gif"].includes(ext) &&
+              "📷 Photo") ||
+            (["mp4", "webm", "mov"].includes(ext) && "🎥 Video") ||
+            (["mp3", "wav"].includes(ext) && "🎵 Audio") ||
+            (media && "📄 Document") ||
+            "No messages yet"}
         </p>
       </div>
 
