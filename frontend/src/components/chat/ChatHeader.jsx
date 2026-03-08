@@ -25,7 +25,7 @@ const ChatHeader = ({ chat, setSelectedChat }) => {
   const isOnline = onlineUser?.has(friendObj?._id?.toString());
 
   return (
-    <div className="h-16 px-4 flex items-center gap-3 bg-white">
+    <div className="h-16 px-2 flex items-center gap-3 bg-white">
       {/* Mobile Back Button */}
       {setSelectedChat && (
         <button
