@@ -5,6 +5,7 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 import Chat from "./pages/Chat.jsx";
 import { Toaster } from "react-hot-toast";
 function App() {
+  
   return (
     <>
       {/* Global Toast */}

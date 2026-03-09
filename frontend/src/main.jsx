@@ -8,14 +8,20 @@ import { SocketProvider } from "./context/socketContext";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
+import { ThemeProvider } from "./context/themeContext";
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   //  <React.StrictMode>
   <BrowserRouter>
+  <ThemeProvider>
     <AuthProvider>
       <SocketProvider>
-        <App />
+        <div className="min-h-screen bg-gray-100 dark:bg-slate-900 transition-colors">
+  <App />
+</div>
       </SocketProvider>
     </AuthProvider>
-  </BrowserRouter>
+  </ThemeProvider>
+</BrowserRouter>
   // </React.StrictMode>
 );

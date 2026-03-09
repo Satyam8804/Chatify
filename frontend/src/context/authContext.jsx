@@ -16,7 +16,11 @@ export const AuthProvider = ({ children }) => {
         const res = await api.get("/users/me");
 
         setUser(res.data.user);
-        setAccessToken(res.data.accessToken || null);
+
+        if (res.data.accessToken) {
+          setAccessToken(res.data.accessToken);
+          localStorage.setItem("accessToken", res.data.accessToken);
+        }
       } catch (error) {
         logger(error.message);
         setUser(null);

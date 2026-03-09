@@ -53,7 +53,7 @@ const Profile = ({ user, onClose }) => {
 
       const res = await api.patch("/users/update-me", data);
       await refreshUser();
-      
+
       setFormData({
         ...res.data.user,
         avatarFile: null,
@@ -61,22 +61,23 @@ const Profile = ({ user, onClose }) => {
       setEditMode(false);
     } catch (error) {
       logger("Profile update error:", error);
-    }finally{
-        setLoading(false);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-xl w-[380px] p-6 relative">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+      {" "}
+      <div className="bg-white dark:bg-[#1e1e1e] text-gray-800 dark:text-gray-200 rounded-xl shadow-xl w-[380px] p-6 relative border border-gray-200 dark:border-gray-700">
+        {" "}
         {/* Close */}
         <button
           onClick={onClose}
-          className="absolute cursor-pointer right-3 top-3 text-gray-500 hover:text-black"
+          className="absolute h-8 w-8 flex justify-center items-center rotate-45 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer font-bold text-3xl right-3 top-3 text-gray-500 dark:text-gray-300 hover:text-black dark:hover:text-white"
         >
-          ✕
+          +
         </button>
-
         {/* Avatar */}
         <div className="flex flex-col items-center">
           <div className="relative group cursor-pointer w-[90px] h-[90px] rounded-full overflow-hidden">
@@ -102,7 +103,6 @@ const Profile = ({ user, onClose }) => {
             )}
           </div>
         </div>
-
         {/* Details */}
         <div className="mt-6 space-y-4">
           <Input
@@ -123,13 +123,12 @@ const Profile = ({ user, onClose }) => {
 
           <Input label="Email" name="email" value={formData.email} disabled />
         </div>
-
         {/* Buttons */}
         <div className="flex justify-end gap-3 mt-6">
           {!editMode ? (
             <button
               onClick={() => setEditMode(true)}
-              className="bg-blue-600 cursor-pointer text-white px-4 py-2 rounded-lg"
+              className="bg-blue-600 hover:bg-blue-500 cursor-pointer text-white px-4 py-2 rounded-lg"
             >
               Edit
             </button>
@@ -137,16 +136,16 @@ const Profile = ({ user, onClose }) => {
             <>
               <button
                 onClick={() => setEditMode(false)}
-                className="bg-gray-300 cursor-pointer px-4 py-2 rounded"
+                className="bg-gray-200 dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer px-4 py-2 rounded"
               >
                 Cancel
               </button>
 
               <button
                 onClick={handleSave}
-                className="w-20 rounded h-10 cursor-pointer border-none bg-green-700 text-white hover:bg-green-600 disabled relative"
+                className="w-20 rounded h-10 cursor-pointer border-none bg-green-700 text-white hover:bg-green-600 disabled:opacity-50 relative"
               >
-                {loading ?(
+                {loading ? (
                   <Loader className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2" />
                 ) : (
                   "Save"
@@ -162,14 +161,14 @@ const Profile = ({ user, onClose }) => {
 
 const Input = ({ label, name, value, onChange, disabled }) => (
   <div>
-    <label className="text-sm text-gray-600">{label}</label>
+    <label className="text-sm text-gray-600 dark:text-gray-400">{label}</label>
 
     <input
       name={name}
       value={value}
       onChange={onChange}
       disabled={disabled}
-      className="w-full border px-3 py-2 rounded-lg mt-1"
+      className="w-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#2a2a2a] text-gray-800 dark:text-gray-200 px-3 py-2 rounded-lg mt-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
     />
   </div>
 );

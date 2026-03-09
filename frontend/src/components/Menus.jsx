@@ -2,10 +2,11 @@ import { FiUser, FiMoon, FiLogOut } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/authContext";
 
-const Menus = ({ setShowProfile }) => {
+
+const Menus = ({ setShowProfile,setShowThemeModal }) => {
   const { logout } = useAuth();
   const navigate = useNavigate();
-
+  
   const handleLogout = async () => {
     await logout();
     navigate("/login");
@@ -20,8 +21,11 @@ const Menus = ({ setShowProfile }) => {
         Profile
       </button>
 
-      <button className=" text-sm flex items-center gap-3 w-full px-4 py-2 cursor-pointer hover:bg-gray-100">
-        <FiMoon size={18} />
+      <button
+        onClick={() => setShowThemeModal(true)}
+        className="flex text-sm cursor-pointer items-center gap-3 w-full px-4 py-2 hover:bg-gray-100"
+      >
+        <FiMoon/>
         Choose Theme
       </button>
 

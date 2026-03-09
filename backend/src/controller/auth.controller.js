@@ -2,6 +2,7 @@ import User from "../models/user.model.js";
 import bcrypt from "bcrypt";
 import getInitials from "../utils/getInitials.js";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
+import jwt from "jsonwebtoken";
 
 import {
   generateAccessToken,
@@ -115,28 +116,35 @@ export const loginUser = async (req, res) => {
 
 export const refreshAccessToken = async (req, res) => {
   try {
-    const refreshToken = req.cookie.refreshToken;
+    const refreshToken = req.cookies?.refreshToken;
 
     if (!refreshToken) {
-      return res
-        .status(401)
-        .json({ message: "Session Expired. Please login again." });
+      return res.status(401).json({ message: "Session expired" });
     }
 
-    const user = await User.findOne({ refreshToken });
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
 
-    if (!user) {
-      return res.status(401).json({ message: "Invalid User !" });
+    const user = await User.findById(decoded.id);
+
+    if (!user || user.refreshToken !== refreshToken) {
+      return res.status(403).json({ message: "Invalid refresh token" });
     }
 
-    jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET, (err, decoded) => {
-      if (err) return res.status(403).json({ message: "Session Expired." });
+    const newAccessToken = generateAccessToken(user._id);
 
-      const newAccessToken = generateAccessToken(user._id);
-      res.json({ accessToken: newAccessToken });
+    res.json({
+      accessToken: newAccessToken,
+      user: {
+        _id: user._id,
+        fName: user.fName,
+        lName: user.lName,
+        email: user.email,
+        avatar: user.avatar,
+      },
     });
   } catch (error) {
-    res.status(500).json({ message: "Server Error" });
+    console.log("Refresh error:", error);
+    return res.status(403).json({ message: "Invalid or expired session" });
   }
 };
 
@@ -150,8 +158,8 @@ export const logout = async (req, res) => {
 
     res.clearCookie("refreshToken", {
       httpOnly: true,
-      secure: true,
-      sameSite: "none",
+      secure: false,
+      sameSite: "strict",
     });
 
     res.json({ message: "Logged out successfully" });

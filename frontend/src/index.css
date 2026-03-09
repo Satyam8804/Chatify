@@ -1,5 +1,4 @@
 @import "tailwindcss";
-
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -8,11 +7,15 @@
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
+* {
+  transition: background-color 0.25s, color 0.25s;
+}
 
 .hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
 body {
   font-family: "Inter", system-ui, sans-serif;
 }
@@ -36,10 +39,18 @@ body {
   animation: itemFade 0.25s ease-out;
 }
 
-.menu-item:nth-child(1) { animation-delay: 0.05s }
-.menu-item:nth-child(2) { animation-delay: 0.08s }
-.menu-item:nth-child(3) { animation-delay: 0.11s }
-.menu-item:nth-child(4) { animation-delay: 0.14s }
+.menu-item:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.menu-item:nth-child(2) {
+  animation-delay: 0.08s;
+}
+.menu-item:nth-child(3) {
+  animation-delay: 0.11s;
+}
+.menu-item:nth-child(4) {
+  animation-delay: 0.14s;
+}
 
 @keyframes itemFade {
   from {
