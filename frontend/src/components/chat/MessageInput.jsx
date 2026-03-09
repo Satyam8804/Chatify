@@ -116,7 +116,6 @@ const MessageInput = ({ chatId, onMessageSent }) => {
 
   const handleTyping = (e) => {
     setMessage(e.target.value);
-
     socket.emit("typing", {
       chatId,
       user,

@@ -80,7 +80,7 @@ export const SocketProvider = ({ children }) => {
     return () => {
       newSocket.disconnect();
     };
-  }, [accessToken]);
+  }, [accessToken, activeChatId]);
 
   return (
     <SocketContext.Provider
