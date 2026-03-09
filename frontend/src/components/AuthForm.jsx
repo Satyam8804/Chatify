@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import AvatarUpload from "./uploadAvatar";
+import Loader from "../utils/Loader";
 
-const AuthForm = ({ mode = "login", onSubmit, loading }) => {
+const AuthForm = ({ mode = "login", onSubmit, loading, setLoading }) => {
   const isLogin = mode === "login";
   const [step, setStep] = useState(1);
 
@@ -30,26 +31,25 @@ const AuthForm = ({ mode = "login", onSubmit, loading }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if(mode === "register"){
-        const formDataToSend = new FormData();
+    if (mode === "register") {
+      const formDataToSend = new FormData();
 
-        formDataToSend.append("email",formData.email);
-        formDataToSend.append("password",formData.password);
-        formDataToSend.append("fName",formData.fName);
-        formDataToSend.append("lName",formData.lName);
-        
-        if(formData.avatar){
-            formDataToSend.append("avatar",formData.avatar);
-        }
+      formDataToSend.append("email", formData.email);
+      formDataToSend.append("password", formData.password);
+      formDataToSend.append("fName", formData.fName);
+      formDataToSend.append("lName", formData.lName);
 
-        onSubmit(formDataToSend);
-    }else{
-        onSubmit({
-            email:formData.email,
-            password:formData.password,
-        });
+      if (formData.avatar) {
+        formDataToSend.append("avatar", formData.avatar);
+      }
+
+      onSubmit(formDataToSend);
+    } else {
+      onSubmit({
+        email: formData.email,
+        password: formData.password,
+      });
     }
-
   };
 
   return (
@@ -106,7 +106,7 @@ const AuthForm = ({ mode = "login", onSubmit, loading }) => {
           <div className="flex gap-4 p-4 justify-center">
             <AvatarUpload onChange={handleChange} />
             <div className="flex gap-3 flex-col">
-              <Input label="First Name" name="fName" onChange={handleChange}/>
+              <Input label="First Name" name="fName" onChange={handleChange} />
               <Input label="Last Name" name="lName" onChange={handleChange} />
             </div>
           </div>
@@ -145,7 +145,7 @@ const Input = ({ label, name, type = "text", onChange }) => (
     <input
       type={type}
       name={name}
-      onChange={(e)=>onChange(e)}
+      onChange={(e) => onChange(e)}
       required
       className="w-full px-4 py-2 border-2 border-gray-500 rounded-lg "
     />
@@ -157,7 +157,7 @@ const SubmitButton = ({ loading, text }) => (
     disabled={loading}
     className="w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-600 cursor-pointer disabled:opacity-60"
   >
-    {loading ? "Please wait..." : text}
+    {loading ? <Loader /> : text}
   </button>
 );
 
