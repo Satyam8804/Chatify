@@ -10,6 +10,7 @@ import { MdMoreVert } from "react-icons/md";
 import Menus from "../Menus";
 import Loader from "../../utils/Loader";
 import Profile from "../profile/Profile";
+import ChatifyLogo from "../assets/logo.svg";
 
 const Sidebar = ({ selectedChat, setSelectedChat }) => {
   const { loading, user } = useAuth();
@@ -20,7 +21,7 @@ const Sidebar = ({ selectedChat, setSelectedChat }) => {
   const [showMenus, setShowMenus] = useState(false);
   const menuRef = useRef(null);
   const [showProfile, setShowProfile] = useState(false);
-  
+
   const fetchAllChats = async () => {
     try {
       const res = await api.get("/chats");
@@ -94,9 +95,7 @@ const Sidebar = ({ selectedChat, setSelectedChat }) => {
     <div className="relative h-full flex flex-col bg-white border-r border-gray-200">
       {/* Header */}
       <div className="flex justify-between px-5 py-4 border-b border-gray-200">
-        <h2 className="text-xl font-bold text-gray-800 tracking-tight">
-          Chatify
-        </h2>
+        <img src={ChatifyLogo} alt="Chatify" />
         <div className="cursor-pointer w-8 h-8 flex justify-center text-gray-500 hover:text-gray-700">
           <MdMoreVert size={22} onClick={() => setShowMenus(!showMenus)} />
         </div>
@@ -150,7 +149,9 @@ const Sidebar = ({ selectedChat, setSelectedChat }) => {
         </div>
       )}
 
-      {showProfile && <Profile onClose={() => setShowProfile(false)} user ={user} />}
+      {showProfile && (
+        <Profile onClose={() => setShowProfile(false)} user={user} />
+      )}
     </div>
   );
 };
