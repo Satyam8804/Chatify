@@ -2,7 +2,7 @@ import AuthForm from "../components/AuthForm";
 import AuthPage from "./AuthPage";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/authContext";
-
+import { logger } from "../utils/logger";
 const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -11,7 +11,7 @@ const Login = () => {
       await login(data);
       navigate("/chat");
     } catch (error) {
-      console.log(error.message);
+      logger(error.message);
     }
   };
 

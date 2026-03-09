@@ -8,7 +8,6 @@ export default function messageSocket(io, socket) {
 
     if (!chatId) return;
 
-    console.log("📩 new-message received");
     console.log("ChatId:", chatId);
 
     // emit to active chat room
@@ -19,7 +18,6 @@ export default function messageSocket(io, socket) {
       const receiverId = userId.toString();
 
       if (receiverId !== socket.userId.toString()) {
-        console.log("🔔 Emitting notification to:", receiverId);
 
         io.to(receiverId).emit("message-notification", {
           chatId,

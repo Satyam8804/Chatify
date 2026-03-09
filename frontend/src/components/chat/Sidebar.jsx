@@ -5,6 +5,7 @@ import { useSocket } from "../../context/socketContext";
 import { useAuth } from "../../context/authContext";
 import NewDirectChatModal from "./NewDirectChatModal";
 import NewGroupChatModal from "./NewGroupChatModal";
+import { logger } from "../../utils/logger";
 
 const Sidebar = ({ selectedChat, setSelectedChat }) => {
   const { loading, user } = useAuth();
@@ -18,7 +19,7 @@ const Sidebar = ({ selectedChat, setSelectedChat }) => {
       const res = await api.get("/chats");
       setChats(res?.data || []);
     } catch (error) {
-      console.log(error.message);
+      logger(error.message);
     }
   };
   const updateChatLatestMessage = (newMessage) => {

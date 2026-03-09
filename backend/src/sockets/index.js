@@ -11,7 +11,6 @@ export default function setupSocket(io) {
   authSocket(io);
 
   io.on("connection", (socket) => {
-    console.log("🟢 Socket connected:", socket.userId);
 
     presenceSocket(io, socket);
     chatSocket(io, socket);

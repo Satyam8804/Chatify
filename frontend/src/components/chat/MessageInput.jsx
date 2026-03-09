@@ -3,6 +3,7 @@ import api from "../../api/axios";
 import { useSocket } from "../../context/socketContext";
 import { IoSend } from "react-icons/io5";
 import { useAuth } from "../../context/authContext";
+import { logger } from "../../utils/logger";
 
 const MessageInput = ({ chatId, onMessageSent }) => {
   const [message, setMessage] = useState("");
@@ -72,14 +73,14 @@ const MessageInput = ({ chatId, onMessageSent }) => {
             replaceId: tempId,
           });
         } catch (err) {
-          console.log(err);
+          logger(err);
         }
       }
 
       setSelectedFiles([]);
       setMessage("");
     } catch (err) {
-      console.log(err);
+      logger(err.message);
     }
   };
 

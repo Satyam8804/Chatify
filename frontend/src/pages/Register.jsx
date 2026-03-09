@@ -2,7 +2,7 @@ import AuthForm from "../components/AuthForm";
 import AuthPage from "./AuthPage";
 import api from "../api/axios";
 import { useNavigate } from "react-router-dom";
-
+import { logger } from "../utils/logger";
 const Register = () => {
   const navigate = useNavigate();
   const handleRegister = async (data) => {
@@ -12,10 +12,10 @@ const Register = () => {
           "Content-Type": "multipart/form-data",
         },
       });
-
+  
       navigate("/login");
     } catch (error) {
-      console.log(error.message);
+      logger(error.message);
     }
   };
 

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import { useAuth } from "./authContext";
-
+import { logger } from "../utils/logger";
 const SocketContext = createContext(null);
 
 export const SocketProvider = ({ children }) => {
@@ -25,11 +25,11 @@ export const SocketProvider = ({ children }) => {
     setSocket(newSocket);
 
     newSocket.on("connect", () => {
-      console.log("🟢 Socket connected:", newSocket.id);
+      logger("🟢 Socket connected:", newSocket.id);
     });
 
     newSocket.on("connect_error", (err) => {
-      console.log("❌ Socket connect error:", err.message);
+      logger("❌ Socket connect error:", err.message);
     });
 
     newSocket.on("online-users", (users) => {
@@ -80,7 +80,7 @@ export const SocketProvider = ({ children }) => {
     return () => {
       newSocket.disconnect();
     };
-  }, [accessToken, activeChatId]);
+  }, [accessToken]);
 
   return (
     <SocketContext.Provider

@@ -1,4 +1,5 @@
 import axios from "axios";
+import toast from "react-hot-toast";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
@@ -6,12 +7,29 @@ const api = axios.create({
 });
 
 api.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    if (err.response?.status === 401) {
-      console.log("User not authenticated");
+  (response) => {
+    const method = response.config.method;
+    const url = response.config.url;
+
+    if (
+      ["post", "put", "patch", "delete"].includes(method) &&
+      !url.includes("/messages") // skip chat messages
+    ) {
+      const message =
+        response?.data?.message || "Action completed successfully";
+
+      toast.success(message);
     }
-    return Promise.reject(err);
+
+    return response;
+  },
+  (error) => {
+    const message =
+      error?.response?.data?.message || "Something went wrong";
+
+    toast.error(message);
+
+    return Promise.reject(error);
   }
 );
 

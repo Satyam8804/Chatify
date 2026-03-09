@@ -1,6 +1,7 @@
 import { useState } from "react";
 import api from "../../api/axios";
 import Avatar from "../common/Avatar";
+import { logger } from "../../utils/logger";
 
 const NewGroupChatModal = ({ onClose, setSelectedChat }) => {
   const [groupName, setGroupName] = useState("");
@@ -20,7 +21,7 @@ const NewGroupChatModal = ({ onClose, setSelectedChat }) => {
       const res = await api.get(`/users/search?q=${value}`);
       setUsers(res.data);
     } catch (err) {
-      console.log(err);
+      logger(err.message);
     }
   };
 
@@ -46,7 +47,7 @@ const NewGroupChatModal = ({ onClose, setSelectedChat }) => {
       setSelectedChat(res.data);
       onClose();
     } catch (err) {
-      console.log(err);
+      logger(err.message);
     }
   };
   const removeUser = (userId) => {

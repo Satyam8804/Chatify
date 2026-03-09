@@ -5,6 +5,7 @@ import { useSocket } from "../../context/socketContext";
 import ChatHeader from "./ChatHeader";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
+import { logger } from "../../utils/logger";
 
 const ChatWindow = ({ chat, setSelectedChat }) => {
   const [messages, setMessages] = useState([]);
@@ -16,7 +17,7 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
       const res = await api.get(`/messages/${chat._id}`);
       setMessages(res.data);
     } catch (error) {
-      console.log("Fetch messages error:", error);
+      logger("Fetch messages error:", error);
     }
   };
 

@@ -4,7 +4,6 @@ import User from "../models/user.model.js";
 export default function authSocket(io) {
   io.use(async (socket, next) => {
     try {
-      console.log("Handshake auth 👉", socket.handshake.auth);
 
       const token = socket.handshake.auth?.token;
 
@@ -28,7 +27,6 @@ export default function authSocket(io) {
       socket.userId = user._id;
       socket.user = user;
 
-      console.log("✅ Socket authenticated:", socket.userId);
 
       next();
     } catch (error) {
