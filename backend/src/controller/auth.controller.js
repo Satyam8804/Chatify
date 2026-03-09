@@ -11,7 +11,7 @@ import {
 export const registerUser = async (req, res) => {
   try {
     const { fName, lName, email, password } = req.body;
-    
+
     if (!fName || !lName || !email || !password) {
       return res.status(400).json({
         message: "All required fields must be provided",
@@ -27,12 +27,10 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    
     const hashedPwd = await bcrypt.hash(password, 10);
 
     let avatarUrl = "";
 
-    
     if (req.file) {
       const result = await uploadToCloudinary(req.file.buffer, "avatars");
       avatarUrl = result.secure_url;
@@ -78,12 +76,12 @@ export const loginUser = async (req, res) => {
     const user = await User.findOne({ email }).select("+password");
 
     if (!user) {
-      return res.status(401).json({ message: "Invalid Credentials !" });
+      return res.status(401).json({ message: "Invalid email or password" });
     }
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.status(401).json({ massage: "Invalid Credentials" });
+      return res.status(401).json({ message: "Invalid email or password" });
     }
 
     const accessToken = generateAccessToken(user._id);
@@ -108,7 +106,7 @@ export const loginUser = async (req, res) => {
         lName: user.lName,
         email: user.email,
       },
-      message:"Logged in successfully"
+      message: "Logged in successfully",
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -163,9 +161,7 @@ export const logout = async (req, res) => {
 };
 
 export const meRoute = async (req, res) => {
-
   try {
-
     const user = req.user;
     // 🔥 generate fresh access token
     const accessToken = generateAccessToken(user._id);
@@ -177,15 +173,12 @@ export const meRoute = async (req, res) => {
         email: user.email,
         avatar: user.avatar,
       },
-      accessToken,   // ✅ IMPORTANT
+      accessToken, // ✅ IMPORTANT
     });
-
   } catch (error) {
-
     res.status(500).json({
       message: "Server error",
     });
-
   }
 };
 
@@ -201,10 +194,7 @@ export const updateMe = async (req, res) => {
 
     // Update avatar if provided
     if (req.file) {
-      const result = await uploadToCloudinary(
-        req.file.buffer,
-        "avatars"
-      );
+      const result = await uploadToCloudinary(req.file.buffer, "avatars");
       updates.avatar = result.secure_url;
     }
 
@@ -215,11 +205,9 @@ export const updateMe = async (req, res) => {
       });
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      req.user._id,
-      updates,
-      { new: true }
-    );
+    const updatedUser = await User.findByIdAndUpdate(req.user._id, updates, {
+      new: true,
+    });
 
     res.json({
       message: "Profile updated successfully",
@@ -239,7 +227,6 @@ export const updateMe = async (req, res) => {
   }
 };
 
-
 export const searchUsers = async (req, res) => {
   const keyword = req.query.q;
 
@@ -254,4 +241,3 @@ export const searchUsers = async (req, res) => {
 
   res.json(users);
 };
-
