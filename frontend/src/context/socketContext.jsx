@@ -74,7 +74,7 @@ export const SocketProvider = ({ children }) => {
     });
 
     newSocket.on("message-seen", ({ chatId, userId }) => {
-      console.log("Message seen:", chatId, userId);
+      logger("Message seen:", chatId, userId);
     });
 
     return () => {
