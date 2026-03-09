@@ -18,6 +18,7 @@ export const AuthProvider = ({ children }) => {
         setUser(res.data.user);
         setAccessToken(res.data.accessToken || null);
       } catch (error) {
+        logger(error.message)
         setUser(null);
         setAccessToken(null);
       } finally {
@@ -31,6 +32,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     const res = await api.post("/users/login-user", credentials);
     setAccessToken(res.data.accessToken);
+    localStorage.setItem("accessToken", res.data.accessToken);
     setUser(res.data.user);
   };
 
@@ -42,6 +44,15 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setUser(null);
       setAccessToken(null);
+      localStorage.removeItem("accessToken");
+    }
+  };
+  const refreshUser = async () => {
+    try {
+      const res = await api.get("/users/me");
+      setUser(res.data.user);
+    } catch (error) {
+      logger(error);
     }
   };
 
@@ -53,17 +64,12 @@ export const AuthProvider = ({ children }) => {
       login,
       logout,
       loading,
+      refreshUser,
     }),
     [user, accessToken, loading]
   );
 
-  return (
-    <AuthContext.Provider
-      value={value}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => useContext(AuthContext);

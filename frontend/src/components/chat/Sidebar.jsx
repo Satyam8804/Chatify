@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import api from "../../api/axios";
 import ChatSection from "./ChatSection";
 import { useSocket } from "../../context/socketContext";
@@ -6,6 +6,10 @@ import { useAuth } from "../../context/authContext";
 import NewDirectChatModal from "./NewDirectChatModal";
 import NewGroupChatModal from "./NewGroupChatModal";
 import { logger } from "../../utils/logger";
+import { MdMoreVert } from "react-icons/md";
+import Menus from "../Menus";
+import Loader from "../../utils/Loader";
+import Profile from "../profile/Profile";
 
 const Sidebar = ({ selectedChat, setSelectedChat }) => {
   const { loading, user } = useAuth();
@@ -13,7 +17,10 @@ const Sidebar = ({ selectedChat, setSelectedChat }) => {
   const [showDirectModal, setShowDirectModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [chats, setChats] = useState([]);
-
+  const [showMenus, setShowMenus] = useState(false);
+  const menuRef = useRef(null);
+  const [showProfile, setShowProfile] = useState(false);
+  
   const fetchAllChats = async () => {
     try {
       const res = await api.get("/chats");
@@ -64,20 +71,35 @@ const Sidebar = ({ selectedChat, setSelectedChat }) => {
       socket.off("message-received", handleMessage);
     };
   }, [socket]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setShowMenus(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   if (loading) {
-    return <div className="p-4 text-gray-500 text-sm">Loading chats...</div>;
+    return <Loader />;
   }
 
   const directChats = chats.filter((chat) => !chat.isGroupChat);
   const groupChats = chats.filter((chat) => chat.isGroupChat);
 
   return (
-    <div className="h-full flex flex-col bg-white border-r border-gray-200">
+    <div className="relative h-full flex flex-col bg-white border-r border-gray-200">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-gray-200">
+      <div className="flex justify-between px-5 py-4 border-b border-gray-200">
         <h2 className="text-xl font-bold text-gray-800 tracking-tight">
           Chatify
         </h2>
+        <div className="cursor-pointer w-8 h-8 flex justify-center text-gray-500 hover:text-gray-700">
+          <MdMoreVert size={22} onClick={() => setShowMenus(!showMenus)} />
+        </div>
       </div>
 
       {/* Chat List */}
@@ -122,6 +144,13 @@ const Sidebar = ({ selectedChat, setSelectedChat }) => {
           />
         )}
       </div>
+      {showMenus && (
+        <div className="" ref={menuRef}>
+          <Menus setShowProfile={setShowProfile} />
+        </div>
+      )}
+
+      {showProfile && <Profile onClose={() => setShowProfile(false)} user ={user} />}
     </div>
   );
 };

@@ -95,7 +95,7 @@ export const loginUser = async (req, res) => {
       httpOnly: true,
       secure: true,
       sameSite: "none",
-      maxAge: 7 * 24 * 20 * 60 * 1000,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.json({
@@ -212,7 +212,7 @@ export const updateMe = async (req, res) => {
     res.json({
       message: "Profile updated successfully",
       user: {
-        id: updatedUser._id,
+        _id: updatedUser._id,
         fName: updatedUser.fName,
         lName: updatedUser.lName,
         email: updatedUser.email,

@@ -13,7 +13,7 @@ api.interceptors.response.use(
 
     if (
       ["post", "put", "patch", "delete"].includes(method) &&
-      !url.includes("/messages") // skip chat messages
+      !url.includes("/messages")
     ) {
       const message =
         response?.data?.message || "Action completed successfully";
@@ -24,13 +24,22 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    const message =
-      error?.response?.data?.message || "Something went wrong";
+    const message = error?.response?.data?.message || "Something went wrong";
 
     toast.error(message);
 
     return Promise.reject(error);
   }
 );
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("accessToken");
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  return config;
+});
 
 export default api;
