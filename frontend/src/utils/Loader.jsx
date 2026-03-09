@@ -23,7 +23,7 @@ const SpinnerBlade = styled.div`
 `;
 
 const Spinner = styled.div`
-  font-size: 28px;
+  font-size: 18px;
   position: relative;
   display: inline-block;
   width: 1em;

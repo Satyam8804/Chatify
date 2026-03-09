@@ -155,9 +155,10 @@ const Input = ({ label, name, type = "text", onChange }) => (
 const SubmitButton = ({ loading, text }) => (
   <button
     disabled={loading}
-    className="w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-600 cursor-pointer disabled:opacity-60"
+    className="w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-600 disabled:opacity-60 flex items-center justify-center gap-2"
   >
-    {loading ? <Loader /> : text}
+    {loading && <Loader />}
+    {loading ? "Please wait..." : text}
   </button>
 );
 
