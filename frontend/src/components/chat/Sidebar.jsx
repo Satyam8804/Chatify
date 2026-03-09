@@ -95,7 +95,7 @@ const Sidebar = ({ selectedChat, setSelectedChat }) => {
     <div className="relative h-full flex flex-col bg-white border-r border-gray-200">
       {/* Header */}
       <div className="flex justify-between px-5 py-4 border-b border-gray-200">
-        <img src={ChatifyLogo} alt="Chatify" />
+        <img src={ChatifyLogo} alt="Chatify" className="h-8" />
         <div className="cursor-pointer w-8 h-8 flex justify-center text-gray-500 hover:text-gray-700">
           <MdMoreVert size={22} onClick={() => setShowMenus(!showMenus)} />
         </div>
