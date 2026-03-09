@@ -158,7 +158,7 @@ const SubmitButton = ({ loading, text }) => (
     className="w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-600 disabled:opacity-60 flex items-center justify-center gap-2"
   >
     {loading && <Loader className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2" />}
-    {loading ? "Please wait..." : text}
+    {!loading && text}
   </button>
 );
 

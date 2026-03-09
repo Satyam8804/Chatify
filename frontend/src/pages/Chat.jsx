@@ -18,7 +18,7 @@ const Chat = () => {
     <div className="h-screen flex">
       <button
         onClick={handleLogout}
-        className="absolute top-4 right-4 text-sm text-red-500"
+        className="absolute top-4 cursor-pointer font-semibold right-4 text-sm text-red-500"
       >
         Logout
       </button>
