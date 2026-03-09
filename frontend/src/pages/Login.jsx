@@ -14,7 +14,7 @@ const Login = () => {
     try {
       setLoading(true)
       await login(data);
-      navigate("/chat");
+      navigate("/chat",{replace:true});
     } catch (error) {
       logger(error.message);
     }finally{

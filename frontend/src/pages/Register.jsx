@@ -7,11 +7,11 @@ import { useState } from "react";
 
 const Register = () => {
   const navigate = useNavigate();
-    const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleRegister = async (data) => {
     try {
-      setLoading(true)
+      setLoading(true);
       await api.post("/users/register-user", data, {
         headers: {
           "Content-Type": "multipart/form-data",
@@ -20,15 +20,15 @@ const Register = () => {
       navigate("/login");
     } catch (error) {
       logger(error.message);
-    }finally{
-      setLoading(false)
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <AuthPage>
       <div className="min-h-screen w-full flex items-center justify-center bg-gray-100">
-        <AuthForm mode="register" onSubmit={handleRegister} loading={loading}  />
+        <AuthForm mode="register" onSubmit={handleRegister} loading={loading} />
       </div>
     </AuthPage>
   );

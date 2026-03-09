@@ -18,7 +18,7 @@ export const AuthProvider = ({ children }) => {
         setUser(res.data.user);
         setAccessToken(res.data.accessToken || null);
       } catch (error) {
-        logger(error.message)
+        logger(error.message);
         setUser(null);
         setAccessToken(null);
       } finally {
@@ -39,12 +39,12 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       await api.post("/users/logout");
+      localStorage.removeItem("accessToken");
     } catch (error) {
       logger("Logout error", error);
     } finally {
       setUser(null);
       setAccessToken(null);
-      localStorage.removeItem("accessToken");
     }
   };
   const refreshUser = async () => {
