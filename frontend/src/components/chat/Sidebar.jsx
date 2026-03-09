@@ -10,7 +10,7 @@ import { MdMoreVert } from "react-icons/md";
 import Menus from "../Menus";
 import Loader from "../../utils/Loader";
 import Profile from "../profile/Profile";
-import ChatifyLogo from "../assets/logo.svg";
+import ChatifyLogo from "../../assets/logo.svg";
 
 const Sidebar = ({ selectedChat, setSelectedChat }) => {
   const { loading, user } = useAuth();
