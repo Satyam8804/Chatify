@@ -155,9 +155,11 @@ const Input = ({ label, name, type = "text", onChange }) => (
 const SubmitButton = ({ loading, text }) => (
   <button
     disabled={loading}
-    className="w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-600 disabled:opacity-60 flex items-center justify-center gap-2"
+    className="w-full h-10 cursor-pointer border-none bg-green-700 text-white hover:bg-green-600 disabled relative"
   >
-    {loading && <Loader className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2" />}
+    {loading && (
+      <Loader className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+    )}
     {!loading && text}
   </button>
 );

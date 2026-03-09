@@ -2,7 +2,7 @@ import styled, { keyframes } from 'styled-components';
 
 const spinAnimation = keyframes`
   0% {
-    background-color: #69717d;
+    background-color: #ffffff;
   }
 
   100% {
