@@ -197,9 +197,17 @@ http://localhost:5000
 Add screenshots of:
 
 * Chat interface
+  <img width="600" height="400" alt="image" src="https://github.com/user-attachments/assets/3251e8c5-f113-4a07-8886-de3ff9959bbb" />
+  <img width="600" height="400" alt="image" src="https://github.com/user-attachments/assets/98ef35e2-8921-4d30-b798-5501443454e4" />
+
 * Login page
+  <img width="600" height="400" alt="image" src="https://github.com/user-attachments/assets/59cdb38b-a79d-4eb8-8028-30787e3fd00f" />
+
 * Profile modal
+  <img width="600" height="400" alt="image" src="https://github.com/user-attachments/assets/d08d147d-084b-4201-9c85-617dbf3d59a7" />
+
 * Group chat
+<img width="600" height="400" alt="image" src="https://github.com/user-attachments/assets/70d48c2d-0eea-4261-93b6-94d31675f196" />
 
 ---
 
