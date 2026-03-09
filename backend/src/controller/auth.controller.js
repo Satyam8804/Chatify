@@ -108,7 +108,7 @@ export const loginUser = async (req, res) => {
         lName: user.lName,
         email: user.email,
       },
-      message:"LoggedIn Successfully"
+      message:"Logged in successfully"
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -156,9 +156,9 @@ export const logout = async (req, res) => {
       sameSite: "strict",
     });
 
-    res.json({ message: "Logged out successfully !" });
+    res.json({ message: "Logged out successfully" });
   } catch (error) {
-    res.status(500).json({ message: "Logout failed !" });
+    res.status(500).json({ message: "Logout failed" });
   }
 };
 
