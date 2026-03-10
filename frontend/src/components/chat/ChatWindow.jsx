@@ -46,6 +46,7 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
 
     const handleReceiveMessage = (message) => {
       setMessages((prev) => [...prev, message]);
+      socket.emit("message-seen", { chatId: chat._id });
     };
 
     // ✅ Correct - update all messages in the chat
