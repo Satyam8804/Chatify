@@ -4,6 +4,7 @@ import { useSocket } from "../../context/socketContext";
 import { Send, Plus, X } from "lucide-react";
 import { useAuth } from "../../context/authContext";
 import { logger } from "../../utils/logger";
+const sentSound = new Audio("/sounds/sent.mp3");
 
 const MessageInput = ({ chatId, onMessageSent }) => {
   const [message, setMessage] = useState("");
@@ -29,6 +30,7 @@ const MessageInput = ({ chatId, onMessageSent }) => {
         const newMessage = res.data;
         onMessageSent(newMessage);
         socket.emit("new-message", newMessage);
+        new Audio("/sounds/sent.mp3").play();
       }
 
       // MEDIA MESSAGES

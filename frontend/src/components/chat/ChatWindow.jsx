@@ -6,6 +6,7 @@ import ChatHeader from "./ChatHeader";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import { logger } from "../../utils/logger";
+const sentSound = new Audio("/sounds/sent.mp3");
 
 const ChatWindow = ({ chat, setSelectedChat }) => {
   const [messages, setMessages] = useState([]);
@@ -52,6 +53,7 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
     // ✅ Correct - update all messages in the chat
     const handleSeen = ({ chatId, userId }) => {
       if (chatId.toString() !== chat._id.toString()) return;
+      new Audio("/sounds/sent.mp3").play();
       setMessages((prev) =>
         prev.map((msg) => ({
           ...msg,
