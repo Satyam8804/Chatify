@@ -92,3 +92,77 @@ export const createGroupChat = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const addToGroup = async (req, res) => {
+  try {
+    const { chatId, userId } = req.body;
+
+    if (!chatId || !userId) {
+      return res
+        .status(400)
+        .json({ message: "chatId and userId are required" });
+    }
+
+    const chat = await Chat.findById(chatId);
+
+    if (!chat) return res.status(404).json({ message: "Chat not found" });
+
+    if (chat.groupAdmin.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Only admin can add members" });
+    }
+
+    if (chat.users.includes(userId)) {
+      return res.status(400).json({ message: "User already in group" });
+    }
+
+    const updated = await Chat.findByIdAndUpdate(
+      chatId,
+      { $push: { users: userId } },
+      { new: true }
+    )
+      .populate("users", "-password")
+      .populate("groupAdmin", "-password");
+
+    res.json({ updated, message: "User added to the group" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const removeFromGroup = async (req, res) => {
+  try {
+    const { chatId, userId } = req.body;
+
+    if (!chatId || !userId) {
+      return res
+        .status(400)
+        .json({ message: "chatId and userId are required" });
+    }
+
+    const chat = await Chat.findById(chatId);
+
+    if (!chat) return res.status(404).json({ message: "Chat not found" });
+
+    if (chat.groupAdmin.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Only admin can remove members" });
+    }
+
+    if (chat.groupAdmin.toString() === userId) {
+      return res
+        .status(400)
+        .json({ message: "Cannot remove admin from group" });
+    }
+
+    const updated = await Chat.findByIdAndUpdate(
+      chatId,
+      { $pull: { users: userId } },
+      { new: true }
+    )
+      .populate("users", "-password")
+      .populate("groupAdmin", "-password");
+
+    res.json({ updated, message: `User Removed from the group` });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

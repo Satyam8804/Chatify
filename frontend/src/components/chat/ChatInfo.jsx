@@ -1,0 +1,292 @@
+import { useState } from "react";
+import { X, UserPlus, UserMinus, Crown } from "lucide-react";
+import Avatar from "../common/Avatar";
+import { formatLastSeen } from "../../utils/formatMessageDate";
+import { useSocket } from "../../context/socketContext";
+import { useAuth } from "../../context/authContext";
+import api from "../../api/axios";
+import { logger } from "../../utils/logger";
+import { Plus ,UserSearch } from 'lucide-react';
+const ChatInfo = ({
+  chat,
+  friend,
+  isGroup,
+  isOnline,
+  onClose,
+  setSelectedChat,
+}) => {
+  const { onlineUser } = useSocket();
+  const { user } = useAuth();
+  const [groupChat, setGroupChat] = useState(chat);
+  const [showAddInput, setShowAddInput] = useState(false);
+  const [searchEmail, setSearchEmail] = useState("");
+  const [searchResult, setSearchResult] = useState(null);
+  const [searching, setSearching] = useState(false);
+
+  const isAdmin =
+    groupChat?.groupAdmin?._id === user?._id ||
+    groupChat?.groupAdmin === user?._id;
+
+  const handleStartChat = async (member) => {
+    if (member._id === user._id) return;
+    try {
+      const res = await api.post("/chats", { userId: member._id });
+      setSelectedChat(res.data);
+      onClose();
+    } catch (error) {
+      logger(error);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchEmail.trim()) return;
+    try {
+      setSearching(true);
+      const res = await api.get(`/users/search?query=${searchEmail}`);
+      // filter out already existing members
+      const filtered = res.data.users?.filter(
+        (u) => !groupChat.users.find((m) => m._id === u._id)
+      );
+      setSearchResult(filtered || []);
+    } catch (error) {
+      logger(error);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleAdd = async (userId) => {
+    try {
+      const res = await api.patch("/chats/group/add", {
+        chatId: groupChat._id,
+        userId,
+      });
+      setGroupChat(res.data?.updated);
+      setSearchResult(null);
+      setSearchEmail("");
+      setShowAddInput(false);
+    } catch (error) {
+      logger(error);
+    }
+  };
+
+  const handleRemove = async (userId) => {
+    try {
+      const res = await api.patch("/chats/group/remove", {
+        chatId: groupChat._id,
+        userId,
+      });
+      setGroupChat(res.data?.updated);
+    } catch (error) {
+      logger(error);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm">
+      <div className="w-full max-w-sm h-full bg-white dark:bg-slate-900 shadow-2xl flex flex-col animate-menu overflow-y-auto">
+        {/* Top accent bar */}
+        <div className="h-1 w-full bg-gradient-to-r from-emerald-400 to-teal-500" />
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+            {isGroup ? "Group Info" : "Contact Info"}
+          </h2>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 cursor-pointer flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 dark:text-slate-400 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Avatar + Name */}
+        <div className="flex flex-col items-center py-8 gap-3 bg-gradient-to-b from-emerald-500/5 to-transparent">
+          {isGroup ? (
+            <Avatar isGroup users={groupChat?.users} size={96} />
+          ) : (
+            <Avatar user={friend} isOnline={isOnline} size={96} />
+          )}
+
+          <div className="text-center">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+              {isGroup
+                ? groupChat?.chatName
+                : `${friend?.fName || ""} ${friend?.lName || ""}`}
+            </h3>
+
+            {!isGroup && (
+              <p
+                className={`text-sm mt-0.5 ${
+                  isOnline
+                    ? "text-emerald-500"
+                    : "text-gray-400 dark:text-slate-500"
+                }`}
+              >
+                {isOnline
+                  ? "● Online"
+                  : friend?.lastSeen
+                  ? `Last seen ${formatLastSeen(friend.lastSeen)}`
+                  : "Offline"}
+              </p>
+            )}
+
+            {isGroup && (
+              <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5">
+                {groupChat?.users?.length} members
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Email (Direct) */}
+        {!isGroup && friend?.email && (
+          <div className="px-5 py-4 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide mb-1">
+              Email
+            </p>
+            <p className="text-sm text-gray-800 dark:text-slate-200">
+              {friend.email}
+            </p>
+          </div>
+        )}
+
+        {/* Members (Group) */}
+        {isGroup && (
+          <div className="px-5 py-4 border-t border-gray-100 dark:border-slate-700 flex-1">
+            {/* Members header + add button */}
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide">
+                Members
+              </p>
+              {isAdmin && (
+                <button
+                  onClick={() => setShowAddInput(!showAddInput)}
+                  className="flex items-center gap-1 text-xs text-emerald-500 hover:text-emerald-400 transition-colors cursor-pointer"
+                >
+                  <UserPlus size={14} />
+                  Add Member
+                </button>
+              )}
+            </div>
+
+            {/* Add member search */}
+            {showAddInput && isAdmin && (
+              <div className="mb-4 p-3 rounded-xl bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700">
+                <div className="flex gap-2">
+                  <input
+                    value={searchEmail}
+                    onChange={(e) => setSearchEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    placeholder="Search by name or email..."
+                    className="flex-1 text-sm px-3 py-2 rounded-lg bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 text-gray-900 dark:text-slate-100 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                  <button
+                    onClick={handleSearch}
+                    disabled={searching}
+                    className="px-3 py-2 rounded-lg  hover:bg-gray-600 text-white text-sm transition-colors cursor-pointer"
+                  >
+                    {searching ? "..." : <UserSearch />}
+                  </button>
+                </div>
+
+                {/* Search results */}
+                {searchResult?.length === 0 && (
+                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-2 px-1">
+                    No users found
+                  </p>
+                )}
+                {searchResult?.map((u) => (
+                  <div key={u._id} className="flex items-center gap-2 mt-2">
+                    <Avatar user={u} size={32} IsInside />
+                    <span className="flex-1 text-sm text-gray-800 dark:text-slate-200 truncate">
+                      {u.fName} {u.lName}
+                    </span>
+                    <button
+                      onClick={() => handleAdd(u._id)}
+                      className="text-xs px-2 py-1 rounded-lg  hover:bg-gray-600 text-white cursor-pointer transition-colors"
+                    >
+                      <Plus size={18} fontWeight={800} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Members list */}
+            <div className="space-y-1">
+              {groupChat?.users?.map((u) => {
+                const online = onlineUser?.has(u?._id?.toString());
+                const isSelf = u._id === user?._id;
+                const isAdminUser =
+                  groupChat?.groupAdmin?._id === u._id ||
+                  groupChat?.groupAdmin === u._id;
+
+                return (
+                  <div
+                    key={u._id}
+                    className="flex items-center gap-3 p-2 rounded-xl group"
+                  >
+                    {/* Avatar — clickable to start chat */}
+                    <div
+                      onClick={() => !isSelf && handleStartChat(u)}
+                      className={`${!isSelf ? "cursor-pointer" : ""}`}
+                    >
+                      <Avatar user={u} isOnline={online} size={38} />
+                    </div>
+
+                    <div
+                      onClick={() => !isSelf && handleStartChat(u)}
+                      className={`min-w-0 flex-1 ${
+                        !isSelf ? "cursor-pointer" : ""
+                      }`}
+                    >
+                      <div className="flex items-center gap-1">
+                        <p className="text-sm font-medium text-gray-900 dark:text-slate-100 truncate">
+                          {u?.fName} {u?.lName}
+                        </p>
+                        {isAdminUser && (
+                          <Crown
+                            size={12}
+                            className="text-yellow-500 shrink-0"
+                          />
+                        )}
+                        {isSelf && (
+                          <span className="text-xs text-gray-400 dark:text-slate-500">
+                            (you)
+                          </span>
+                        )}
+                      </div>
+                      <p
+                        className={`text-xs ${
+                          online
+                            ? "text-emerald-500"
+                            : "text-gray-400 dark:text-slate-500"
+                        }`}
+                      >
+                        {online ? "Online" : "Offline"}
+                      </p>
+                    </div>
+
+                    {/* Remove button — admin only, not self, not other admin */}
+                    {isAdmin && !isSelf && !isAdminUser && (
+                      <button
+                        onClick={() => handleRemove(u._id)}
+                        className="opacity-0 group-hover:opacity-100 w-7 h-7 flex items-center justify-center rounded-full text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all cursor-pointer"
+                      >
+                        <UserMinus size={14} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ChatInfo;

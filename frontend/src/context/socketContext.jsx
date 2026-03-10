@@ -21,7 +21,7 @@ export const SocketProvider = ({ children }) => {
     const token = getToken(); // ✅ get from memory
     if (!token) return;
 
-    const newSocket = io("https://chatify-jux9.onrender.com" , {
+    const newSocket = io("http://localhost:5000", {
       auth: { token },
       autoConnect: true,
       transports: ["websocket"],
@@ -30,7 +30,9 @@ export const SocketProvider = ({ children }) => {
     setSocket(newSocket);
 
     newSocket.on("connect", () => logger("🟢 Socket connected:", newSocket.id));
-    newSocket.on("connect_error", (err) => logger("❌ Socket connect error:", err.message));
+    newSocket.on("connect_error", (err) =>
+      logger("❌ Socket connect error:", err.message)
+    );
 
     newSocket.on("online-users", (users) => setOnlineUser(new Set(users)));
 

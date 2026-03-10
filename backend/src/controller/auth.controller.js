@@ -114,7 +114,6 @@ export const loginUser = async (req, res) => {
   }
 };
 
-
 export const refreshAccessToken = async (req, res) => {
   try {
     const refreshToken = req.cookies?.refreshToken;
@@ -239,16 +238,26 @@ export const updateMe = async (req, res) => {
 };
 
 export const searchUsers = async (req, res) => {
-  const keyword = req.query.q;
+  try {
+    const query = req.query.query;
 
-  const users = await User.find({
-    $or: [
-      { fName: { $regex: keyword, $options: "i" } },
-      { lName: { $regex: keyword, $options: "i" } },
-      { email: { $regex: keyword, $options: "i" } },
-    ],
-    _id: { $ne: req.user._id },
-  }).select("-password");
+    if (!query || typeof query !== "string") {
+      return res.status(400).json({ message: "Query is required" });
+    }
 
-  res.json(users);
+    const q = query.trim();
+
+    const users = await User.find({
+      _id: { $ne: req.user._id },
+      $or: [
+        { fName: { $regex: q, $options: "i" } },
+        { lName: { $regex: q, $options: "i" } },
+        { email: { $regex: q, $options: "i" } },
+      ],
+    }).select("-password");
+
+    res.json({ users });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 };
