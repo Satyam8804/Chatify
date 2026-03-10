@@ -20,7 +20,7 @@ export default function readSocket(io, socket) {
       );
 
       // notify other users
-      socket.to(chatId).emit("message-seen", {
+      io.to(chatId).emit("message-seen", {
         chatId,
         userId
       });
