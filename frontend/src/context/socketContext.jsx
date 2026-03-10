@@ -21,7 +21,7 @@ export const SocketProvider = ({ children }) => {
     const token = getToken(); // ✅ get from memory
     if (!token) return;
 
-    const newSocket = io(import.meta.env.VITE_API_URL || "http://localhost:5000", {
+    const newSocket = io("https://chatify-jux9.onrender.com" , {
       auth: { token },
       autoConnect: true,
       transports: ["websocket"],
