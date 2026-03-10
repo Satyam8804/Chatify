@@ -62,10 +62,8 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
     // ✅ Correct - update all messages in the chat
     const handleSeen = ({ chatId, userId }) => {
       if (chatId.toString() !== chat._id.toString()) return;
-      if (userId !== user._id) {
-        seenSoundRef.current.currentTime = 0;
-        seenSoundRef.current.play();
-      }
+      seenSoundRef.current.currentTime = 0;
+      seenSoundRef.current.play();
       setMessages((prev) =>
         prev.map((msg) => ({
           ...msg,
