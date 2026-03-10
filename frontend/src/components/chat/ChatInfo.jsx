@@ -104,9 +104,9 @@ const ChatInfo = ({
         {/* Avatar + Name */}
         <div className="flex flex-col items-center py-8 gap-3 bg-gradient-to-b from-emerald-500/5 to-transparent">
           {isGroup ? (
-            <Avatar isGroup users={groupChat?.users} size={96} />
+            <Avatar isGroup users={groupChat?.users} size={96} IsInside={true} />
           ) : (
-            <Avatar user={friend} isOnline={isOnline} size={96} />
+            <Avatar user={friend} isOnline={isOnline} size={96} IsInside={true} />
           )}
 
           <div className="text-center">
