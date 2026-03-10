@@ -178,15 +178,13 @@ const ChatInfo = ({
               <p className="text-xs font-semibold text-gray-600 dark:text-slate-300 uppercase tracking-wide">
                 Media & Docs
               </p>
-              <div className="flex justify-center gap-1 font-semibold items-center text-xs text-emerald-500 hover:text-emerald-400">
+              <button
+                onClick={() => setShowMedia(true)}
+                className="flex justify-center gap-1 font-semibold items-center text-xs text-emerald-500 hover:text-emerald-400 cursor-pointer transition-colors"
+              >
                 <span className="text-sm ">See all</span>
-                <button
-                  onClick={() => setShowMedia(true)}
-                  className=" cursor-pointer transition-colors"
-                >
-                  <ArrowRight size={16}/>
-                </button>
-              </div>
+                <ArrowRight size={16} />
+              </button>
             </div>
 
             {imageMessages.length === 0 ? (
