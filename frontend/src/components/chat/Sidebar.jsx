@@ -103,7 +103,7 @@ const Sidebar = ({ selectedChat, setSelectedChat }) => {
       {/* Header */}
       <div className="flex justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-slate-700">
         <div className="flex items-center gap-2">
-          <img src={ChatifyLogo} alt="" className="h-8" /> {/* icon only SVG */}
+          <img src={ChatifyLogo} alt="" className="h-12" /> {/* icon only SVG */}
           <span className="text-xl font-bold text-gray-900 dark:text-white">
             Chatify
           </span>
