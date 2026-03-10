@@ -6,13 +6,16 @@ import ChatHeader from "./ChatHeader";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import { logger } from "../../utils/logger";
-import sentSound from "../../assets/sound/sent.mp3";
-
+import seenSound from "../../assets/sound/sent.mp3";
+import sentSound from "../../assets/sound/seen.mp3";
+import { useAuth } from "../../context/authContext";
 
 const ChatWindow = ({ chat, setSelectedChat }) => {
   const [messages, setMessages] = useState([]);
   const { socket, setUnreadCounts, setActiveChatId } = useSocket();
-  const soundRef = useRef(new Audio(sentSound));
+  const receiveSoundRef = useRef(new Audio(sentSound)); // sound when you receive a message
+  const seenSoundRef = useRef(new Audio(seenSound));
+  const { user } = useAuth();
 
   const handleNewMessage = (newMessage) => {
     setMessages((prev) => {
@@ -50,13 +53,19 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
     const handleReceiveMessage = (message) => {
       setMessages((prev) => [...prev, message]);
       socket.emit("message-seen", { chatId: chat._id });
+      if (message.sender._id !== user._id) {
+        receiveSoundRef.current.currentTime = 0;
+        receiveSoundRef.current.play();
+      }
     };
 
     // ✅ Correct - update all messages in the chat
     const handleSeen = ({ chatId, userId }) => {
       if (chatId.toString() !== chat._id.toString()) return;
-      soundRef.current.currentTime = 0;
-      soundRef.current.play();
+      if (userId !== user._id) {
+        seenSoundRef.current.currentTime = 0;
+        seenSoundRef.current.play();
+      }
       setMessages((prev) =>
         prev.map((msg) => ({
           ...msg,

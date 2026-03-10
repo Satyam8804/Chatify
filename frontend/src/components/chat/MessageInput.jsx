@@ -11,6 +11,7 @@ const MessageInput = ({ chatId, onMessageSent }) => {
   const [selectedFiles, setSelectedFiles] = useState([]);
 
   const soundRef = useRef(new Audio(sentSound));
+  
   const { socket } = useSocket();
   const { user } = useAuth();
 
