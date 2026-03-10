@@ -4,7 +4,8 @@ import { formatLastSeen } from "../../utils/formatMessageDate";
 import Avatar from "../common/Avatar";
 import { getAvatarColor } from "../../utils/getAvatarColor";
 import { getInitials } from "../../utils/getInitials";
-import { IoArrowBack } from "react-icons/io5";
+import { ArrowLeft } from "lucide-react";
+
 const ChatHeader = ({ chat, setSelectedChat }) => {
   const { user } = useAuth();
   const { onlineUser } = useSocket();
@@ -25,23 +26,22 @@ const ChatHeader = ({ chat, setSelectedChat }) => {
   const isOnline = onlineUser?.has(friendObj?._id?.toString());
 
   return (
-    <div className="h-16 px-1 flex items-center gap-3 bg-white">
+    <div className="h-16 px-3 flex items-center gap-3 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 transition-colors">
       {/* Mobile Back Button */}
       {setSelectedChat && (
         <button
           onClick={() => setSelectedChat(null)}
-          className="md:hidden flex items-center justify-center cursor-pointer w-9 h-9 rounded-full hover:bg-gray-200 transition"
+          className="md:hidden flex items-center justify-center cursor-pointer w-9 h-9 rounded-full text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
         >
-          <IoArrowBack size={20} color="gray-600"/>
+          <ArrowLeft size={20} />
         </button>
       )}
 
       {/* Avatar */}
       {isGroup ? (
-        <div className="w-10 h-10 rounded-full overflow-hidden grid grid-cols-2 grid-rows-2">
+        <div className="w-10 h-10 rounded-full overflow-hidden grid grid-cols-2 grid-rows-2 shrink-0">
           {chat.users.slice(0, 4).map((u) => {
             const bg = getAvatarColor(u?._id || u?.fName);
-
             return (
               <div
                 key={u._id}
@@ -66,8 +66,8 @@ const ChatHeader = ({ chat, setSelectedChat }) => {
       )}
 
       {/* Name + Status */}
-      <div className="flex flex-col">
-        <p className="font-medium">
+      <div className="flex flex-col min-w-0">
+        <p className="font-semibold text-gray-900 dark:text-slate-100 truncate">
           {isGroup
             ? chat?.chatName
             : `${friendObj?.fName || ""} ${friendObj?.lName || ""}`}
@@ -76,7 +76,9 @@ const ChatHeader = ({ chat, setSelectedChat }) => {
         {!isGroup && (
           <p
             className={`text-xs ${
-              isOnline ? "text-green-600" : "text-gray-400"
+              isOnline
+                ? "text-emerald-500"
+                : "text-gray-400 dark:text-slate-500"
             }`}
           >
             {isOnline

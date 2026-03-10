@@ -3,25 +3,30 @@ import { createContext, useContext, useEffect, useState } from "react";
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(
-    () => localStorage.getItem("theme") || "system"
-  );
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem("theme") || "system";
+    } catch {
+      return "system";
+    }
+  });
 
   useEffect(() => {
     const root = document.documentElement;
-
     root.classList.remove("dark");
 
     if (theme === "dark") {
       root.classList.add("dark");
-    }
+    } else if (theme === "system") {
+      const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+      if (mediaQuery.matches) root.classList.add("dark");
 
-    if (theme === "system") {
-      const systemDark = window.matchMedia(
-        "(prefers-color-scheme: dark)"
-      ).matches;
-
-      if (systemDark) root.classList.add("dark");
+      // Listen for system changes while on "system" mode
+      const handler = (e) => {
+        root.classList.toggle("dark", e.matches);
+      };
+      mediaQuery.addEventListener("change", handler);
+      return () => mediaQuery.removeEventListener("change", handler);
     }
 
     localStorage.setItem("theme", theme);

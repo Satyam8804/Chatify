@@ -1,15 +1,8 @@
-import { useEffect } from "react";
 import ChatLayout from "../components/chat/ChatLayout";
-import { useTheme } from "../context/themeContext";
 
 const Chat = () => {
-  const {theme} = useTheme()
-  useEffect(() => {
-    console.log("Theme changed:", theme);
-  }, [theme]);
-
   return (
-    <div className="h-screen flex">
+    <div className="h-screen flex bg-white dark:bg-slate-900 transition-colors">
       <ChatLayout />
     </div>
   );

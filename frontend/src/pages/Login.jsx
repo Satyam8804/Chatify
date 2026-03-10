@@ -4,29 +4,27 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/authContext";
 import { logger } from "../utils/logger";
 import { useState } from "react";
+
 const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
-
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (data) => {
     try {
-      setLoading(true)
+      setLoading(true);
       await login(data);
-      navigate("/chat",{replace:true});
+      navigate("/chat", { replace: true });
     } catch (error) {
       logger(error.message);
-    }finally{
-      setLoading(false)
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <AuthPage>
-      <div className="min-h-screen w-full flex items-center justify-center bg-gray-100">
-        <AuthForm mode="login" onSubmit={handleLogin} loading={loading}/>
-      </div>
+      <AuthForm mode="login" onSubmit={handleLogin} loading={loading} />
     </AuthPage>
   );
 };

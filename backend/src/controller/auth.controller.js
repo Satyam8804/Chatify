@@ -114,6 +114,7 @@ export const loginUser = async (req, res) => {
   }
 };
 
+
 export const refreshAccessToken = async (req, res) => {
   try {
     const refreshToken = req.cookies?.refreshToken;
@@ -123,28 +124,30 @@ export const refreshAccessToken = async (req, res) => {
     }
 
     const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-
     const user = await User.findById(decoded.id);
 
     if (!user || user.refreshToken !== refreshToken) {
-      return res.status(403).json({ message: "Invalid refresh token" });
+      return res.status(401).json({ message: "Invalid refresh token" });
     }
 
+    // 👇 Rotate both tokens
     const newAccessToken = generateAccessToken(user._id);
+    const newRefreshToken = generateRefreshToken(user._id);
 
-    res.json({
-      accessToken: newAccessToken,
-      user: {
-        _id: user._id,
-        fName: user.fName,
-        lName: user.lName,
-        email: user.email,
-        avatar: user.avatar,
-      },
+    user.refreshToken = newRefreshToken;
+    await user.save();
+
+    // 👇 Reissue the cookie
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
+
+    res.json({ accessToken: newAccessToken });
   } catch (error) {
-    console.log("Refresh error:", error);
-    return res.status(403).json({ message: "Invalid or expired session" });
+    return res.status(401).json({ message: "Invalid or expired session" });
   }
 };
 

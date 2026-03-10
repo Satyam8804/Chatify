@@ -21,19 +21,22 @@ const ChatItem = ({ chat, isActive, onClick, onlineUser, unreadCounts }) => {
   const unread = unreadCounts?.[chat._id] || 0;
   const media = chat?.lastMessage?.media?.[0]?.name || "";
   const ext = media.split(".").pop()?.toLowerCase();
+
   return (
     <div
       onClick={onClick}
-      className={`flex items-center gap-3 px-4 py-3 m-1 rounded-2xl hover:bg-gray-200 cursor-pointer border-b border-gray-200 transition ${
-        isActive ? "bg-gray-300" : ""
-      }`}
+      className={`flex items-center gap-3 px-4 py-3 m-1 rounded-2xl cursor-pointer border-b border-gray-100 dark:border-slate-700/50 transition-colors
+        ${
+          isActive
+            ? "bg-emerald-50 dark:bg-emerald-900/20 border-transparent"
+            : "hover:bg-gray-100 dark:hover:bg-slate-800"
+        }`}
     >
       {/* Avatar */}
       {isGroup ? (
-        <div className="w-10 h-10 rounded-full overflow-hidden grid grid-cols-2 grid-rows-2">
+        <div className="w-10 h-10 rounded-full overflow-hidden grid grid-cols-2 grid-rows-2 shrink-0">
           {chat.users.slice(0, 4).map((u) => {
             const bg = getAvatarColor(u?._id || u?.fName);
-
             return (
               <div
                 key={u._id}
@@ -60,18 +63,24 @@ const ChatItem = ({ chat, isActive, onClick, onlineUser, unreadCounts }) => {
       {/* Middle Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
-          <p className="text-sm truncate font-bold text-gray-800">
+          <p
+            className={`text-sm truncate font-semibold ${
+              isActive
+                ? "text-emerald-700 dark:text-emerald-400"
+                : "text-gray-800 dark:text-slate-100"
+            }`}
+          >
             {isGroup ? chat.chatName : friend?.fName + " " + friend?.lName}
           </p>
 
           {unread > 0 && (
-            <span className="ml-2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
+            <span className="ml-2 bg-emerald-500 text-white text-xs px-2 py-0.5 rounded-full shrink-0">
               {unread}
             </span>
           )}
         </div>
 
-        <p className="text-[12px] text-gray-500 truncate">
+        <p className="text-[12px] text-gray-500 dark:text-slate-400 truncate mt-0.5">
           {chat?.lastMessage?.content ||
             (["png", "jpg", "jpeg", "webp", "gif"].includes(ext) &&
               "📷 Photo") ||
@@ -84,15 +93,15 @@ const ChatItem = ({ chat, isActive, onClick, onlineUser, unreadCounts }) => {
 
       {/* Last Seen / Online */}
       {!isGroup && (
-        <div className="text-xs text-gray-400 whitespace-nowrap">
+        <div className="text-xs whitespace-nowrap shrink-0">
           {isOnline ? (
-            <span className="text-green-500 font-small">online</span>
+            <span className="text-emerald-500 font-medium">online</span>
           ) : friend?.lastSeen ? (
-            <span className="text-[10px]">
+            <span className="text-[10px] text-gray-400 dark:text-slate-500">
               {formatLastSeen(friend.lastSeen)}
             </span>
           ) : (
-            <span>offline</span>
+            <span className="text-gray-400 dark:text-slate-500">offline</span>
           )}
         </div>
       )}

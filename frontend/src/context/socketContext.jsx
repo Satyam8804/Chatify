@@ -1,11 +1,13 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import { useAuth } from "./authContext";
+import { getToken } from "../api/axios"; // ✅ get token from memory
 import { logger } from "../utils/logger";
+
 const SocketContext = createContext(null);
 
 export const SocketProvider = ({ children }) => {
-  const { accessToken } = useAuth();
+  const { user } = useAuth(); // ✅ use user instead of accessToken
 
   const [socket, setSocket] = useState(null);
   const [onlineUser, setOnlineUser] = useState(new Set());
@@ -14,34 +16,26 @@ export const SocketProvider = ({ children }) => {
   const [activeChatId, setActiveChatId] = useState(null);
 
   useEffect(() => {
-    if (!accessToken) return;
+    if (!user?._id) return; // ✅ wait for user to be loaded
 
-    const newSocket = io("https://chatify-jux9.onrender.com", {
-      auth: { token: accessToken },
+    const token = getToken(); // ✅ get from memory
+    if (!token) return;
+
+    const newSocket = io(import.meta.env.VITE_API_URL || "http://localhost:5000", {
+      auth: { token },
       autoConnect: true,
       transports: ["websocket"],
     });
 
     setSocket(newSocket);
 
-    newSocket.on("connect", () => {
-      logger("🟢 Socket connected:", newSocket.id);
-    });
+    newSocket.on("connect", () => logger("🟢 Socket connected:", newSocket.id));
+    newSocket.on("connect_error", (err) => logger("❌ Socket connect error:", err.message));
 
-    newSocket.on("connect_error", (err) => {
-      logger("❌ Socket connect error:", err.message);
-    });
-
-    newSocket.on("online-users", (users) => {
-      setOnlineUser(new Set(users));
-    });
+    newSocket.on("online-users", (users) => setOnlineUser(new Set(users)));
 
     newSocket.on("user-online", ({ userId }) => {
-      setOnlineUser((prev) => {
-        const updated = new Set(prev);
-        updated.add(userId);
-        return updated;
-      });
+      setOnlineUser((prev) => new Set(prev).add(userId));
     });
 
     newSocket.on("user-offline", ({ userId }) => {
@@ -62,15 +56,11 @@ export const SocketProvider = ({ children }) => {
     });
 
     newSocket.on("typing", ({ chatId, user }) => {
-      if (chatId === activeChatId) {
-        setTypingUser(user);
-      }
+      if (chatId === activeChatId) setTypingUser(user);
     });
 
     newSocket.on("stop-typing", ({ chatId }) => {
-      if (chatId === activeChatId) {
-        setTypingUser(null);
-      }
+      if (chatId === activeChatId) setTypingUser(null);
     });
 
     newSocket.on("message-seen", ({ chatId, userId }) => {
@@ -80,7 +70,7 @@ export const SocketProvider = ({ children }) => {
     return () => {
       newSocket.disconnect();
     };
-  }, [accessToken, activeChatId]);
+  }, [user?._id, activeChatId]);
 
   return (
     <SocketContext.Provider

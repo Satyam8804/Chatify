@@ -13,15 +13,13 @@ import { ThemeProvider } from "./context/themeContext";
 ReactDOM.createRoot(document.getElementById("root")).render(
   //  <React.StrictMode>
   <BrowserRouter>
-  <ThemeProvider>
-    <AuthProvider>
-      <SocketProvider>
-        <div className="min-h-screen bg-gray-100 dark:bg-slate-900 transition-colors">
-  <App />
-</div>
-      </SocketProvider>
-    </AuthProvider>
-  </ThemeProvider>
-</BrowserRouter>
+    <ThemeProvider>
+      <AuthProvider>
+        <SocketProvider>
+          <App />
+        </SocketProvider>
+      </AuthProvider>
+    </ThemeProvider>
+  </BrowserRouter>
   // </React.StrictMode>
 );

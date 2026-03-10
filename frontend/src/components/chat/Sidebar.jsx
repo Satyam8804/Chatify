@@ -6,11 +6,11 @@ import { useAuth } from "../../context/authContext";
 import NewDirectChatModal from "./NewDirectChatModal";
 import NewGroupChatModal from "./NewGroupChatModal";
 import { logger } from "../../utils/logger";
-import { MdMoreVert } from "react-icons/md";
+import { MoreVertical } from "lucide-react";
 import Menus from "../Menus";
 import Loader from "../../utils/Loader";
 import Profile from "../profile/Profile";
-import ChatifyLogo from "../../assets/logo.svg";
+import ChatifyLogo from "../../assets/logo.png";
 import ThemeModal from "../common/ThemeModal";
 
 const Sidebar = ({ selectedChat, setSelectedChat }) => {
@@ -98,22 +98,26 @@ const Sidebar = ({ selectedChat, setSelectedChat }) => {
   const groupChats = chats.filter((chat) => chat.isGroupChat);
 
   return (
-    <div className="relative h-full flex flex-col bg-white dark:bg-[#0f172a] border-r border-gray-200 dark:border-gray-700 transition-colors">
-
+    <div className="relative h-full flex flex-col bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-700 transition-colors">
       {/* Header */}
-      <div className="flex justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-gray-700">
-
-        <img src={ChatifyLogo} alt="Chatify" className="h-10" />
-
-        <div className="cursor-pointer w-8 h-8 flex justify-center items-center text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-          <MdMoreVert size={22} onClick={() => setShowMenus(!showMenus)} />
+      <div className="flex justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-slate-700">
+        <div className="flex items-center gap-2">
+          <img src={ChatifyLogo} alt="" className="h-8" /> {/* icon only SVG */}
+          <span className="text-xl font-bold text-gray-900 dark:text-white">
+            Chatify
+          </span>
         </div>
 
+        <button
+          onClick={() => setShowMenus(!showMenus)}
+          className="w-8 h-8 cursor-pointer flex justify-center items-center rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 transition-colors"
+        >
+          <MoreVertical size={20} />
+        </button>
       </div>
 
       {/* Chat Lists */}
       <div className="flex-1 flex flex-col px-3 gap-4 min-h-0">
-
         <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar">
           <ChatSection
             title="DIRECT MESSAGES"
@@ -136,12 +140,10 @@ const Sidebar = ({ selectedChat, setSelectedChat }) => {
             onAddClick={() => setShowGroupModal(true)}
           />
         </div>
-
       </div>
 
       {/* Modals */}
       <div className="z-50">
-
         {showDirectModal && (
           <NewDirectChatModal
             onClose={() => setShowDirectModal(false)}
@@ -155,7 +157,6 @@ const Sidebar = ({ selectedChat, setSelectedChat }) => {
             setSelectedChat={setSelectedChat}
           />
         )}
-
       </div>
 
       {/* Menu */}
@@ -177,7 +178,6 @@ const Sidebar = ({ selectedChat, setSelectedChat }) => {
       {showThemeModal && (
         <ThemeModal onClose={() => setShowThemeModal(false)} />
       )}
-
     </div>
   );
 };

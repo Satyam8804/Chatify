@@ -13,9 +13,7 @@ const Register = () => {
     try {
       setLoading(true);
       await api.post("/users/register-user", data, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
+        headers: { "Content-Type": "multipart/form-data" },
       });
       navigate("/login");
     } catch (error) {
@@ -27,9 +25,7 @@ const Register = () => {
 
   return (
     <AuthPage>
-      <div className="min-h-screen w-full flex items-center justify-center bg-gray-100">
-        <AuthForm mode="register" onSubmit={handleRegister} loading={loading} />
-      </div>
+      <AuthForm mode="register" onSubmit={handleRegister} loading={loading} />
     </AuthPage>
   );
 };
