@@ -21,7 +21,7 @@ export const SocketProvider = ({ children }) => {
     const token = getToken(); // ✅ from memory
     if (!token) return;
 
-    const newSocket = io(import.meta.env.VITE_SOCKET_URL || "http://localhost:5000", {
+    const newSocket = io("https://chatify-jux9.onrender.com", {
       auth: { token },
       autoConnect: true,
       transports: ["websocket"],
@@ -30,7 +30,9 @@ export const SocketProvider = ({ children }) => {
     setSocket(newSocket);
 
     newSocket.on("connect", () => logger("🟢 Socket connected:", newSocket.id));
-    newSocket.on("connect_error", (err) => logger("❌ Socket connect error:", err.message));
+    newSocket.on("connect_error", (err) =>
+      logger("❌ Socket connect error:", err.message)
+    );
     newSocket.on("online-users", (users) => setOnlineUser(new Set(users)));
 
     newSocket.on("user-online", ({ userId }) => {
@@ -72,7 +74,17 @@ export const SocketProvider = ({ children }) => {
   }, [user?._id, activeChatId]);
 
   return (
-    <SocketContext.Provider value={{ socket, onlineUser, unreadCounts, setUnreadCounts, typingUser, activeChatId, setActiveChatId }}>
+    <SocketContext.Provider
+      value={{
+        socket,
+        onlineUser,
+        unreadCounts,
+        setUnreadCounts,
+        typingUser,
+        activeChatId,
+        setActiveChatId,
+      }}
+    >
       {children}
     </SocketContext.Provider>
   );
