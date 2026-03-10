@@ -141,7 +141,6 @@ const MessageBubble = ({
         </div>
 
         {/* Bubble Tail */}
-        {/* Bubble Tail */}
         <div
           className={`absolute top-0 w-0 h-0
     ${

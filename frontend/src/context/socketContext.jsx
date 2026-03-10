@@ -8,7 +8,7 @@ const SocketContext = createContext(null);
 
 export const SocketProvider = ({ children }) => {
   const { user } = useAuth(); // ✅ depend on user, not accessToken
-
+  const [messageSeen, setMessageSeen] = useState({});
   const [socket, setSocket] = useState(null);
   const [onlineUser, setOnlineUser] = useState(new Set());
   const [unreadCounts, setUnreadCounts] = useState({});
@@ -64,8 +64,12 @@ export const SocketProvider = ({ children }) => {
       if (chatId === activeChatId) setTypingUser(null);
     });
 
+    // Replace the logger-only handler with this
     newSocket.on("message-seen", ({ chatId, userId }) => {
-      logger("Message seen:", chatId, userId);
+      setMessageSeen((prev) => ({
+        ...prev,
+        [chatId]: [...(prev[chatId] || []), userId],
+      }));
     });
 
     return () => {
@@ -83,6 +87,7 @@ export const SocketProvider = ({ children }) => {
         typingUser,
         activeChatId,
         setActiveChatId,
+        messageSeen 
       }}
     >
       {children}

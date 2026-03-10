@@ -23,7 +23,6 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
   };
 
   useEffect(() => {
-
     if (!socket || !chat?._id) {
       return;
     }
@@ -33,8 +32,6 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
     const fetchMessages = async () => {
       try {
         const res = await api.get(`/messages/${chat._id}`);
-        console.log("chat._id:", chat._id);
-        console.log("response:", res.data);
         setMessages(res.data);
       } catch (error) {
         logger("Fetch messages error:", error);
@@ -51,21 +48,16 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
       setMessages((prev) => [...prev, message]);
     };
 
+    // ✅ Correct - update all messages in the chat
     const handleSeen = ({ chatId, userId }) => {
       if (chatId !== chat._id) return;
       setMessages((prev) =>
-        prev.map((msg) => {
-          if (msg.chat === chatId && msg.sender._id === userId) {
-            const alreadySeen = msg.readBy?.includes(userId);
-            return {
-              ...msg,
-              readBy: alreadySeen
-                ? msg.readBy
-                : [...(msg.readBy || []), userId],
-            };
-          }
-          return msg;
-        })
+        prev.map((msg) => ({
+          ...msg,
+          readBy: msg.readBy?.includes(userId)
+            ? msg.readBy
+            : [...(msg.readBy || []), userId],
+        }))
       );
     };
 
@@ -82,7 +74,11 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
   return (
     <div className="h-full flex flex-col bg-white dark:bg-slate-900">
       {/* Header */}
-      <ChatHeader chat={chat} setSelectedChat={setSelectedChat} messages={messages} />
+      <ChatHeader
+        chat={chat}
+        setSelectedChat={setSelectedChat}
+        messages={messages}
+      />
 
       {/* Messages */}
       <div className="flex-1 overflow-hidden bg-slate-50 dark:bg-slate-950">
