@@ -5,7 +5,6 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 import Chat from "./pages/Chat.jsx";
 import { Toaster } from "react-hot-toast";
 function App() {
-  
   return (
     <>
       {/* Global Toast */}
@@ -25,7 +24,7 @@ function App() {
 
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-
+        <Route path="/sounds/*" element={null} />
         {/* Protected Routes (later) */}
 
         <Route

@@ -4,13 +4,13 @@ import { useSocket } from "../../context/socketContext";
 import { Send, Plus, X } from "lucide-react";
 import { useAuth } from "../../context/authContext";
 import { logger } from "../../utils/logger";
-
+import sentSound from "../../assets/sound/sent.mp3";
 const MessageInput = ({ chatId, onMessageSent }) => {
   const [message, setMessage] = useState("");
   const [showMenu, setShowMenu] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
-  const sentSoundRef = useRef(new Audio("/sounds/sent.mp3"));
 
+  const soundRef = useRef(new Audio(sentSound));
   const { socket } = useSocket();
   const { user } = useAuth();
 
@@ -30,8 +30,8 @@ const MessageInput = ({ chatId, onMessageSent }) => {
         const newMessage = res.data;
         onMessageSent(newMessage);
         socket.emit("new-message", newMessage);
-        sentSoundRef.current.currentTime = 0;
-        sentSoundRef.current.play();
+        soundRef.current.currentTime = 0;
+        soundRef.current.play();
       }
 
       // MEDIA MESSAGES
