@@ -27,7 +27,7 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
     if (!socket || !chat?._id) {
       return;
     }
-    
+
     setMessages([]);
 
     const fetchMessages = async () => {
@@ -82,7 +82,7 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
   return (
     <div className="h-full flex flex-col bg-white dark:bg-slate-900">
       {/* Header */}
-      <ChatHeader chat={chat} setSelectedChat={setSelectedChat} />
+      <ChatHeader chat={chat} setSelectedChat={setSelectedChat} messages={messages} />
 
       {/* Messages */}
       <div className="flex-1 overflow-hidden bg-slate-50 dark:bg-slate-950">

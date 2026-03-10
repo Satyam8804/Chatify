@@ -1,4 +1,4 @@
-import styled, { keyframes } from 'styled-components';
+import styled, { keyframes } from "styled-components";
 
 const spinAnimation = keyframes`
   0% {
@@ -23,7 +23,7 @@ const SpinnerBlade = styled.div`
 `;
 
 const Spinner = styled.div`
-  font-size: 18px;
+  font-size: 28px;
   position: relative;
   display: inline-block;
   width: 1em;
@@ -40,9 +40,8 @@ const CenteredSpinner = styled(Spinner)`
 `;
 
 const Loader = () => {
-    const spinnerBlades = Array.from({ length: 12 }, (_, index) => index + 1);
+  const spinnerBlades = Array.from({ length: 12 }, (_, index) => index + 1);
 
-    
   return (
     <CenteredSpinner>
       {spinnerBlades.map((i) => (
@@ -55,7 +54,7 @@ const Loader = () => {
         />
       ))}
     </CenteredSpinner>
-  )
-}
+  );
+};
 
-export default Loader
+export default Loader;
