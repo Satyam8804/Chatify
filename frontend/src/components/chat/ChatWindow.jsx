@@ -50,7 +50,7 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
 
     // ✅ Correct - update all messages in the chat
     const handleSeen = ({ chatId, userId }) => {
-      if (chatId !== chat._id) return;
+      if (chatId.toString() !== chat._id.toString()) return;
       setMessages((prev) =>
         prev.map((msg) => ({
           ...msg,
