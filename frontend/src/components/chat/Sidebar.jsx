@@ -16,7 +16,8 @@ import ThemeModal from "../common/ThemeModal";
 const Sidebar = ({ selectedChat, setSelectedChat }) => {
   const { loading, user } = useAuth();
   const { onlineUser, unreadCounts, socket } = useSocket();
-
+  console.log(user)
+  console.log(onlineUser)
   const [showDirectModal, setShowDirectModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [chats, setChats] = useState([]);

@@ -20,7 +20,7 @@ connectDB();
 const app = express();
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: "http://localhost:5173",
     credentials: true,
   })
 );
@@ -40,7 +40,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: "http://localhost:5173",
     methods: ["GET", "POST"],
     credentials: true,
   },

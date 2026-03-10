@@ -17,6 +17,8 @@ const MessageList = ({ messages }) => {
   const [previewImage, setPreviewImage] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
 
+  console.log(messages)
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
