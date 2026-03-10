@@ -53,8 +53,8 @@ const Profile = ({ user, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md mx-2">
-      <div className="relative w-[400px] rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-white dark:bg-slate-900">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-md">
+      <div className="relative w-[95vw] sm:w-[400px] rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-white dark:bg-slate-900">
         {/* Top accent bar */}
         <div className="h-1 w-full bg-gradient-to-r from-green-400 via-emerald-500 to-teal-500" />
 
