@@ -1,16 +1,15 @@
 // ChatWindow.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import api from "../../api/axios";
 import { useSocket } from "../../context/socketContext";
 import ChatHeader from "./ChatHeader";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import { logger } from "../../utils/logger";
-const sentSound = new Audio("/sounds/sent.mp3");
-
 const ChatWindow = ({ chat, setSelectedChat }) => {
   const [messages, setMessages] = useState([]);
   const { socket, setUnreadCounts, setActiveChatId } = useSocket();
+  const sentSoundRef = useRef(new Audio("/sounds/sent.mp3"));
 
   const handleNewMessage = (newMessage) => {
     setMessages((prev) => {
@@ -53,7 +52,8 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
     // ✅ Correct - update all messages in the chat
     const handleSeen = ({ chatId, userId }) => {
       if (chatId.toString() !== chat._id.toString()) return;
-      new Audio("/sounds/sent.mp3").play();
+      sentSoundRef.current.currentTime = 0;
+      sentSoundRef.current.play();
       setMessages((prev) =>
         prev.map((msg) => ({
           ...msg,
