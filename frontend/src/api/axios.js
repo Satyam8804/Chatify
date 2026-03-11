@@ -110,11 +110,14 @@ api.interceptors.response.use(
     );
 
     if (error.response?.status === 401 && isAuthPage) {
+      const message =
+        error?.response?.data?.message || "Invalid email or password";
+      toast.error(message); // ✅ show the toast
       return Promise.reject(error);
     }
 
     const message = error?.response?.data?.message || "Something went wrong";
-    toast.error(message);
+    toast.error(message); // ✅ handles all errors including login 401s
     return Promise.reject(error);
   }
 );
