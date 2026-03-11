@@ -122,17 +122,11 @@ const MessageBubble = ({
       {/* Message Bubble */}
       <div
         className={`relative max-w-[65%] px-2 py-1 text-sm shadow break-words
-    ${
-      message.media?.some(
-        (m) =>
-          ["mp3", "wav", "ogg"].includes(
-            m.name?.split(".").pop()?.toLowerCase()
-          ) || m.type?.startsWith("audio/")
-      )
-        ? "max-w-[85%] sm:max-w-[65%]"
-        : "max-w-[65%]"
-    }
-    ${isOwn ? "bg-emerald-100 ..." : "bg-white ..."}`}
+          ${
+            isOwn
+              ? "bg-emerald-100 dark:bg-emerald-900 text-black dark:text-emerald-50 rounded-tl-sm rounded-bl-sm rounded-br-sm"
+              : "bg-white dark:bg-slate-800 text-black dark:text-slate-100 rounded-tr-sm rounded-br-sm rounded-bl-sm"
+          }`}
       >
         {/* Sender Name */}
         {!isOwn && (
@@ -294,6 +288,7 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn }) => {
       </div>
     );
   }
+
 
   if (isAudio) {
     return (

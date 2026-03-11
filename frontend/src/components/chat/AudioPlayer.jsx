@@ -11,18 +11,14 @@ const AudioPlayer = ({ url }) => {
 
   const togglePlay = () => {
     const audio = audioRef.current;
-
     if (playing) audio.pause();
     else audio.play();
-
     setPlaying(!playing);
   };
 
   const updateProgress = () => {
     const audio = audioRef.current;
-
     const percent = (audio.currentTime / audio.duration) * 100;
-
     setProgress(percent);
     setCurrentTime(audio.currentTime);
   };
@@ -33,9 +29,7 @@ const AudioPlayer = ({ url }) => {
 
   const seek = (e) => {
     const audio = audioRef.current;
-
     const percent = e.target.value;
-
     audio.currentTime = (percent / 100) * audio.duration;
     setProgress(percent);
   };
@@ -47,8 +41,7 @@ const AudioPlayer = ({ url }) => {
   };
 
   return (
-    <div className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-xl w-full">
-
+    <div className="flex items-center gap-2 bg-gray-100 dark:bg-slate-700 px-3 py-2 rounded-xl w-full">
       <audio
         ref={audioRef}
         src={url}
@@ -64,28 +57,29 @@ const AudioPlayer = ({ url }) => {
         {playing ? <FaPause size={12} /> : <FaPlay size={12} />}
       </button>
 
-      {/* Current Time */}
-      <span className="text-xs text-gray-600 w-9 text-center">
-        {formatTime(currentTime)}
-      </span>
-
-      {/* Progress Bar */}
-      <input
-        type="range"
-        min="0"
-        max="100"
-        value={progress}
-        onChange={seek}
-        className="flex-1 appearance-none h-[3px] bg-gray-300 rounded-lg cursor-pointer"
-        style={{
-          background: `linear-gradient(to right, #3b82f6 ${progress}%, #d1d5db ${progress}%)`,
-        }}
-      />
-
-      {/* Duration */}
-      <span className="text-xs text-gray-600 w-9  text-center">
-        {formatTime(duration)}
-      </span>
+      {/* Progress + Timer */}
+      <div className="flex flex-col flex-1 min-w-0 gap-0.5">
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={progress}
+          onChange={seek}
+          className="w-full appearance-none h-[3px] bg-gray-300 rounded-lg cursor-pointer"
+          style={{
+            background: `linear-gradient(to right, #3b82f6 ${progress}%, #d1d5db ${progress}%)`,
+          }}
+        />
+        {/* ✅ timers below progress bar */}
+        <div className="flex justify-between">
+          <span className="text-[10px] text-gray-500 dark:text-slate-400">
+            {formatTime(currentTime)}
+          </span>
+          <span className="text-[10px] text-gray-500 dark:text-slate-400">
+            {formatTime(duration)}
+          </span>
+        </div>
+      </div>
     </div>
   );
 };

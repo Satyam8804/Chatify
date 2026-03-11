@@ -183,36 +183,51 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
                   fileInputRef.current.accept = "image/*";
                   fileInputRef.current.click();
                 }}
-                className="flex gap-1 w-full px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
               >
-                <Image /> Image
+                <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center shrink-0">
+                  <Image size={14} className="text-blue-500" />
+                </div>
+                Image
               </button>
+
               <button
                 onClick={() => {
                   fileInputRef.current.accept = "video/*";
                   fileInputRef.current.click();
                 }}
-                className="flex w-full gap-1 px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm cursor-pointer hover:bg-purple-50 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
               >
-                <Video /> Video
+                <div className="w-7 h-7 rounded-full bg-purple-100 dark:bg-purple-500/20 flex items-center justify-center shrink-0">
+                  <Video size={14} className="text-purple-500" />
+                </div>
+                Video
               </button>
+
               <button
                 onClick={() => {
                   fileInputRef.current.accept = "audio/*";
                   fileInputRef.current.click();
                 }}
-                className="flex gap-1 w-full px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm cursor-pointer hover:bg-green-50 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
               >
-                <Music /> Audio
+                <div className="w-7 h-7 rounded-full bg-green-100 dark:bg-green-500/20 flex items-center justify-center shrink-0">
+                  <Music size={14} className="text-green-500" />
+                </div>
+                Audio
               </button>
+
               <button
                 onClick={() => {
                   fileInputRef.current.accept = ".pdf,.doc,.docx,.txt";
                   fileInputRef.current.click();
                 }}
-                className="flex gap-1 w-full px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm cursor-pointer hover:bg-red-50 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
               >
-                <FileText /> Document
+                <div className="w-7 h-7 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center shrink-0">
+                  <FileText size={14} className="text-red-500" />
+                </div>
+                Document
               </button>
             </div>
           )}
