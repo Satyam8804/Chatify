@@ -142,50 +142,36 @@ const MessageBubble = ({
         {message.replyTo && (
           <div
             onClick={() => onReplyClick(message.replyTo._id)}
-            className={`border-l-4 border-emerald-500 pl-2 mb-1 rounded p-1 text-[11px] cursor-pointer hover:opacity-80
+            className={`border-l-4 border-emerald-500 pl-2 mb-1 rounded p-1 cursor-pointer hover:opacity-80 flex items-center gap-2 min-w-0
       ${
         isOwn
           ? "bg-emerald-200/50 dark:bg-emerald-800/50"
           : "bg-gray-100 dark:bg-slate-700"
       }`}
           >
-            <p className="text-emerald-500 font-medium text-[10px]">
-              {message.replyTo.sender?.fName}
-            </p>
+            {/* thumbnail */}
+            {message.replyTo.media?.length > 0 &&
+              (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(
+                message.replyTo.media[0].name?.split(".").pop()?.toLowerCase()
+              ) || message.replyTo.media[0].type?.startsWith("image/") ? (
+                <img
+                  src={message.replyTo.media[0].url}
+                  className="w-10 h-10 rounded object-cover shrink-0"
+                />
+              ) : (
+                <span className="shrink-0">📎</span>
+              ))}
 
-            {/* ✅ show media thumbnail or text */}
-            {message.replyTo.media?.length > 0 ? (
-              <div className="flex items-center gap-2">
-                {["png", "jpg", "jpeg", "gif", "webp"].includes(
-                  message.replyTo.media[0].name?.split(".").pop()?.toLowerCase()
-                ) || message.replyTo.media[0].type?.startsWith("image/") ? (
-                  <img
-                    src={message.replyTo.media[0].url}
-                    className="w-10 h-10 rounded object-cover shrink-0" // ✅ fixed size
-                  />
-                ) : ["mp4", "webm", "mov"].includes(
-                    message.replyTo.media[0].name
-                      ?.split(".")
-                      .pop()
-                      ?.toLowerCase()
-                  ) ? (
-                  <span>🎥 Video</span>
-                ) : ["mp3", "wav", "ogg"].includes(
-                    message.replyTo.media[0].name
-                      ?.split(".")
-                      .pop()
-                      ?.toLowerCase()
-                  ) ? (
-                  <span>🎵 Audio</span>
-                ) : (
-                  <span>📄 Document</span>
-                )}
-              </div>
-            ) : (
-              <p className="text-gray-500 dark:text-slate-400 truncate">
-                {message.replyTo.content}
+            {/* text */}
+            <div className="min-w-0 flex-1">
+              <p className="text-emerald-500 font-medium text-[10px] truncate">
+                {message.replyTo.sender?.fName}
               </p>
-            )}
+              <p className="text-gray-500 dark:text-slate-400 truncate text-[11px]">
+                {message.replyTo.content ||
+                  (message.replyTo.media?.length > 0 ? "📎 Media" : "")}
+              </p>
+            </div>
           </div>
         )}
 
@@ -263,7 +249,7 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn }) => {
 
   // ✅ fallback to mime type for blob URLs during upload
   const isImage =
-    ["png", "jpg", "jpeg", "gif", "webp"].includes(extension) ||
+    ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(extension) ||
     media?.type?.startsWith("image/");
   const isVideo =
     ["mp4", "webm", "mov"].includes(extension) ||
