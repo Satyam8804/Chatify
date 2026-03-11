@@ -58,7 +58,7 @@ const AudioPlayer = ({ url }) => {
       </button>
 
       {/* Progress + Timer */}
-      <div className="flex flex-col flex-1 min-w-0 gap-0.5">
+      <div className="flex flex-col flex-1 min-w-0 gap-1">
         <input
           type="range"
           min="0"
