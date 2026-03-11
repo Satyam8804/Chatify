@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import ImagePreview from "../chat/ImagePreview.jsx";
+import AudioPlayer from "../chat/AudioPlayer.jsx";
 
 const TABS = ["Images", "Videos", "Audio", "Docs"];
 
@@ -98,9 +99,7 @@ const MediaModal = ({ messages, onClose }) => {
                     <p className="text-xs text-gray-500 dark:text-slate-400 mb-1.5 truncate">
                       {msg?.media?.[0]?.name}
                     </p>
-                    <audio controls className="w-full h-8">
-                      <source src={msg?.media?.[0]?.url} />
-                    </audio>
+                    <AudioPlayer url={msg?.media?.[0]?.url} /> {/* ✅ */}
                   </div>
                 ))}
               </div>

@@ -289,9 +289,11 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn }) => {
     );
   }
 
+
   if (isAudio) {
     return (
-      <div className="max-w-[70vw] sm:max-w-[300px]">
+      <div className="w-[55vw] sm:w-[260px]">
+        {" "}
         <AudioPlayer url={url} />
       </div>
     );
