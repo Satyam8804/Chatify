@@ -21,7 +21,7 @@ export const SocketProvider = ({ children }) => {
     const token = getToken(); // ✅ from memory
     if (!token) return;
 
-    const newSocket = io("https://chatify-jux9.onrender.com", {
+    const newSocket = io("http://localhost:5000", {
       auth: { token },
       autoConnect: true,
       transports: ["websocket"],

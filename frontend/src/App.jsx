@@ -4,28 +4,45 @@ import Register from "./pages/Register";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import Chat from "./pages/Chat.jsx";
 import { Toaster } from "react-hot-toast";
+import PublicRoute from "./routes/PublicRoute.jsx";
+
 function App() {
   return (
     <>
-      {/* Global Toast */}
       <Toaster
         position="top-right"
         toastOptions={{
           duration: 3000,
-          style: {
-            background: "#1f2937",
-            color: "#fff",
-          },
+          style: { background: "#1f2937", color: "#fff" },
         }}
       />
 
       <Routes>
-        {/* Public Routes */}
-
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/sounds/*" element={null} />
-        {/* Protected Routes (later) */}
+        {/* ✅ Root path — PublicRoute redirects to /chat if logged in */}
+        <Route
+          path="/"
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <PublicRoute>
+              <Register />
+            </PublicRoute>
+          }
+        />
 
         <Route
           path="/chat"
@@ -35,8 +52,8 @@ function App() {
             </ProtectedRoute>
           }
         />
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
   );

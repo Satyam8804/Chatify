@@ -13,22 +13,42 @@ const AUTH_ROUTES = ["/login", "/register", "/forgot-password"];
 const isAuthPage = () =>
   AUTH_ROUTES.some((route) => window.location.pathname.startsWith(route));
 
-// ─── Refresh Queue (race condition guard) ─────────────────────────────────────
-let isRefreshing = false;
-let failedQueue = [];
+// ─── Refresh State ─────────────────────────────────────────────────────────────
+let refreshPromise = null; // shared Promise — only ONE refresh call ever in-flight
 
-const processQueue = (error, token = null) => {
-  failedQueue.forEach((p) => (error ? p.reject(error) : p.resolve(token)));
-  failedQueue = [];
+const refreshAccessToken = () => {
+  if (refreshPromise) return refreshPromise; // ✅ reuse if already running
+
+  refreshPromise = axios
+    .post(
+      `${import.meta.env.VITE_API_URL}/users/refresh-token`,
+      {},
+      { withCredentials: true }
+    )
+    .then(({ data }) => {
+      setToken(data.accessToken);
+      return data.accessToken;
+    })
+    .catch((err) => {
+      logger(err);
+      clearToken();
+      window.location.href = "/login";
+      return Promise.reject(err);
+    })
+    .finally(() => {
+      refreshPromise = null; // ✅ reset so future refreshes can run
+    });
+
+  return refreshPromise;
 };
 
-// ─── Axios Instance ───────────────────────────────────────────────────────────
+// ─── Axios Instance ────────────────────────────────────────────────────────────
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
   withCredentials: true,
 });
 
-// ─── Request Interceptor ──────────────────────────────────────────────────────
+// ─── Request Interceptor ───────────────────────────────────────────────────────
 api.interceptors.request.use((config) => {
   const token = getToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
@@ -37,7 +57,7 @@ api.interceptors.request.use((config) => {
 
 // ─── Response Interceptor ─────────────────────────────────────────────────────
 api.interceptors.response.use(
-  // ── Success ──────────────────────────────────────────────────────────────────
+  // ── Success Handler ──────────────────────────────────────────────────────────
   (response) => {
     const { method, url } = response.config;
     const isMutating = ["post", "put", "patch", "delete"].includes(method);
@@ -50,73 +70,43 @@ api.interceptors.response.use(
     return response;
   },
 
-  // ── Error ─────────────────────────────────────────────────────────────────
+  // ── Error Handler ─────────────────────────────────────────────────────────────
   async (error) => {
     const originalRequest = error.config;
     const status = error.response?.status;
     const isRefreshUrl = originalRequest?.url?.includes("/users/refresh-token");
 
-    // ── 401 handling ──────────────────────────────────────────────────────────
     if (status === 401) {
-      // 1️⃣ Auth pages (login / register / etc.) → show toast immediately, no refresh
+      // 1️⃣ Auth pages → show toast, no refresh attempt
       if (isAuthPage()) {
-        const message = error?.response?.data?.message || "Invalid credentials";
-        toast.error(message);
+        toast.error(error?.response?.data?.message || "Invalid credentials");
         return Promise.reject(error);
       }
 
-      // 2️⃣ Refresh endpoint itself failed → clear session & redirect
+      // 2️⃣ Refresh endpoint itself failed → clear & redirect
       if (isRefreshUrl) {
         clearToken();
         window.location.href = "/login";
         return Promise.reject(error);
       }
 
-      // 3️⃣ Normal protected route — attempt silent token refresh
+      // 3️⃣ Protected route → silent refresh
+      //    All concurrent 401s share ONE refreshPromise — no waterfall
       if (!originalRequest._retry) {
         originalRequest._retry = true;
 
-        // Queue subsequent requests while refresh is in-flight
-        if (isRefreshing) {
-          return new Promise((resolve, reject) =>
-            failedQueue.push({ resolve, reject })
-          )
-            .then((token) => {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
-              return api(originalRequest);
-            })
-            .catch(Promise.reject.bind(Promise));
-        }
-
-        isRefreshing = true;
-
         try {
-          const { data } = await axios.post(
-            `${import.meta.env.VITE_API_URL}/users/refresh-token`,
-            {},
-            { withCredentials: true }
-          );
-
-          const newToken = data.accessToken;
-          setToken(newToken);
-          originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          processQueue(null, newToken);
+          const token = await refreshAccessToken(); // ✅ shared, not duplicated
+          originalRequest.headers.Authorization = `Bearer ${token}`;
           return api(originalRequest);
         } catch (refreshError) {
-          processQueue(refreshError, null);
-          logger(refreshError);
-          clearToken();
-          window.location.href = "/login";
           return Promise.reject(refreshError);
-        } finally {
-          isRefreshing = false;
         }
       }
     }
 
-    // ── All other errors → generic toast ─────────────────────────────────────
-    const message = error?.response?.data?.message || "Something went wrong";
-    toast.error(message);
+    // ── All other errors ──────────────────────────────────────────────────────
+    toast.error(error?.response?.data?.message || "Something went wrong");
     return Promise.reject(error);
   }
 );

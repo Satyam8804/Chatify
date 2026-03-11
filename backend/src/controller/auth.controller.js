@@ -69,9 +69,7 @@ export const loginUser = async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({
-        message: "Email and password are required",
-      });
+      return res.status(400).json({ message: "Email and password are required" });
     }
 
     const user = await User.findOne({ email }).select("+password");
@@ -79,24 +77,25 @@ export const loginUser = async (req, res) => {
     if (!user) {
       return res.status(401).json({ message: "Invalid email or password" });
     }
-    
+
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    const accessToken = generateAccessToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
+    const accessToken  = generateAccessToken(user._id);
+    const refreshToken = generateRefreshToken(user._id); // ✅ named refreshToken
 
     user.refreshToken = refreshToken;
-
     await user.save();
 
-    res.cookie("refreshToken", refreshToken, {
+    const isProduction = process.env.NODE_ENV === "production";
+
+    res.cookie("refreshToken", refreshToken, { // ✅ use refreshToken not newRefreshToken
       httpOnly: true,
-      secure: true,
-      sameSite: "none",
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -118,30 +117,31 @@ export const loginUser = async (req, res) => {
 export const refreshAccessToken = async (req, res) => {
   try {
     const refreshToken = req.cookies?.refreshToken;
-
+    
     if (!refreshToken) {
       return res.status(401).json({ message: "Session expired" });
     }
 
     const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+
     const user = await User.findById(decoded.id);
 
     if (!user || user.refreshToken !== refreshToken) {
       return res.status(401).json({ message: "Invalid refresh token" });
     }
 
-    // 👇 Rotate both tokens
     const newAccessToken = generateAccessToken(user._id);
     const newRefreshToken = generateRefreshToken(user._id);
 
     user.refreshToken = newRefreshToken;
     await user.save();
 
-    // 👇 Reissue the cookie
+    const isProduction = process.env.NODE_ENV === "production";
+
     res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: "none",
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -150,7 +150,6 @@ export const refreshAccessToken = async (req, res) => {
     return res.status(401).json({ message: "Invalid or expired session" });
   }
 };
-
 export const logout = async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken;

@@ -2,13 +2,13 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/authContext.jsx";
 import Loader from "../utils/Loader.jsx";
 
-const ProtectedRoute = ({ children }) => {
+const PublicRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) return <Loader />;
-  if (!isAuthenticated) return <Navigate to="/login" replace />; // ✅ not logged in → login
+  if (isAuthenticated) return <Navigate to="/chat" replace />; 
 
   return children; 
 };
 
-export default ProtectedRoute;
+export default PublicRoute;
