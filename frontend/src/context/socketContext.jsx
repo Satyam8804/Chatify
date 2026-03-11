@@ -87,7 +87,7 @@ export const SocketProvider = ({ children }) => {
         typingUser,
         activeChatId,
         setActiveChatId,
-        messageSeen 
+        messageSeen,
       }}
     >
       {children}

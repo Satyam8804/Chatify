@@ -5,13 +5,14 @@ import { Send, Plus, X } from "lucide-react";
 import { useAuth } from "../../context/authContext";
 import { logger } from "../../utils/logger";
 import sentSound from "../../assets/sound/sent.mp3";
-const MessageInput = ({ chatId, onMessageSent }) => {
+const MessageInput = ({ chatId, onMessageSent,setReplyTo,replyTo }) => {
   const [message, setMessage] = useState("");
   const [showMenu, setShowMenu] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
+  
 
   const soundRef = useRef(new Audio(sentSound));
-  
+
   const { socket } = useSocket();
   const { user } = useAuth();
 
@@ -27,6 +28,7 @@ const MessageInput = ({ chatId, onMessageSent }) => {
         const res = await api.post("/messages", {
           chatId,
           content: message,
+          replyTo: replyTo?._id || null, // ✅
         });
         const newMessage = res.data;
         onMessageSent(newMessage);
@@ -46,14 +48,15 @@ const MessageInput = ({ chatId, onMessageSent }) => {
           media: [{ url: preview, name: file.name }],
           uploading: true,
           createdAt: new Date(),
+          replyTo: replyTo || null, // ✅
         };
 
-        // show preview immediately
         onMessageSent(tempMessage);
 
         const formData = new FormData();
         formData.append("files", file);
         formData.append("chatId", chatId);
+        if (replyTo?._id) formData.append("replyTo", replyTo._id); // ✅
 
         try {
           const res = await api.post("/messages/media", formData, {
@@ -61,8 +64,9 @@ const MessageInput = ({ chatId, onMessageSent }) => {
           });
           const newMessage = res.data;
           socket.emit("new-message", newMessage);
-          // replace preview with real message
           onMessageSent({ ...newMessage, replaceId: tempId });
+          soundRef.current.currentTime = 0; // ✅
+          soundRef.current.play(); // ✅
         } catch (err) {
           logger(err);
         }
@@ -70,6 +74,7 @@ const MessageInput = ({ chatId, onMessageSent }) => {
 
       setSelectedFiles([]);
       setMessage("");
+      setReplyTo(null); // ✅ clear reply after sending
     } catch (err) {
       logger(err.message);
     }
@@ -202,7 +207,23 @@ const MessageInput = ({ chatId, onMessageSent }) => {
             <Plus size={20} />
           </button>
         </div>
-
+        {replyTo && (
+          <div className="flex items-center justify-between px-3 py-2 bg-gray-100 dark:bg-slate-800 rounded-lg text-sm">
+            <div className="border-l-4 border-emerald-500 pl-2">
+              <p className="text-xs text-emerald-500 font-medium">
+                {replyTo.sender?.fName}
+              </p>
+              <p className="text-gray-600 dark:text-slate-300 truncate">
+                {replyTo.content}
+              </p>
+            </div>
+            <X
+              size={14}
+              onClick={() => setReplyTo(null)}
+              className="cursor-pointer"
+            />
+          </div>
+        )}
         {/* Text Input */}
         <input
           type="text"

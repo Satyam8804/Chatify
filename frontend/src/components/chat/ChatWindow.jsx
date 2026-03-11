@@ -16,6 +16,7 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
   const receiveSoundRef = useRef(new Audio(sentSound)); // sound when you receive a message
   const seenSoundRef = useRef(new Audio(seenSound));
   const { user } = useAuth();
+  const [replyTo, setReplyTo] = useState(null);
 
   const handleNewMessage = (newMessage) => {
     setMessages((prev) => {
@@ -97,11 +98,11 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
 
       {/* Messages */}
       <div className="flex-1 overflow-hidden bg-slate-50 dark:bg-slate-950">
-        <MessageList messages={messages} />
+        <MessageList messages={messages} onReply={setReplyTo} />
       </div>
 
       {/* Input */}
-      <MessageInput chatId={chat._id} onMessageSent={handleNewMessage} />
+      <MessageInput chatId={chat._id} onMessageSent={handleNewMessage} replyTo={replyTo} setReplyTo={setReplyTo} />
     </div>
   );
 };

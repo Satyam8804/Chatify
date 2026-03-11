@@ -4,20 +4,33 @@ import Avatar from "../common/Avatar";
 import { useSocket } from "../../context/socketContext";
 import TypingIndicator from "./TypingIndicator";
 import { BsCheck, BsCheckAll } from "react-icons/bs";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, Reply } from "lucide-react";
 import { getAvatarColor } from "../../utils/getAvatarColor";
 import { FaFilePdf } from "react-icons/fa";
 import AudioPlayer from "./AudioPlayer";
 import ImagePreview from "./ImagePreview";
 
-const MessageList = ({ messages }) => {
+const MessageList = ({ messages, onReply }) => {
   const { user } = useAuth();
   const bottomRef = useRef(null);
   const { typingUser } = useSocket();
   const [previewImage, setPreviewImage] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
 
-  console.log(messages)
+  const messageRefs = useRef({});
+
+  const handleReplyClick = (id) => {
+    const el = messageRefs.current[id];
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.style.transition = "background 0.3s ease";
+      el.style.background = "rgba(52, 211, 153, 0.25)"; // emerald with transparency
+      setTimeout(() => {
+        el.style.transition = "background 0.8s ease";
+        el.style.background = "";
+      }, 1500);
+    }
+  };
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -33,6 +46,9 @@ const MessageList = ({ messages }) => {
           copiedId={copiedId}
           setCopiedId={setCopiedId}
           isOwn={msg.sender?._id === user?._id}
+          onReply={onReply}
+          messageRefs={messageRefs}
+          onReplyClick={handleReplyClick}
         />
       ))}
       {previewImage && (
@@ -53,6 +69,9 @@ const MessageBubble = ({
   copiedId,
   setCopiedId,
   setPreviewImage,
+  onReply,
+  onReplyClick,
+  messageRefs,
 }) => {
   const userColor = !isOwn
     ? getAvatarColor(message.sender?._id || message.sender?.fName)
@@ -70,17 +89,34 @@ const MessageBubble = ({
   });
 
   return (
-    <div className={`flex mb-2 ${isOwn ? "justify-end" : "justify-start"}`}>
-      {/* Avatar */}
+    <div
+      ref={(el) => {
+        if (el) messageRefs.current[message._id] = el;
+      }}
+      className={`group flex mb-2 items-center gap-1 ${
+        isOwn ? "justify-end" : "justify-start"
+      }`}
+    >
+      {/* Avatar - received messages */}
       {!isOwn && (
-        <div className="mr-2">
+        <div className="self-end mb-1">
           <Avatar user={message?.sender} size={24} IsInside />
         </div>
       )}
 
+      {/* Reply Button - own messages (left of bubble) */}
+      {isOwn && (
+        <button
+          onClick={() => onReply(message)}
+          className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-emerald-500 cursor-pointer p-1"
+        >
+          <Reply size={14} />
+        </button>
+      )}
+
       {/* Message Bubble */}
       <div
-        className={`group relative max-w-[65%] px-2 py-1 text-sm shadow break-words
+        className={`relative max-w-[65%] px-2 py-1 text-sm shadow break-words
           ${
             isOwn
               ? "bg-emerald-100 dark:bg-emerald-900 text-black dark:text-emerald-50 rounded-tl-sm rounded-bl-sm rounded-br-sm"
@@ -95,6 +131,26 @@ const MessageBubble = ({
           >
             {message.sender?.fName}
           </p>
+        )}
+
+        {/* REPLY PREVIEW */}
+        {message.replyTo && (
+          <div
+            onClick={() => onReplyClick(message.replyTo._id)}
+            className={`border-l-4 cursor-pointer border-emerald-500 pl-2 mb-1 rounded p-1 text-[11px]
+              ${
+                isOwn
+                  ? "bg-emerald-200/50 dark:bg-emerald-800/50"
+                  : "bg-gray-100 dark:bg-slate-700"
+              }`}
+          >
+            <p className="text-emerald-500 font-medium text-[10px]">
+              {message.replyTo.sender?.fName}
+            </p>
+            <p className="text-gray-500 dark:text-slate-400 truncate">
+              {message.replyTo.content || "📎 Media"}
+            </p>
+          </div>
         )}
 
         {/* TEXT MESSAGE */}
@@ -143,13 +199,23 @@ const MessageBubble = ({
         {/* Bubble Tail */}
         <div
           className={`absolute top-0 w-0 h-0
-    ${
-      isOwn
-        ? "right-[-8px] border-l-[10px] border-l-emerald-100 dark:border-l-emerald-900 border-b-[10px] border-b-transparent"
-        : "left-[-8px] border-r-[10px] border-r-white dark:border-r-slate-800 border-b-[10px] border-b-transparent"
-    }`}
+            ${
+              isOwn
+                ? "right-[-8px] border-l-[10px] border-l-emerald-100 dark:border-l-emerald-900 border-b-[10px] border-b-transparent"
+                : "left-[-8px] border-r-[10px] border-r-white dark:border-r-slate-800 border-b-[10px] border-b-transparent"
+            }`}
         />
       </div>
+
+      {/* Reply Button - received messages (right of bubble) */}
+      {!isOwn && (
+        <button
+          onClick={() => onReply(message)}
+          className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-emerald-500 cursor-pointer p-1"
+        >
+          <Reply size={14} />
+        </button>
+      )}
     </div>
   );
 };
@@ -167,7 +233,7 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn }) => {
 
   if (["png", "jpg", "jpeg", "gif", "webp"].includes(extension)) {
     return (
-      <div className="relative group max-w-[70vw] sm:max-w-[300px]">
+      <div className="relative max-w-[70vw] sm:max-w-[300px]">
         <img
           src={url}
           alt="media"
@@ -204,11 +270,11 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn }) => {
       target="_blank"
       rel="noopener noreferrer"
       className={`relative p-2 rounded-lg max-w-[70vw] sm:max-w-[250px] flex items-center gap-2 cursor-pointer transition-colors
-      ${
-        isOwn
-          ? "bg-emerald-200 dark:bg-emerald-800 hover:bg-emerald-300 dark:hover:bg-emerald-700"
-          : "bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600"
-      }`}
+        ${
+          isOwn
+            ? "bg-emerald-200 dark:bg-emerald-800 hover:bg-emerald-300 dark:hover:bg-emerald-700"
+            : "bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600"
+        }`}
     >
       <FaFilePdf color="red" size={22} />
       <span className="text-sm truncate break-all text-gray-800 dark:text-slate-200">

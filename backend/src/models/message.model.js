@@ -4,7 +4,7 @@ const mediaSchema = new mongoose.Schema({
   url: String,
   type: String,
   name: String,
-  size: Number
+  size: Number,
 });
 
 const messageSchema = new mongoose.Schema(
@@ -12,38 +12,44 @@ const messageSchema = new mongoose.Schema(
     sender: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true
+      required: true,
     },
 
     chat: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Chat",
-      required: true
+      required: true,
     },
 
     content: {
       type: String,
       trim: true,
-      default: ""
+      default: "",
     },
 
     media: {
       type: [mediaSchema],
-      default: []
+      default: [],
     },
 
     messageType: {
       type: String,
       enum: ["text", "media"],
-      default: "text"
+      default: "text",
     },
 
     readBy: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "User"
-      }
-    ]
+        ref: "User",
+      },
+    ],
+
+    replyTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Message",
+      default: null,
+    },
   },
   { timestamps: true }
 );

@@ -3,7 +3,7 @@ import Chat from "../models/chat.model.js";
 
 export const sendMessage = async (req, res) => {
   try {
-    const { chatId, content } = req.body;
+    const { chatId, content, replyTo } = req.body; // ✅ extract replyTo
 
     if (!chatId || !content) {
       return res
@@ -15,18 +15,22 @@ export const sendMessage = async (req, res) => {
       sender: req.user._id,
       chat: chatId,
       content,
-      readBy: [req.user._id], 
+      readBy: [req.user._id],
+      replyTo: replyTo || null, // ✅
     });
 
     message = await message.populate("sender", "fName lName email avatar");
-
     message = await message.populate("chat");
+    message = await message.populate({
+      // ✅
+      path: "replyTo",
+      populate: { path: "sender", select: "fName avatar" },
+    });
 
     await Chat.findByIdAndUpdate(chatId, {
       lastMessage: message._id,
     });
 
-    // ✅ send actual message object
     res.status(201).json(message);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -39,6 +43,10 @@ export const fetchMessageOfChat = async (req, res) => {
 
     const message = await Message.find({ chat: chatId })
       .populate("sender", "fName lName email avatar")
+      .populate({
+        path: "replyTo",
+        populate: { path: "sender", select: "fName avatar" },
+      })
       .sort({ createdAt: 1 });
 
     res.json(message);
