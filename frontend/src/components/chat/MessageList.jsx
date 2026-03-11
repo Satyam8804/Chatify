@@ -23,12 +23,17 @@ const MessageList = ({ messages, onReply }) => {
     const el = messageRefs.current[id];
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.style.transition = "background 0.3s ease";
-      el.style.background = "rgba(52, 211, 153, 0.25)"; // emerald with transparency
-      setTimeout(() => {
-        el.style.transition = "background 0.8s ease";
-        el.style.background = "";
-      }, 1500);
+
+      let count = 0;
+      const interval = setInterval(() => {
+        el.style.transition = "background 0.3s ease";
+        el.style.background = count % 2 === 0 ? "rgba(52, 211, 153, 0.3)" : "";
+        count++;
+        if (count > 5) {
+          clearInterval(interval);
+          el.style.background = "";
+        }
+      }, 300);
     }
   };
 
