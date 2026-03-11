@@ -104,7 +104,7 @@ const MessageBubble = ({
     >
       {/* Avatar - received messages */}
       {!isOwn && (
-        <div className="self-end mb-1">
+        <div className="self-start mt-1">
           <Avatar user={message?.sender} size={24} IsInside />
         </div>
       )}

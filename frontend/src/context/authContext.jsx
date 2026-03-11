@@ -24,7 +24,6 @@ export const AuthProvider = ({ children }) => {
         // ✅ Now fetch user with valid token
         const userRes = await api.get("/users/me");
         setUser(userRes.data.user);
-
       } catch (error) {
         logger(error.message);
         setUser(null);
@@ -39,7 +38,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     const res = await api.post("/users/login-user", credentials);
-    setToken(res.data.accessToken); // ✅ memory only
+    setToken(res.data.accessToken);
     setUser(res.data.user);
   };
 

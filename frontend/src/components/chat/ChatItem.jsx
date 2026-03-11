@@ -3,6 +3,8 @@ import { getInitials } from "../../utils/getInitials";
 import { formatLastSeen } from "../../utils/formatMessageDate";
 import { getAvatarColor } from "../../utils/getAvatarColor";
 import Avatar from "../common/Avatar";
+import { Image, Music, Video, FileText } from "lucide-react";
+import { BsCheck, BsCheckAll } from "react-icons/bs";
 
 const ChatItem = ({ chat, isActive, onClick, onlineUser, unreadCounts }) => {
   const { user } = useAuth();
@@ -12,7 +14,6 @@ const ChatItem = ({ chat, isActive, onClick, onlineUser, unreadCounts }) => {
   const userId = user._id;
   const isGroup = chat.isGroupChat;
   let friend = null;
-
   if (!isGroup && userId && Array.isArray(chat?.users)) {
     friend = chat.users.find((u) => u?._id?.toString() !== userId?.toString());
   }
@@ -80,15 +81,44 @@ const ChatItem = ({ chat, isActive, onClick, onlineUser, unreadCounts }) => {
           )}
         </div>
 
-        <p className="text-[12px] text-gray-500 dark:text-slate-400 truncate mt-0.5">
-          {chat?.lastMessage?.content ||
-            (["png", "jpg", "jpeg", "webp", "gif"].includes(ext) &&
-              "📷 Photo") ||
-            (["mp4", "webm", "mov"].includes(ext) && "🎥 Video") ||
-            (["mp3", "wav"].includes(ext) && "🎵 Audio") ||
-            (media && "📄 Document") ||
-            "No messages yet"}
-        </p>
+        <div className="flex items-center gap-1 mt-0.5">
+          {/* Tick */}
+          {chat?.lastMessage?.sender?._id === user?._id &&
+            (chat?.lastMessage?.readBy?.length > 1 ? (
+              <BsCheckAll color="#34d399" size={14} className="shrink-0" />
+            ) : (
+              <BsCheck color="gray" size={14} className="shrink-0" />
+            ))}
+
+          {/* Last Message */}
+          <div className="text-[12px] text-gray-500 dark:text-slate-400 truncate flex items-center gap-1">
+            {chat?.lastMessage?.content ? (
+              <span className="truncate">{chat.lastMessage.content}</span>
+            ) : ["png", "jpg", "jpeg", "webp", "gif"].includes(ext) ? (
+              <>
+                <Image size={12} className="text-blue-500 shrink-0" />
+                <span>Photo</span>
+              </>
+            ) : ["mp4", "webm", "mov"].includes(ext) ? (
+              <>
+                <Video size={12} className="text-purple-500 shrink-0" />
+                <span>Video</span>
+              </>
+            ) : ["mp3", "wav", "ogg"].includes(ext) ? (
+              <>
+                <Music size={12} className="text-green-400 shrink-0" />
+                <span>Audio</span>
+              </>
+            ) : media ? (
+              <>
+                <FileText size={12} className="text-red-400 shrink-0" />
+                <span>Document</span>
+              </>
+            ) : (
+              <span>No messages yet</span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Last Seen / Online */}

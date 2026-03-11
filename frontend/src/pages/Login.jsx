@@ -2,8 +2,9 @@ import AuthForm from "../components/AuthForm";
 import AuthPage from "./AuthPage";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/authContext";
-import { logger } from "../utils/logger";
+
 import { useState } from "react";
+import { logger } from "../utils/logger";
 
 const Login = () => {
   const { login } = useAuth();
@@ -13,10 +14,12 @@ const Login = () => {
   const handleLogin = async (data) => {
     try {
       setLoading(true);
+
       await login(data);
+
       navigate("/chat", { replace: true });
     } catch (error) {
-      logger(error.message);
+      logger(error)
     } finally {
       setLoading(false);
     }

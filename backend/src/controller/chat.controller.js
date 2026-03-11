@@ -45,7 +45,10 @@ export const fetchAllChat = async (req, res) => {
       users: { $in: [req.user._id] },
     })
       .populate("users", "-password")
-      .populate("lastMessage")
+      .populate({
+        path: "lastMessage",
+        populate: { path: "sender", select: "fName avatar" }, // ✅
+      })
       .sort({ updatedAt: -1 });
     res.json(chats);
   } catch (error) {
