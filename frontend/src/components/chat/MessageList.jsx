@@ -155,13 +155,13 @@ const MessageBubble = ({
 
             {/* ✅ show media thumbnail or text */}
             {message.replyTo.media?.length > 0 ? (
-              <div className="flex items-center gap-1 text-gray-500 dark:text-slate-400">
+              <div className="flex items-center gap-2">
                 {["png", "jpg", "jpeg", "gif", "webp"].includes(
                   message.replyTo.media[0].name?.split(".").pop()?.toLowerCase()
-                ) ? (
+                ) || message.replyTo.media[0].type?.startsWith("image/") ? (
                   <img
                     src={message.replyTo.media[0].url}
-                    className="w-10 h-10 rounded object-cover"
+                    className="w-10 h-10 rounded object-cover shrink-0" // ✅ fixed size
                   />
                 ) : ["mp4", "webm", "mov"].includes(
                     message.replyTo.media[0].name

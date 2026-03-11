@@ -37,10 +37,15 @@ export const sendMediaMessage = async (req, res) => {
       chat: chatId,
       messageType: "media",
       media: uploadedMedia,
+      replyTo: req.body.replyTo || null, 
+      readBy: [req.user._id], 
     });
 
     message = await message.populate("sender", "fName lName avatar");
-
+    message = await message.populate({
+      path: "replyTo",
+      populate: { path: "sender", select: "fName avatar" },
+    });
     await Chat.findByIdAndUpdate(chatId, {
       lastMessage: message._id,
       updatedAt: new Date(),
