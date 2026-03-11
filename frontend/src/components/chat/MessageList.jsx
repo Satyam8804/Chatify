@@ -39,10 +39,10 @@ const MessageList = ({ messages, onReply }) => {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, typingUser]);
 
   return (
-    <div className="h-full overflow-y-auto hide-scrollbar p-4 bg-slate-50 dark:bg-slate-950 transition-colors">
+    <div className="h-full overflow-y-auto hide-scrollbar p-2 pb-4 bg-slate-50 dark:bg-slate-950 transition-colors">
       {messages.map((msg) => (
         <MessageBubble
           key={msg._id}
@@ -288,7 +288,6 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn }) => {
       </div>
     );
   }
-
 
   if (isAudio) {
     return (
