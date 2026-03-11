@@ -266,12 +266,12 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn }) => {
 
   if (isImage) {
     return (
-      <div className="relative max-w-[70vw] sm:max-w-[300px] max-h-[350px]">
+      <div className="relative max-w-[70vw] sm:max-w-[300px]">
         <img
           src={url}
           alt="media"
           onClick={() => !uploading && setPreviewImage(url)}
-          className="w-full h-auto rounded-lg cursor-pointer hover:opacity-90 object-cover"
+          className="w-full max-h-[250px] rounded-lg cursor-pointer hover:opacity-90 object-cover" // ✅ max-h-[250px]
         />
         {uploading && uploadingOverlay}
       </div>
