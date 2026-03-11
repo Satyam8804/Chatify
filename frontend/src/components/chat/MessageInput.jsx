@@ -5,11 +5,10 @@ import { Send, Plus, X } from "lucide-react";
 import { useAuth } from "../../context/authContext";
 import { logger } from "../../utils/logger";
 import sentSound from "../../assets/sound/sent.mp3";
-const MessageInput = ({ chatId, onMessageSent,setReplyTo,replyTo }) => {
+const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
   const [message, setMessage] = useState("");
   const [showMenu, setShowMenu] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
-  
 
   const soundRef = useRef(new Audio(sentSound));
 
@@ -208,20 +207,21 @@ const MessageInput = ({ chatId, onMessageSent,setReplyTo,replyTo }) => {
           </button>
         </div>
         {replyTo && (
-          <div className="flex items-center justify-between px-3 py-2 bg-gray-100 dark:bg-slate-800 rounded-lg text-sm">
-            <div className="border-l-4 border-emerald-500 pl-2">
-              <p className="text-xs text-emerald-500 font-medium">
+          <div className="flex items-center justify-between px-3 py-2 bg-gray-100 dark:bg-slate-800 rounded-lg text-sm min-w-0">
+            <div className="border-l-4 border-emerald-500 pl-2 min-w-0 flex-1">
+              <p className="text-xs text-emerald-500 font-medium truncate">
                 {replyTo.sender?.fName}
               </p>
-              <p className="text-gray-600 dark:text-slate-300 truncate">
-                {replyTo.content}
+              <p className="text-gray-600 dark:text-slate-300 truncate text-xs">
+                {replyTo.content || "📎 Media"}
               </p>
             </div>
-            <X
-              size={14}
+            <button
               onClick={() => setReplyTo(null)}
-              className="cursor-pointer"
-            />
+              className="ml-2 shrink-0 text-gray-400 hover:text-gray-600 cursor-pointer"
+            >
+              <X size={14} />
+            </button>
           </div>
         )}
         {/* Text Input */}
