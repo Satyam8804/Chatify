@@ -33,7 +33,7 @@ const MessageList = ({ messages, onReply }) => {
           clearInterval(interval);
           el.style.background = "";
         }
-      }, 300);
+      }, 800);
     }
   };
 
