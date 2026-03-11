@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import api from "../../api/axios";
 import { useSocket } from "../../context/socketContext";
-import { Send, Plus, X } from "lucide-react";
+import { Send, Plus, X, Image, Music, Video, FileText } from "lucide-react";
 import { useAuth } from "../../context/authContext";
 import { logger } from "../../utils/logger";
 import sentSound from "../../assets/sound/sent.mp3";
+
 const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
   const [message, setMessage] = useState("");
   const [showMenu, setShowMenu] = useState(false);
@@ -44,7 +45,7 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
           _id: tempId,
           sender: { _id: user._id },
           chat: chatId,
-          media: [{ url: preview, name: file.name,type: file.type }],
+          media: [{ url: preview, name: file.name, type: file.type }],
           uploading: true,
           createdAt: new Date(),
           replyTo: replyTo || null, // ✅
@@ -119,38 +120,55 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
       {/* MEDIA PREVIEW */}
       {selectedFiles.length > 0 && (
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {/* First image large */}
-          <div className="relative shrink-0 m-1">
-            <img
-              src={selectedFiles[0].preview}
-              alt="preview"
-              className="w-24 h-24 object-cover rounded-lg border border-gray-200 dark:border-slate-600"
-            />
-            <button
-              onClick={() =>
-                setSelectedFiles((prev) => prev.filter((_, i) => i !== 0))
-              }
-              className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-500 text-white rounded-full flex items-center justify-center cursor-pointer"
-            >
-              <X size={10} />
-            </button>
-          </div>
+          {selectedFiles.map((item, index) => {
+            const ext = item.file.name.split(".").pop()?.toLowerCase();
+            const isImage =
+              ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext) ||
+              item.file.type.startsWith("image/");
+            const isVideo =
+              ["mp4", "webm", "mov"].includes(ext) ||
+              item.file.type.startsWith("video/");
+            const isAudio =
+              ["mp3", "wav", "ogg"].includes(ext) ||
+              item.file.type.startsWith("audio/");
 
-          {/* Remaining previews */}
-          {selectedFiles.slice(1, 4).map((item, index) => (
-            <div key={index} className="relative shrink-0">
-              <img
-                src={item.preview}
-                alt="preview"
-                className="w-16 h-16 object-cover rounded-md border border-gray-200 dark:border-slate-600"
-              />
-              {index === 2 && selectedFiles.length > 4 && (
-                <div className="absolute inset-0 bg-black/60 text-white flex items-center justify-center text-sm rounded-md">
-                  +{selectedFiles.length - 4}
-                </div>
-              )}
-            </div>
-          ))}
+            return (
+              <div
+                key={index}
+                className="relative shrink-0 m-1 w-16 h-16 rounded-lg bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 flex flex-col items-center justify-center gap-1"
+              >
+                {isImage ? (
+                  <img
+                    src={item.preview}
+                    alt="preview"
+                    className="w-full h-full object-cover rounded-lg"
+                  />
+                ) : isVideo ? (
+                  <video className="w-full h-full object-cover rounded-lg">
+                    <source src={item.preview} />
+                  </video>
+                ) : isAudio ? (
+                  <Music size={22} className="text-green-400" />
+                ) : (
+                  <FileText size={22} className="text-red-400" />
+                )}
+                <span className="text-[9px] text-gray-500 dark:text-slate-400 truncate w-14 text-center px-1">
+                  {item.file.name}
+                </span>
+
+                <button
+                  onClick={() =>
+                    setSelectedFiles((prev) =>
+                      prev.filter((_, i) => i !== index)
+                    )
+                  }
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-500 text-white rounded-full flex items-center justify-center cursor-pointer"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -165,36 +183,36 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
                   fileInputRef.current.accept = "image/*";
                   fileInputRef.current.click();
                 }}
-                className="flex w-full px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
+                className="flex gap-1 w-full px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
               >
-                🖼 Image
+                <Image/> Image
               </button>
               <button
                 onClick={() => {
                   fileInputRef.current.accept = "video/*";
                   fileInputRef.current.click();
                 }}
-                className="flex w-full px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
+                className="flex w-full gap-1 px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
               >
-                🎥 Video
+                <Video/> Video
               </button>
               <button
                 onClick={() => {
                   fileInputRef.current.accept = "audio/*";
                   fileInputRef.current.click();
                 }}
-                className="flex w-full px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
+                className="flex gap-1 w-full px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
               >
-                🎵 Audio
+                <Audio/> Audio
               </button>
               <button
                 onClick={() => {
                   fileInputRef.current.accept = ".pdf,.doc,.docx,.txt";
                   fileInputRef.current.click();
                 }}
-                className="flex w-full px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
+                className="flex gap-1 w-full px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
               >
-                📄 Document
+                <FileText/> Document
               </button>
             </div>
           )}
