@@ -261,19 +261,30 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn }) => {
   const name = media?.name || "";
   const extension = name.split(".").pop()?.toLowerCase();
 
+  // ✅ fallback to mime type for blob URLs during upload
+  const isImage =
+    ["png", "jpg", "jpeg", "gif", "webp"].includes(extension) ||
+    media?.type?.startsWith("image/");
+  const isVideo =
+    ["mp4", "webm", "mov"].includes(extension) ||
+    media?.type?.startsWith("video/");
+  const isAudio =
+    ["mp3", "wav", "ogg"].includes(extension) ||
+    media?.type?.startsWith("audio/");
+
   const uploadingOverlay = (
     <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-black/40 rounded-lg">
       <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
-  if (["png", "jpg", "jpeg", "gif", "webp"].includes(extension)) {
+  if (isImage) {
     return (
-      <div className="relative max-w-[70vw] sm:max-w-[300px]">
+      <div className="relative max-w-[70vw] sm:max-w-[300px] max-h-[350px]">
         <img
           src={url}
           alt="media"
-          onClick={() => setPreviewImage(url)}
+          onClick={() => !uploading && setPreviewImage(url)}
           className="w-full h-auto rounded-lg cursor-pointer hover:opacity-90 object-cover"
         />
         {uploading && uploadingOverlay}
@@ -281,9 +292,9 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn }) => {
     );
   }
 
-  if (["mp4", "webm", "mov"].includes(extension)) {
+  if (isVideo) {
     return (
-      <div className="relative max-w-[70vw] sm:max-w-[300px]">
+      <div className="relative max-w-[70vw] sm:max-w-[300px] max-h-[350px]">
         <video controls className="w-full rounded-lg cursor-pointer">
           <source src={url} />
         </video>
@@ -292,7 +303,7 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn }) => {
     );
   }
 
-  if (["mp3", "wav", "ogg"].includes(extension)) {
+  if (isAudio) {
     return (
       <div className="max-w-[70vw] sm:max-w-[300px]">
         <AudioPlayer url={url} />

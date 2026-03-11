@@ -44,7 +44,7 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
           _id: tempId,
           sender: { _id: user._id },
           chat: chatId,
-          media: [{ url: preview, name: file.name }],
+          media: [{ url: preview, name: file.name,type: file.type }],
           uploading: true,
           createdAt: new Date(),
           replyTo: replyTo || null, // ✅
