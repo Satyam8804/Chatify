@@ -142,19 +142,50 @@ const MessageBubble = ({
         {message.replyTo && (
           <div
             onClick={() => onReplyClick(message.replyTo._id)}
-            className={`border-l-4 cursor-pointer border-emerald-500 pl-2 mb-1 rounded p-1 text-[11px]
-              ${
-                isOwn
-                  ? "bg-emerald-200/50 dark:bg-emerald-800/50"
-                  : "bg-gray-100 dark:bg-slate-700"
-              }`}
+            className={`border-l-4 border-emerald-500 pl-2 mb-1 rounded p-1 text-[11px] cursor-pointer hover:opacity-80
+      ${
+        isOwn
+          ? "bg-emerald-200/50 dark:bg-emerald-800/50"
+          : "bg-gray-100 dark:bg-slate-700"
+      }`}
           >
             <p className="text-emerald-500 font-medium text-[10px]">
               {message.replyTo.sender?.fName}
             </p>
-            <p className="text-gray-500 dark:text-slate-400 truncate">
-              {message.replyTo.content || "📎 Media"}
-            </p>
+
+            {/* ✅ show media thumbnail or text */}
+            {message.replyTo.media?.length > 0 ? (
+              <div className="flex items-center gap-1 text-gray-500 dark:text-slate-400">
+                {["png", "jpg", "jpeg", "gif", "webp"].includes(
+                  message.replyTo.media[0].name?.split(".").pop()?.toLowerCase()
+                ) ? (
+                  <img
+                    src={message.replyTo.media[0].url}
+                    className="w-10 h-10 rounded object-cover"
+                  />
+                ) : ["mp4", "webm", "mov"].includes(
+                    message.replyTo.media[0].name
+                      ?.split(".")
+                      .pop()
+                      ?.toLowerCase()
+                  ) ? (
+                  <span>🎥 Video</span>
+                ) : ["mp3", "wav", "ogg"].includes(
+                    message.replyTo.media[0].name
+                      ?.split(".")
+                      .pop()
+                      ?.toLowerCase()
+                  ) ? (
+                  <span>🎵 Audio</span>
+                ) : (
+                  <span>📄 Document</span>
+                )}
+              </div>
+            ) : (
+              <p className="text-gray-500 dark:text-slate-400 truncate">
+                {message.replyTo.content}
+              </p>
+            )}
           </div>
         )}
 
