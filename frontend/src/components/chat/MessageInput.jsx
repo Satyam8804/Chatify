@@ -185,7 +185,7 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
                 }}
                 className="flex gap-1 w-full px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
               >
-                <Image/> Image
+                <Image /> Image
               </button>
               <button
                 onClick={() => {
@@ -194,7 +194,7 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
                 }}
                 className="flex w-full gap-1 px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
               >
-                <Video/> Video
+                <Video /> Video
               </button>
               <button
                 onClick={() => {
@@ -203,7 +203,7 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
                 }}
                 className="flex gap-1 w-full px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
               >
-                <Audio/> Audio
+                <Music /> Audio
               </button>
               <button
                 onClick={() => {
@@ -212,7 +212,7 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
                 }}
                 className="flex gap-1 w-full px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
               >
-                <FileText/> Document
+                <FileText /> Document
               </button>
             </div>
           )}
