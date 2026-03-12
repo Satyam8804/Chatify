@@ -21,9 +21,6 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
 
-  // ─── Cleanup — exposed to parent via ref ─────────────
-  // Parent (ChatWindow) calls this on ANY exit path:
-  // end call, reject, remote hangup, 30s timeout
   const cleanup = () => {
     if (peerRef.current) {
       peerRef.current.close();
@@ -35,10 +32,17 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
     }
   };
 
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
+  }, []);
+
   useImperativeHandle(ref, () => ({ cleanup }));
 
   // ─── Start call (caller side) ────────────────────────
   const startConnection = async () => {
+    setIsConnected(false);
     const peer = createPeer();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -66,6 +70,16 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
           });
       };
 
+      peer.onconnectionstatechange = () => {
+        if (
+          peer.connectionState === "disconnected" ||
+          peer.connectionState === "failed" ||
+          peer.connectionState === "closed"
+        ) {
+          onEndCall();
+        }
+      };
+
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
       socket.emit("webrtc-offer", { offer, to: otherUserId });
@@ -76,8 +90,9 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
 
   // ─── Auto-start camera on mount ──────────────────────
   useEffect(() => {
-    if (otherUserId) startConnection();
-  }, []);
+    if (!otherUserId) return;
+    startConnection();
+  }, [otherUserId]);
 
   // ─── WebRTC socket listeners (receiver side) ─────────
   useEffect(() => {

@@ -16,9 +16,9 @@ export const SocketProvider = ({ children }) => {
   const [activeChatId, setActiveChatId] = useState(null);
   const [incomingCall, setIncomingCall] = useState(null);
   useEffect(() => {
-    if (!user?._id) return; // ✅ wait for user
+    if (!user?._id || socket) return;
 
-    const token = getToken(); // ✅ from memory
+    const token = getToken();
     if (!token) return;
 
     const newSocket = io("https://chatify-jux9.onrender.com", {
@@ -73,13 +73,20 @@ export const SocketProvider = ({ children }) => {
     });
 
     newSocket.on("incoming-call", (data) => {
-      setIncomingCall(data);
+      setIncomingCall((prev) => {
+        if (prev) return prev; // already in call
+        return data;
+      });
+    });
+
+    newSocket.on("call-ended", () => {
+      setIncomingCall(null);
     });
 
     return () => {
       newSocket.disconnect();
     };
-  }, [user?._id, activeChatId]);
+  }, [user?._id]);
 
   return (
     <SocketContext.Provider
