@@ -121,7 +121,7 @@ const MessageBubble = ({
 
       {/* Message Bubble */}
       <div
-        className={`relative max-w-[65%] px-2 py-1 text-sm shadow break-words
+        className={`relative max-w-[65%] px-2 py-1 text-sm shadow break-words overflow-hidden
           ${
             isOwn
               ? "bg-emerald-100 dark:bg-emerald-900 text-black dark:text-emerald-50 rounded-tl-sm rounded-bl-sm rounded-br-sm"
@@ -280,8 +280,11 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn }) => {
 
   if (isVideo) {
     return (
-      <div className="relative max-w-[70vw] sm:max-w-[300px] max-h-[350px]">
-        <video controls className="w-full rounded-lg cursor-pointer">
+      <div className="relative w-full max-w-[70vw] sm:max-w-[300px]">
+        <video
+          controls
+          className="w-full max-h-[250px] rounded-lg object-cover" // ✅ constrain video directly
+        >
           <source src={url} />
         </video>
         {uploading && uploadingOverlay}
