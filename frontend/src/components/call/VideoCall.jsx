@@ -7,8 +7,15 @@ import {
 } from "react";
 import { useWebRTC } from "../../hooks/RTCPeerConnection";
 import { useSocket } from "../../context/socketContext";
-import { Video, VideoOff, Mic, MicOff, PhoneOff, Signal } from "lucide-react";
-
+import {
+  Video,
+  VideoOff,
+  Mic,
+  MicOff,
+  PhoneOff,
+  Signal,
+  RefreshCcw,
+} from "lucide-react";
 const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
   const { peerRef, createPeer } = useWebRTC();
   const { socket } = useSocket();
@@ -20,6 +27,7 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [facingMode, setFacingMode] = useState("user");
 
   const cleanup = () => {
     if (peerRef.current) {
@@ -46,7 +54,7 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
     const peer = createPeer();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: { facingMode },
         audio: true,
       });
 
@@ -162,9 +170,30 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
     setIsVideoOff(!track.enabled);
   };
 
-  // ── End call button just calls parent ────────────────
-  // ChatWindow.endCall() handles: emit call-ended, cleanup(), reset state
-  // VideoCall does NOT emit call-ended itself — prevents double emit
+  const switchCamera = async () => {
+    const newFacing = facingMode === "user" ? "environment" : "user";
+    setFacingMode(newFacing);
+
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((t) => t.stop());
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: newFacing },
+      audio: true,
+    });
+
+    localStreamRef.current = stream;
+    localVideoRef.current.srcObject = stream;
+
+    const videoTrack = stream.getVideoTracks()[0];
+    const sender = peerRef.current
+      ?.getSenders()
+      .find((s) => s.track?.kind === "video");
+
+    if (sender) sender.replaceTrack(videoTrack);
+  };
+
   const handleEndClick = () => {
     onEndCall();
   };
@@ -177,15 +206,15 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
     "flex items-center justify-center w-12 h-12 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 backdrop-blur-sm transition-all duration-200 active:scale-95";
 
   return (
-    <div className="relative w-full h-[100dvh] bg-slate-950 overflow-hidden">
+    <div className="relative w-full h-full bg-slate-950 overflow-hidden">
+      {" "}
       {/* ── Remote video ── */}
       <video
         ref={remoteVideoRef}
         autoPlay
         playsInline
-        className="absolute inset-0 w-full h-full object-contain bg-slate-950"
+        className="absolute inset-0 w-full h-full object-cover bg-slate-950"
       />
-
       {/* ── Connecting overlay ── */}
       {!isConnected && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-slate-950/90 backdrop-blur-xl">
@@ -195,7 +224,6 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
           </p>
         </div>
       )}
-
       {/* ── Top bar ── */}
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pt-4 pb-8 bg-gradient-to-b from-slate-950/70 to-transparent">
         <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
@@ -208,7 +236,6 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
           <Signal size={15} />
         </button>
       </div>
-
       {/* ── PiP local preview ── */}
       <div className="absolute top-14 right-3 z-20 w-24 h-32 sm:w-32 sm:h-44 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-900">
         <video
@@ -232,7 +259,6 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
           You
         </span>
       </div>
-
       {/* ── Controls ── */}
       <div className="absolute bottom-6 left-0 right-0 z-20 flex items-center justify-center gap-4">
         <button onClick={toggleMute} className={isMuted ? warnBtn : idleBtn}>
@@ -244,6 +270,13 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
           className={isVideoOff ? warnBtn : idleBtn}
         >
           {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
+        </button>
+
+        <button
+          onClick={switchCamera}
+          className="flex items-center justify-center w-12 h-12 rounded-full bg-slate-800/90 border border-white/10 text-slate-300"
+        >
+          <RefreshCcw size={20} />
         </button>
 
         <button

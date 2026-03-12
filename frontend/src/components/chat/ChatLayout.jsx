@@ -203,7 +203,7 @@ const ChatLayout = () => {
       {/* ── Video call overlay — renders over everything ── */}
       {isCalling && (
         <div className="fixed inset-0 z-[100] bg-slate-950 h-[100dvh] w-[100vw]">
-          <div className="relative w-full h-full">
+          <div className="relative w-full h-[calc(100dvh-48px)]">
             {/* Header bar */}
             <div className="flex items-center justify-between px-5 py-3 bg-slate-900 border-b border-white/5">
               <div className="flex items-center gap-2.5">
