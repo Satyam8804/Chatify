@@ -8,7 +8,7 @@ import { getInitials } from "../../utils/getInitials";
 import { ArrowLeft } from "lucide-react";
 import ChatInfo from "./ChatInfo";
 
-const ChatHeader = ({ chat, setSelectedChat,messages }) => {
+const ChatHeader = ({ chat, setSelectedChat,messages,onClearChat  }) => {
   const { user } = useAuth();
   const { onlineUser } = useSocket();
   const [showInfo, setShowInfo] = useState(false);
@@ -118,6 +118,7 @@ const ChatHeader = ({ chat, setSelectedChat,messages }) => {
           messages={messages}
           onClose={() => setShowInfo(false)}
           setSelectedChat={setSelectedChat} // 👈 add this
+          onClearChat={onClearChat}
         />
       )}
     </>

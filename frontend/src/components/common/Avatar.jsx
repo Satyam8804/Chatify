@@ -24,10 +24,18 @@ const Avatar = ({
             return (
               <div
                 key={u._id}
-                className="flex items-center justify-center text-white text-[10px] font-semibold"
-                style={{ backgroundColor: bg }}
+                className="flex items-center justify-center text-white text-[10px] font-semibold overflow-hidden"
+                style={{ backgroundColor: u?.avatar ? "transparent" : bg }}
               >
-                {getInitials(u?.fName, u?.lName)}
+                {u?.avatar ? (
+                  <img
+                    src={u.avatar}
+                    alt={u.fName}
+                    className="w-full h-full object-cover" // ✅ fill the cell
+                  />
+                ) : (
+                  <span>{getInitials(u?.fName, u?.lName)}</span> // ✅ initials fallback
+                )}
               </div>
             );
           })}

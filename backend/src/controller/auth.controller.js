@@ -8,6 +8,7 @@ import {
   generateAccessToken,
   generateRefreshToken,
 } from "../utils/generateToken.js";
+import { getPublicIdFromUrl } from "./message.controller.js";
 
 export const registerUser = async (req, res) => {
   try {
@@ -69,7 +70,9 @@ export const loginUser = async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required" });
+      return res
+        .status(400)
+        .json({ message: "Email and password are required" });
     }
 
     const user = await User.findOne({ email }).select("+password");
@@ -84,7 +87,7 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    const accessToken  = generateAccessToken(user._id);
+    const accessToken = generateAccessToken(user._id);
     const refreshToken = generateRefreshToken(user._id); // ✅ named refreshToken
 
     user.refreshToken = refreshToken;
@@ -92,7 +95,8 @@ export const loginUser = async (req, res) => {
 
     const isProduction = process.env.NODE_ENV === "production";
 
-    res.cookie("refreshToken", refreshToken, { // ✅ use refreshToken not newRefreshToken
+    res.cookie("refreshToken", refreshToken, {
+      // ✅ use refreshToken not newRefreshToken
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? "none" : "lax",
@@ -117,7 +121,7 @@ export const loginUser = async (req, res) => {
 export const refreshAccessToken = async (req, res) => {
   try {
     const refreshToken = req.cookies?.refreshToken;
-    
+
     if (!refreshToken) {
       return res.status(401).json({ message: "Session expired" });
     }
@@ -150,6 +154,7 @@ export const refreshAccessToken = async (req, res) => {
     return res.status(401).json({ message: "Invalid or expired session" });
   }
 };
+
 export const logout = async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken;
@@ -198,21 +203,28 @@ export const updateMe = async (req, res) => {
 
     const updates = {};
 
-    // Update name fields if provided
     if (fName) updates.fName = fName.trim();
     if (lName) updates.lName = lName.trim();
 
-    // Update avatar if provided
     if (req.file) {
+      // ✅ only fetch user if we actually need to delete old avatar
+      const currentUser = await User.findById(req.user._id);
+
+      if (currentUser?.avatar) {
+        const public_id = getPublicIdFromUrl(currentUser.avatar);
+        if (public_id) {
+          await cloudinary.uploader.destroy(public_id, {
+            resource_type: "image",
+          });
+        }
+      }
+
       const result = await uploadToCloudinary(req.file.buffer, "avatars");
       updates.avatar = result.secure_url;
     }
 
-    // If nothing to update
     if (Object.keys(updates).length === 0) {
-      return res.status(400).json({
-        message: "No fields provided to update",
-      });
+      return res.status(400).json({ message: "No fields provided to update" });
     }
 
     const updatedUser = await User.findByIdAndUpdate(req.user._id, updates, {
@@ -231,9 +243,7 @@ export const updateMe = async (req, res) => {
     });
   } catch (error) {
     console.error("UPDATE ME ERROR 👉", error);
-    res.status(500).json({
-      message: "Server Error",
-    });
+    res.status(500).json({ message: "Server Error" });
   }
 };
 

@@ -110,6 +110,7 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
         chat={chat}
         setSelectedChat={setSelectedChat}
         messages={messages}
+        onClearChat={() => setMessages([])} 
       />
 
       <div className="flex-1 overflow-hidden bg-slate-50 dark:bg-slate-950">

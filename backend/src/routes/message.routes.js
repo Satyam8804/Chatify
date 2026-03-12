@@ -1,7 +1,8 @@
 import {
   fetchMessageOfChat,
   sendMessage,
-  markMessagesAsSeen
+  markMessagesAsSeen,
+  clearChat
 } from "../controller/message.controller.js";
 
 import { Router } from "express";
@@ -21,4 +22,7 @@ router.post(
   uploadMultiple("files", 10), // 👈 MUST match frontend key
   sendMediaMessage
 );
+
+router.delete("/clear/:chatId", protect, clearChat);
+
 export default router;

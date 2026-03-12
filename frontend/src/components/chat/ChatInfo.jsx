@@ -7,6 +7,8 @@ import {
   Plus,
   UserSearch,
   ArrowRight,
+  Trash2,
+  Loader,
 } from "lucide-react";
 import Avatar from "../common/Avatar";
 import { formatLastSeen } from "../../utils/formatMessageDate";
@@ -15,6 +17,7 @@ import { useAuth } from "../../context/authContext";
 import api from "../../api/axios";
 import { logger } from "../../utils/logger";
 import MediaModal from "../common/MediaModal.jsx";
+import ImagePreview from "../chat/ImagePreview.jsx";
 
 const ChatInfo = ({
   chat,
@@ -24,15 +27,18 @@ const ChatInfo = ({
   onClose,
   setSelectedChat,
   messages,
+  onClearChat,
 }) => {
   const { onlineUser } = useSocket();
   const { user } = useAuth();
+  const [clearing, setClearing] = useState(false);
   const [groupChat, setGroupChat] = useState(chat);
   const [showAddInput, setShowAddInput] = useState(false);
   const [searchEmail, setSearchEmail] = useState("");
   const [searchResult, setSearchResult] = useState(null);
   const [searching, setSearching] = useState(false);
   const [showMedia, setShowMedia] = useState(false);
+  const [previewImage, setPreviewImage] = useState(undefined); // ✅ undefined = closed, null = no photo, string = url
 
   const isAdmin =
     groupChat?.groupAdmin?._id === user?._id ||
@@ -96,11 +102,31 @@ const ChatInfo = ({
       logger(error);
     }
   };
+  const handleClearChat = async () => {
+    try {
+      setClearing(true); // ✅ show loader
+      await api.delete(`/messages/clear/${chat._id}`);
+      onClearChat();
+      onClose();
+    } catch (error) {
+      logger(error);
+    } finally {
+      setClearing(false); // ✅ hide loader
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm">
       <div className="relative w-full max-w-sm h-full bg-white dark:bg-slate-900 shadow-2xl flex flex-col animate-menu overflow-hidden">
-        {/* Media Modal overlay */}
+        {/* Image Preview — undefined=closed, null=no photo, string=url */}
+        {previewImage !== undefined && (
+          <ImagePreview
+            url={previewImage}
+            onClose={() => setPreviewImage(undefined)}
+          />
+        )}
+
+        {/* Media Modal */}
         {showMedia && (
           <MediaModal messages={messages} onClose={() => setShowMedia(false)} />
         )}
@@ -122,24 +148,36 @@ const ChatInfo = ({
         </div>
 
         {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto hide-scrollbar">
+        <div className="flex-1 overflow-y-auto hide-scrollbar border-b-1 border-gray-100 dark:border-slate-700">
           {/* Avatar + Name */}
           <div className="flex flex-col items-center py-8 gap-3 bg-gradient-to-b from-emerald-500/5 to-transparent">
-            {isGroup ? (
-              <Avatar
-                isGroup
-                users={groupChat?.users}
-                size={96}
-                IsInside={true}
-              />
-            ) : (
-              <Avatar
-                user={friend}
-                isOnline={isOnline}
-                size={96}
-                IsInside={true}
-              />
-            )}
+            {/* ✅ always clickable for direct chat — opens preview or no-photo screen */}
+            <div
+              onClick={() =>
+                !isGroup && setPreviewImage(friend?.avatar || null)
+              }
+              className={
+                !isGroup
+                  ? "cursor-pointer hover:opacity-90 transition-opacity"
+                  : "cursor-default"
+              }
+            >
+              {isGroup ? (
+                <Avatar
+                  users={chat.users}
+                  isGroup={true}
+                  size={90}
+                  IsInside={true}
+                />
+              ) : (
+                <Avatar
+                  user={friend}
+                  isOnline={isOnline}
+                  size={90}
+                  IsInside={true}
+                />
+              )}
+            </div>
 
             <div className="text-center w-full px-4 pb-4 border-b border-gray-100 dark:border-slate-700">
               <h3 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -182,7 +220,7 @@ const ChatInfo = ({
                 onClick={() => setShowMedia(true)}
                 className="flex justify-center gap-1 font-semibold items-center text-xs text-emerald-500 hover:text-emerald-400 cursor-pointer transition-colors"
               >
-                <span className="text-sm ">See all</span>
+                <span className="text-sm">See all</span>
                 <ArrowRight size={16} />
               </button>
             </div>
@@ -265,6 +303,7 @@ const ChatInfo = ({
                       No users found
                     </p>
                   )}
+
                   {searchResult?.map((u) => (
                     <div key={u._id} className="flex items-center gap-2 mt-2">
                       <Avatar user={u} size={32} IsInside />
@@ -296,9 +335,10 @@ const ChatInfo = ({
                       key={u._id}
                       className="flex items-center gap-3 p-2 rounded-xl group"
                     >
+                      {/* ✅ always clickable — shows preview or no-photo screen */}
                       <div
-                        onClick={() => !isSelf && handleStartChat(u)}
-                        className={`${!isSelf ? "cursor-pointer" : ""}`}
+                        onClick={() => setPreviewImage(u?.avatar || null)}
+                        className="cursor-pointer"
                       >
                         <Avatar user={u} isOnline={online} size={38} />
                       </div>
@@ -350,6 +390,25 @@ const ChatInfo = ({
               </div>
             </div>
           )}
+        </div>
+        <div className="flex px-5 py-5 w-full items-center justify-center">
+          <button
+            onClick={handleClearChat}
+            disabled={clearing}
+            className="flex items-center cursor-pointer text-sm text-red-600 gap-1 hover:text-red-500 transition-colors disabled:opacity-50"
+          >
+            {clearing ? (
+              <div className="flex items-center gap-2">
+                <Loader />
+                <span>Clearing chat...</span>
+              </div>
+            ) : (
+              <>
+                <Trash2 size={16} />
+                <span>Clear chat</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>
