@@ -5,12 +5,18 @@ import { formatLastSeen } from "../../utils/formatMessageDate";
 import Avatar from "../common/Avatar";
 import { getAvatarColor } from "../../utils/getAvatarColor";
 import { getInitials } from "../../utils/getInitials";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Video } from "lucide-react";
 import ChatInfo from "./ChatInfo";
 
-const ChatHeader = ({ chat, setSelectedChat, messages, onClearChat }) => {
+const ChatHeader = ({
+  chat,
+  setSelectedChat,
+  messages,
+  onClearChat,
+  startCall,
+}) => {
   const { user } = useAuth();
-  const { onlineUser, socket } = useSocket();
+  const { onlineUser } = useSocket();
   const [showInfo, setShowInfo] = useState(false);
 
   const userId = user?._id;
@@ -27,28 +33,20 @@ const ChatHeader = ({ chat, setSelectedChat, messages, onClearChat }) => {
   const friendObj = typeof friend === "object" ? friend : null;
   const isOnline = onlineUser?.has(friendObj?._id?.toString());
 
-  const startVideoCall = () => {
-    if (!socket || !chat?._id) return;
-
-    socket.emit("video-call-user", {
-      chatId: chat._id,
-    });
-  };
-
   return (
     <>
       <div className="h-16 px-3 flex items-center gap-3 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 transition-colors">
-        {/* Mobile Back Button */}
+        {/* Mobile back button */}
         {setSelectedChat && (
           <button
             onClick={() => setSelectedChat(null)}
-            className="md:hidden flex items-center justify-center cursor-pointer w-9 h-9 rounded-full text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+            className="md:hidden flex items-center justify-center w-9 h-9 rounded-full text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
           >
             <ArrowLeft size={20} />
           </button>
         )}
 
-        {/* Clickable Avatar + Name */}
+        {/* Avatar + Name (opens info panel) */}
         <div
           className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
           onClick={() => setShowInfo(true)}
@@ -81,7 +79,7 @@ const ChatHeader = ({ chat, setSelectedChat, messages, onClearChat }) => {
             <Avatar user={friendObj} isOnline={isOnline} />
           )}
 
-          {/* Name + Status */}
+          {/* Name + status */}
           <div className="flex flex-col min-w-0">
             <p className="font-semibold text-gray-900 dark:text-slate-100 truncate">
               {isGroup
@@ -114,19 +112,20 @@ const ChatHeader = ({ chat, setSelectedChat, messages, onClearChat }) => {
             )}
           </div>
         </div>
-        <div className="flex gap-3">
-          {!isGroup && (
-            <button
-              onClick={startVideoCall}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-md transition"
-            >
-              📹 Video
-            </button>
-          )}
-        </div>
+
+        {/* Actions */}
+        {!isGroup && startCall && (
+          <button
+            onClick={startCall}
+            title="Start video call"
+            className="flex items-center justify-center w-9 h-9 rounded-full text-slate-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"
+          >
+            <Video size={20} />
+          </button>
+        )}
       </div>
 
-      {/* Info Modal */}
+      {/* Info panel */}
       {showInfo && (
         <ChatInfo
           chat={chat}
@@ -135,7 +134,7 @@ const ChatHeader = ({ chat, setSelectedChat, messages, onClearChat }) => {
           isOnline={isOnline}
           messages={messages}
           onClose={() => setShowInfo(false)}
-          setSelectedChat={setSelectedChat} // 👈 add this
+          setSelectedChat={setSelectedChat}
           onClearChat={onClearChat}
         />
       )}
