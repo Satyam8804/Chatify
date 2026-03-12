@@ -1,7 +1,7 @@
-import { onlineUsers } from "./presence.socket";
+import { onlineUsers } from "./presence.socket.js";
 
 export const videoCallSocket = (io, socket) => {
-  // Caller triggers call
+  
   socket.on("video-call-user", ({ receiverId }) => {
     const receiverSockets = onlineUsers.get(receiverId);
 

@@ -1,6 +1,6 @@
 import User from "../models/user.model.js";
 
-const onlineUsers = new Map();
+export const onlineUsers = new Map();
 
 export default function presenceSocket(io, socket) {
   const userId = socket.userId?.toString();
