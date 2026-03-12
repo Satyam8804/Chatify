@@ -266,7 +266,7 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn }) => {
 
   if (isImage) {
     return (
-      <div className="relative max-w-[70vw] sm:max-w-[300px]">
+      <div className="relative w-full">
         <img
           src={url}
           alt="media"
@@ -280,7 +280,7 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn }) => {
 
   if (isVideo) {
     return (
-      <div className="relative w-full max-w-[70vw] sm:max-w-[300px]">
+      <div className="relative w-full">
         <video
           controls
           className="w-full max-h-[250px] rounded-lg object-cover" // ✅ constrain video directly
@@ -294,7 +294,7 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn }) => {
 
   if (isAudio) {
     return (
-      <div className="w-[55vw] sm:w-[260px]">
+      <div className="w-full">
         {" "}
         <AudioPlayer url={url} />
       </div>
