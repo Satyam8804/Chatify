@@ -14,14 +14,14 @@ export const SocketProvider = ({ children }) => {
   const [unreadCounts, setUnreadCounts] = useState({});
   const [typingUser, setTypingUser] = useState(null);
   const [activeChatId, setActiveChatId] = useState(null);
-
+  const [incomingCall, setIncomingCall] = useState(null);
   useEffect(() => {
     if (!user?._id) return; // ✅ wait for user
 
     const token = getToken(); // ✅ from memory
     if (!token) return;
 
-    const newSocket = io("https://chatify-jux9.onrender.com", {
+    const newSocket = io("http://localhost:5000", {
       auth: { token },
       autoConnect: true,
       transports: ["websocket"],
@@ -31,7 +31,7 @@ export const SocketProvider = ({ children }) => {
 
     newSocket.on("connect", () => logger("🟢 Socket connected:", newSocket.id));
     newSocket.on("connect_error", (err) =>
-      logger("❌ Socket connect error:", err.message)
+      logger(" Socket connect error:", err.message)
     );
     newSocket.on("online-users", (users) => setOnlineUser(new Set(users)));
 
@@ -72,6 +72,10 @@ export const SocketProvider = ({ children }) => {
       }));
     });
 
+    newSocket.on("incoming-call", (data) => {
+      setIncomingCall(data);
+    });
+
     return () => {
       newSocket.disconnect();
     };
@@ -88,6 +92,8 @@ export const SocketProvider = ({ children }) => {
         activeChatId,
         setActiveChatId,
         messageSeen,
+        incomingCall,
+        setIncomingCall,
       }}
     >
       {children}

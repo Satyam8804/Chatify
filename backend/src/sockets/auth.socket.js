@@ -8,13 +8,11 @@ export default function authSocket(io) {
       const token = socket.handshake.auth?.token;
 
       if (!token) {
-        console.log("❌ No token in handshake");
         return next(new Error("Unauthorized"));
       }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // 🔥 Fetch user from DB
       const user = await User.findById(decoded.id).select(
         "_id fName lName avatar"
       );
@@ -24,13 +22,12 @@ export default function authSocket(io) {
       }
 
       // Attach user info to socket
+
       socket.userId = user._id;
       socket.user = user;
 
-
       next();
     } catch (error) {
-      console.log("❌ Socket auth error:", error.message);
       next(new Error("Unauthorized"));
     }
   });

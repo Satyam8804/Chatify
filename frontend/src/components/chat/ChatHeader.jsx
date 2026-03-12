@@ -8,9 +8,9 @@ import { getInitials } from "../../utils/getInitials";
 import { ArrowLeft } from "lucide-react";
 import ChatInfo from "./ChatInfo";
 
-const ChatHeader = ({ chat, setSelectedChat,messages,onClearChat  }) => {
+const ChatHeader = ({ chat, setSelectedChat, messages, onClearChat }) => {
   const { user } = useAuth();
-  const { onlineUser } = useSocket();
+  const { onlineUser, socket } = useSocket();
   const [showInfo, setShowInfo] = useState(false);
 
   const userId = user?._id;
@@ -26,6 +26,14 @@ const ChatHeader = ({ chat, setSelectedChat,messages,onClearChat  }) => {
 
   const friendObj = typeof friend === "object" ? friend : null;
   const isOnline = onlineUser?.has(friendObj?._id?.toString());
+
+  const startVideoCall = () => {
+    if (!socket || !chat?._id) return;
+
+    socket.emit("video-call-user", {
+      chatId: chat._id,
+    });
+  };
 
   return (
     <>
@@ -105,6 +113,16 @@ const ChatHeader = ({ chat, setSelectedChat,messages,onClearChat  }) => {
               </p>
             )}
           </div>
+        </div>
+        <div className="flex gap-3">
+          {!isGroup && (
+            <button
+              onClick={startVideoCall}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-md transition"
+            >
+              📹 Video
+            </button>
+          )}
         </div>
       </div>
 
