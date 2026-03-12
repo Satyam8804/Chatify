@@ -1,11 +1,36 @@
+import { onlineUsers } from "./presence.socket";
+
 export const videoCallSocket = (io, socket) => {
-    
-  socket.on("video-call-user", ({ chatId }) => {
-    socket.to(chatId).emit("incoming-call", {
-      from: socket.userId,
+  // Caller triggers call
+  socket.on("video-call-user", ({ receiverId }) => {
+    const receiverSockets = onlineUsers.get(receiverId);
+
+    if (!receiverSockets) return;
+
+    receiverSockets.forEach((socketId) => {
+      io.to(socketId).emit("incoming-call", {
+        from: socket.userId,
+        callerName: socket.user?.fName,
+      });
     });
   });
 
+  // Receiver accepted
+  socket.on("call-accepted", ({ to }) => {
+    io.to(to).emit("call-accepted");
+  });
+
+  // Receiver rejected
+  socket.on("call-rejected", ({ to }) => {
+    io.to(to).emit("call-rejected");
+  });
+
+  // Any user ended call
+  socket.on("call-ended", ({ to }) => {
+    io.to(to).emit("call-ended");
+  });
+
+  // WebRTC signaling
   socket.on("webrtc-offer", ({ offer, to }) => {
     io.to(to).emit("webrtc-offer", {
       offer,

@@ -33,7 +33,7 @@ export default function presenceSocket(io, socket) {
         await User.findByIdAndUpdate(userId, { lastSeen });
       }
     }
-
+    if (onlineUsers.size === 0) return;
     io.emit("online-users", Array.from(onlineUsers.keys()));
   });
 }

@@ -119,7 +119,9 @@ const ChatLayout = () => {
       const otherUser = chat.users?.find((u) => u._id !== user._id);
       if (!otherUser) return;
 
-      socket.emit("video-call-user", { chatId: chat._id });
+      socket.emit("video-call-user", {
+        receiverId: otherUser._id,
+      });
 
       setCallTargetId(otherUser._id);
       callTargetIdRef.current = otherUser._id;
@@ -139,8 +141,6 @@ const ChatLayout = () => {
     [socket, user, resetCall]
   );
 
-  // ── acceptCall — called from IncomingCallModal via prop ──────
-  // When receiver accepts, open video UI pointed at the caller
   const acceptCall = useCallback(
     (callerId, callerName) => {
       setCallTargetId(callerId);
