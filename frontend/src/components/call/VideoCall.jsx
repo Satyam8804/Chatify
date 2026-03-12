@@ -213,7 +213,7 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
         ref={remoteVideoRef}
         autoPlay
         playsInline
-        className="absolute inset-0 w-full h-full object-cover bg-slate-950"
+        className="absolute inset-0 w-full h-full object-contain bg-slate-950"
       />
       {/* ── Connecting overlay ── */}
       {!isConnected && (
@@ -243,7 +243,7 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
           autoPlay
           muted
           playsInline
-          className={`w-full h-full object-cover transition-opacity duration-300 ${
+          className={`w-full h-full object-contain transition-opacity duration-300 ${
             isVideoOff ? "opacity-0" : "opacity-100"
           }`}
         />
