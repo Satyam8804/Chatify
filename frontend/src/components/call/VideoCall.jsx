@@ -51,7 +51,7 @@ const VideoCall = ({ otherUserId, onEndCall }) => {
     }
   };
 
-  // ─── Auto-start camera on mount (caller side) ────────
+  // ─── Auto-start on mount ─────────────────────────────
   useEffect(() => {
     if (otherUserId) startConnection();
   }, []);
@@ -98,12 +98,31 @@ const VideoCall = ({ otherUserId, onEndCall }) => {
       if (peerRef.current) await peerRef.current.addIceCandidate(candidate);
     });
 
+    // ✅ fix 3: when other user ends the call, close this side too
+    socket.on("call-ended", () => {
+      cleanup();
+      onEndCall();
+    });
+
     return () => {
       socket.off("webrtc-offer");
       socket.off("webrtc-answer");
       socket.off("ice-candidate");
+      socket.off("call-ended");
     };
   }, [socket]);
+
+  // ─── Cleanup helper ──────────────────────────────────
+  const cleanup = () => {
+    if (peerRef.current) {
+      peerRef.current.close();
+      peerRef.current = null;
+    }
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
+    }
+  };
 
   // ─── Controls ────────────────────────────────────────
   const toggleMute = () => {
@@ -121,32 +140,32 @@ const VideoCall = ({ otherUserId, onEndCall }) => {
   };
 
   const endCall = () => {
-    if (peerRef.current) {
-      peerRef.current.close();
-      peerRef.current = null;
-    }
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((t) => t.stop());
-      localStreamRef.current = null;
-    }
+    // ✅ fix 3: notify the other user before closing
+    socket.emit("call-ended", { to: otherUserId });
+    cleanup();
     onEndCall();
   };
 
-  // ─── Reusable button classes ─────────────────────────
+  // ─── Button classes ───────────────────────────────────
   const idleBtn =
-    "flex items-center justify-center w-12 h-12 rounded-full bg-slate-800/80 border border-white/10 text-slate-300 backdrop-blur-sm transition-all duration-200 hover:bg-slate-700/90 hover:scale-110 hover:text-white active:scale-95";
+    "flex items-center justify-center w-12 h-12 rounded-full bg-slate-800/90 border border-white/10 text-slate-300 backdrop-blur-sm transition-all duration-200 active:scale-95";
 
   const warnBtn =
-    "flex items-center justify-center w-12 h-12 rounded-full bg-red-500/15 border border-red-500/30 text-red-400 backdrop-blur-sm transition-all duration-200 hover:bg-red-500/25 hover:scale-110 active:scale-95";
+    "flex items-center justify-center w-12 h-12 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 backdrop-blur-sm transition-all duration-200 active:scale-95";
 
   return (
-    <div className="relative w-full h-[560px] bg-slate-950 overflow-hidden rounded-b-2xl group">
+    // ✅ fix 1: removed fixed h-[560px], use dynamic height; removed group/hover approach
+    <div
+      className="relative w-full bg-slate-950 overflow-hidden rounded-b-2xl"
+      style={{ height: "min(560px, calc(100dvh - 160px))" }}
+    >
       {/* ── Remote video ── */}
+      {/* object-contain so portrait mobile video never gets cropped on desktop */}
       <video
         ref={remoteVideoRef}
         autoPlay
         playsInline
-        className="absolute inset-0 w-full h-full object-cover"
+        className="absolute inset-0 w-full h-full object-contain bg-slate-950"
       />
 
       {/* ── Connecting overlay ── */}
@@ -159,24 +178,22 @@ const VideoCall = ({ otherUserId, onEndCall }) => {
         </div>
       )}
 
-      {/* ── Top bar (fades in on hover) ── */}
-      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-5 pt-5 pb-10 bg-gradient-to-b from-slate-950/70 to-transparent opacity-0 -translate-y-1 transition-all duration-200 group-hover:opacity-100 group-hover:translate-y-0">
-        {/* Live badge */}
-        <div className="flex items-center gap-2 bg-slate-900/70 border border-white/8 rounded-full px-3 py-1.5 backdrop-blur-md">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgba(52,211,153,0.2)] animate-pulse" />
+      {/* ── Top bar — always visible ── */}
+      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pt-4 pb-8 bg-gradient-to-b from-slate-950/70 to-transparent">
+        <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
           <span className="text-[10px] font-semibold tracking-[1.8px] uppercase text-slate-400">
             Live
           </span>
         </div>
-
-        {/* Signal icon */}
-        <button className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-900/70 border border-white/8 backdrop-blur-md text-slate-500 hover:text-slate-300 transition-colors">
+        <button className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-900/70 border border-white/10 backdrop-blur-md text-slate-500">
           <Signal size={15} />
         </button>
       </div>
 
-      {/* ── PiP local preview ── */}
-      <div className="absolute top-5 right-5 z-20 w-[130px] h-[178px] rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-900 transition-transform duration-200 hover:scale-[1.04] cursor-pointer">
+      {/* ── PiP local preview — smaller on mobile ── */}
+      {/* ✅ fix 1: responsive sizing with sm: breakpoint */}
+      <div className="absolute top-14 right-3 z-20 w-24 h-32 sm:w-32 sm:h-44 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-900">
         <video
           ref={localVideoRef}
           autoPlay
@@ -187,48 +204,43 @@ const VideoCall = ({ otherUserId, onEndCall }) => {
           }`}
         />
         {isVideoOff && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-slate-600">
-            <VideoOff size={20} />
-            <span className="text-[9px] font-bold uppercase tracking-[2px] text-slate-700">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-slate-600">
+            <VideoOff size={16} />
+            <span className="text-[8px] font-bold uppercase tracking-widest text-slate-700">
               Off
             </span>
           </div>
         )}
-        <span className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-white/35 font-medium">
+        <span className="absolute bottom-1.5 left-0 right-0 text-center text-[9px] text-white/35 font-medium">
           You
         </span>
       </div>
 
-      {/* ── Bottom controls (fades in on hover) ── */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center gap-3 px-6 pb-7 pt-16 bg-gradient-to-t from-slate-950/85 to-transparent opacity-0 translate-y-2 transition-all duration-200 group-hover:opacity-100 group-hover:translate-y-0">
+      {/* ── Bottom controls — always visible, not hover-gated ── */}
+      {/* ✅ fix 2: removed opacity-0/group-hover, controls always shown */}
+      <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center gap-3 px-4 pb-6 pt-16 bg-gradient-to-t from-slate-950/90 to-transparent">
         {/* Mic */}
-        <button
-          onClick={toggleMute}
-          title={isMuted ? "Unmute" : "Mute"}
-          className={isMuted ? warnBtn : idleBtn}
-        >
-          {isMuted ? <MicOff size={19} /> : <Mic size={19} />}
+        <button onClick={toggleMute} className={isMuted ? warnBtn : idleBtn}>
+          {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
         </button>
 
         {/* Camera */}
         <button
           onClick={toggleVideo}
-          title={isVideoOff ? "Start video" : "Stop video"}
           className={isVideoOff ? warnBtn : idleBtn}
         >
-          {isVideoOff ? <VideoOff size={19} /> : <Video size={19} />}
+          {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
         </button>
 
         {/* Divider */}
-        <div className="w-px h-7 bg-white/8 mx-1" />
+        <div className="w-px h-7 bg-white/10 mx-1" />
 
         {/* End call */}
         <button
           onClick={endCall}
-          title="End call"
-          className="flex items-center justify-center w-13 h-13 w-[52px] h-[52px] rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-[0_8px_24px_rgba(225,29,72,0.38)] hover:shadow-[0_12px_32px_rgba(225,29,72,0.55)] hover:scale-110 hover:rotate-12 active:scale-95 transition-all duration-200"
+          className="flex items-center justify-center w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 text-white shadow-[0_8px_24px_rgba(225,29,72,0.4)] transition-all duration-200"
         >
-          <PhoneOff size={21} />
+          <PhoneOff size={22} />
         </button>
       </div>
     </div>
