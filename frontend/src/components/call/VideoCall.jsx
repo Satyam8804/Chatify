@@ -1,9 +1,15 @@
-import { useRef, useEffect, useState } from "react";
+import {
+  useRef,
+  useEffect,
+  useState,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import { useWebRTC } from "../../hooks/RTCPeerConnection";
 import { useSocket } from "../../context/socketContext";
 import { Video, VideoOff, Mic, MicOff, PhoneOff, Signal } from "lucide-react";
 
-const VideoCall = ({ otherUserId, onEndCall, onConnected }) => {
+const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
   const { peerRef, createPeer } = useWebRTC();
   const { socket } = useSocket();
 
@@ -117,6 +123,11 @@ const VideoCall = ({ otherUserId, onEndCall, onConnected }) => {
       localStreamRef.current = null;
     }
   };
+
+  // ─── Expose cleanup to parent via ref ────────────────
+  useImperativeHandle(ref, () => ({
+    cleanup,
+  }));
 
   // ─── Controls ────────────────────────────────────────
   const toggleMute = () => {
@@ -239,6 +250,6 @@ const VideoCall = ({ otherUserId, onEndCall, onConnected }) => {
       </div>
     </div>
   );
-};
+});
 
 export default VideoCall;

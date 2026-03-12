@@ -10,7 +10,10 @@ import seenSoundFile from "../../assets/sound/seen.mp3";
 import { useAuth } from "../../context/authContext";
 import VideoCall from "../call/VideoCall.jsx";
 
-
+// ── Audio files ──────────────────────────────────────────────────────────────
+// Add these two files to your assets/sound/ folder:
+//   outgoing-ring.mp3  — dial tone / outgoing ring (loops)
+//   incoming-ring.mp3  — ringtone for receiver (loops)
 import outgoingRingFile from "../../assets/sound/outgoing-ring.mp3";
 import incomingRingFile from "../../assets/sound/incoming-ring.mp3";
 
@@ -44,6 +47,7 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
 
   const receiveSoundRef = useRef(new Audio(receiveSoundFile));
   const seenSoundRef = useRef(new Audio(seenSoundFile));
+  const videoCallRef = useRef(null); // ✅ ref to VideoCall to call cleanup()
 
   // ── Ringtone refs ───────────────────────────────────
   const outgoingRingRef = useRef(new Audio(outgoingRingFile));
@@ -123,24 +127,35 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
     }, 30000);
   };
 
-  // ── Listen for call-accepted so caller knows the call connected ──
+  // ── Shared reset — clears ALL call state ────────────
+  const resetCall = () => {
+    videoCallRef.current?.cleanup(); // ✅ stop camera + mic tracks
+    outgoingRingRef.current.pause();
+    outgoingRingRef.current.currentTime = 0;
+    incomingRingRef.current.pause();
+    incomingRingRef.current.currentTime = 0;
+    clearRingTimeout();
+    stopTimer();
+    setIsCalling(false);
+    setCallTargetId(null);
+    setIncomingCall(null);
+  };
+
+  // ── Listen for call-accepted / call-rejected ─────────
   useEffect(() => {
     if (!socket) return;
 
+    // Receiver accepted → stop ring, clear timeout, start timer
     const handleCallAccepted = () => {
-      // Other side accepted → stop outgoing ring, clear timeout, start timer
       outgoingRingRef.current.pause();
       outgoingRingRef.current.currentTime = 0;
       clearRingTimeout();
       startTimer();
     };
 
+    // Receiver rejected → close calling screen on caller side
     const handleCallRejected = () => {
-      outgoingRingRef.current.pause();
-      outgoingRingRef.current.currentTime = 0;
-      clearRingTimeout();
-      setIsCalling(false);
-      setCallTargetId(null);
+      resetCall();
     };
 
     socket.on("call-accepted", handleCallAccepted);
@@ -207,15 +222,7 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
 
     // ✅ Other user ended the call (either during ringing or mid-call)
     const handleCallEnded = () => {
-      incomingRingRef.current.pause();
-      incomingRingRef.current.currentTime = 0;
-      outgoingRingRef.current.pause();
-      outgoingRingRef.current.currentTime = 0;
-      clearRingTimeout();
-      stopTimer();
-      setIsCalling(false);
-      setCallTargetId(null);
-      setIncomingCall(null);
+      resetCall();
     };
 
     socket.on("call-ended", handleCallEnded);
@@ -265,28 +272,16 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
 
   const rejectCall = () => {
     if (!incomingCall) return;
-
-    incomingRingRef.current.pause();
-    incomingRingRef.current.currentTime = 0;
-
-    // call-rejected tells caller their call was declined
     socket.emit("call-rejected", { to: incomingCall.from });
-    // call-ended closes any UI on the caller side
     socket.emit("call-ended", { to: incomingCall.from });
-    setIncomingCall(null);
+    resetCall();
   };
 
   const endCall = () => {
-    // Notify the other side so their screen closes too
     if (socket && callTargetId) {
       socket.emit("call-ended", { to: callTargetId });
     }
-    outgoingRingRef.current.pause();
-    outgoingRingRef.current.currentTime = 0;
-    clearRingTimeout();
-    stopTimer();
-    setIsCalling(false);
-    setCallTargetId(null);
+    resetCall();
   };
 
   // ── Caller display name ──────────────────────────────
@@ -385,6 +380,7 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
             </div>
 
             <VideoCall
+              ref={videoCallRef}
               otherUserId={callTargetId}
               onEndCall={endCall}
               onConnected={startTimer}
