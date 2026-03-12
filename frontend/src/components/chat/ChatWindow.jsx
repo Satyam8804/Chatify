@@ -10,11 +10,27 @@ import seenSoundFile from "../../assets/sound/seen.mp3";
 import { useAuth } from "../../context/authContext";
 import VideoCall from "../call/VideoCall.jsx";
 
+
+import outgoingRingFile from "../../assets/sound/outgoing-ring.mp3";
+import incomingRingFile from "../../assets/sound/incoming-ring.mp3";
+
+// ── Timer helper ─────────────────────────────────────────────────────────────
+const formatDuration = (secs) => {
+  const m = String(Math.floor(secs / 60)).padStart(2, "0");
+  const s = String(secs % 60).padStart(2, "0");
+  return `${m}:${s}`;
+};
+
 const ChatWindow = ({ chat, setSelectedChat }) => {
   const [messages, setMessages] = useState([]);
   const [replyTo, setReplyTo] = useState(null);
   const [isCalling, setIsCalling] = useState(false);
-  const [callTargetId, setCallTargetId] = useState(null); // ✅ fix 1: declare state
+  const [callTargetId, setCallTargetId] = useState(null);
+
+  // ── Call timer ──────────────────────────────────────
+  const [callDuration, setCallDuration] = useState(0); // seconds
+  const [callConnected, setCallConnected] = useState(false); // true once other side answers
+  const timerRef = useRef(null);
 
   const {
     socket,
@@ -29,7 +45,16 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
   const receiveSoundRef = useRef(new Audio(receiveSoundFile));
   const seenSoundRef = useRef(new Audio(seenSoundFile));
 
-  // ─── New Message Handler ─────────────────────────────
+  // ── Ringtone refs ───────────────────────────────────
+  const outgoingRingRef = useRef(new Audio(outgoingRingFile));
+  const incomingRingRef = useRef(new Audio(incomingRingFile));
+
+  useEffect(() => {
+    outgoingRingRef.current.loop = true;
+    incomingRingRef.current.loop = true;
+  }, []);
+
+  // ── New Message Handler ─────────────────────────────
   const handleNewMessage = (newMessage) => {
     setMessages((prev) => {
       if (newMessage.replaceId) {
@@ -43,7 +68,33 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
     });
   };
 
-  // ─── Start Call (caller) ─────────────────────────────
+  // ── Timer helpers ───────────────────────────────────
+  const startTimer = () => {
+    setCallDuration(0);
+    setCallConnected(true);
+    timerRef.current = setInterval(() => {
+      setCallDuration((prev) => prev + 1);
+    }, 1000);
+  };
+
+  const stopTimer = () => {
+    clearInterval(timerRef.current);
+    timerRef.current = null;
+    setCallDuration(0);
+    setCallConnected(false);
+  };
+
+  // ── Ring timeout ref ────────────────────────────────
+  const ringTimeoutRef = useRef(null);
+
+  const clearRingTimeout = () => {
+    if (ringTimeoutRef.current) {
+      clearTimeout(ringTimeoutRef.current);
+      ringTimeoutRef.current = null;
+    }
+  };
+
+  // ── Start Call (caller) ─────────────────────────────
   const startCall = () => {
     if (!socket || !chat?._id) return;
 
@@ -52,17 +103,61 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
 
     socket.emit("video-call-user", { chatId: chat._id });
 
-    setCallTargetId(otherUser._id); // ✅ stores who we're calling
-    setIsCalling(true); // ✅ opens video UI for caller
+    setCallTargetId(otherUser._id);
+    setIsCalling(true);
+    setCallConnected(false);
+
+    // Play outgoing ringtone until the other side answers / rejects
+    outgoingRingRef.current.currentTime = 0;
+    outgoingRingRef.current.play();
+
+    // ✅ Auto-cancel if no answer within 30 seconds
+    ringTimeoutRef.current = setTimeout(() => {
+      outgoingRingRef.current.pause();
+      outgoingRingRef.current.currentTime = 0;
+      if (socket && otherUser._id) {
+        socket.emit("call-ended", { to: otherUser._id });
+      }
+      setIsCalling(false);
+      setCallTargetId(null);
+    }, 30000);
   };
 
-  // ─── Chat Effect ─────────────────────────────────────
+  // ── Listen for call-accepted so caller knows the call connected ──
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleCallAccepted = () => {
+      // Other side accepted → stop outgoing ring, clear timeout, start timer
+      outgoingRingRef.current.pause();
+      outgoingRingRef.current.currentTime = 0;
+      clearRingTimeout();
+      startTimer();
+    };
+
+    const handleCallRejected = () => {
+      outgoingRingRef.current.pause();
+      outgoingRingRef.current.currentTime = 0;
+      clearRingTimeout();
+      setIsCalling(false);
+      setCallTargetId(null);
+    };
+
+    socket.on("call-accepted", handleCallAccepted);
+    socket.on("call-rejected", handleCallRejected);
+
+    return () => {
+      socket.off("call-accepted", handleCallAccepted);
+      socket.off("call-rejected", handleCallRejected);
+    };
+  }, [socket]);
+
+  // ── Chat Effect ─────────────────────────────────────
   useEffect(() => {
     if (!socket || !chat?._id) return;
 
     setMessages([]);
     setReplyTo(null);
-
     setActiveChatId(chat._id);
     setUnreadCounts((prev) => ({ ...prev, [chat._id]: 0 }));
 
@@ -76,7 +171,6 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
     };
 
     fetchMessages();
-
     socket.emit("join-chat", chat._id);
     socket.emit("message-seen", { chatId: chat._id });
 
@@ -111,40 +205,98 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
     socket.on("receive-message", handleReceiveMessage);
     socket.on("message-seen", handleSeen);
 
+    // ✅ Other user ended the call (either during ringing or mid-call)
+    const handleCallEnded = () => {
+      incomingRingRef.current.pause();
+      incomingRingRef.current.currentTime = 0;
+      outgoingRingRef.current.pause();
+      outgoingRingRef.current.currentTime = 0;
+      clearRingTimeout();
+      stopTimer();
+      setIsCalling(false);
+      setCallTargetId(null);
+      setIncomingCall(null);
+    };
+
+    socket.on("call-ended", handleCallEnded);
+
     return () => {
       socket.off("receive-message", handleReceiveMessage);
       socket.off("message-seen", handleSeen);
+      socket.off("call-ended", handleCallEnded);
       setActiveChatId(null);
     };
   }, [chat?._id, socket, user._id]);
 
-  // ─── Call Controls ───────────────────────────────────
+  // ── Play incoming ringtone + 30s auto-dismiss for receiver ──
+  useEffect(() => {
+    if (incomingCall) {
+      incomingRingRef.current.currentTime = 0;
+      incomingRingRef.current.play();
+
+      // Auto-dismiss after 30s if receiver doesn't respond
+      ringTimeoutRef.current = setTimeout(() => {
+        incomingRingRef.current.pause();
+        incomingRingRef.current.currentTime = 0;
+        setIncomingCall(null);
+      }, 30000);
+    } else {
+      incomingRingRef.current.pause();
+      incomingRingRef.current.currentTime = 0;
+      clearRingTimeout();
+    }
+  }, [incomingCall]);
+
+  // ── Call Controls ────────────────────────────────────
   const acceptCall = () => {
     if (!incomingCall) return;
 
+    // Stop incoming ringtone, start timer
+    incomingRingRef.current.pause();
+    incomingRingRef.current.currentTime = 0;
+
     socket.emit("call-accepted", { to: incomingCall.from });
 
-    setCallTargetId(incomingCall.from); // ✅ fix 2: save before clearing incomingCall
+    setCallTargetId(incomingCall.from);
     setIncomingCall(null);
     setIsCalling(true);
+    startTimer();
   };
 
   const rejectCall = () => {
     if (!incomingCall) return;
+
+    incomingRingRef.current.pause();
+    incomingRingRef.current.currentTime = 0;
+
+    // call-rejected tells caller their call was declined
     socket.emit("call-rejected", { to: incomingCall.from });
+    // call-ended closes any UI on the caller side
+    socket.emit("call-ended", { to: incomingCall.from });
     setIncomingCall(null);
   };
 
   const endCall = () => {
+    // Notify the other side so their screen closes too
+    if (socket && callTargetId) {
+      socket.emit("call-ended", { to: callTargetId });
+    }
+    outgoingRingRef.current.pause();
+    outgoingRingRef.current.currentTime = 0;
+    clearRingTimeout();
+    stopTimer();
     setIsCalling(false);
     setCallTargetId(null);
   };
 
-  // ─── Caller display name ─────────────────────────────
+  // ── Caller display name ──────────────────────────────
   const callerName =
     chat?.users?.find((u) => u._id === incomingCall?.from)?.fName || "Someone";
 
-  // ─── UI ──────────────────────────────────────────────
+  const otherUserName =
+    chat?.users?.find((u) => u._id !== user._id)?.fName || "User";
+
+  // ── UI ───────────────────────────────────────────────
   return (
     <div className="h-full flex flex-col bg-white dark:bg-slate-900">
       <ChatHeader
@@ -170,16 +322,22 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
       {incomingCall && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl text-center shadow-2xl w-80 border border-slate-200 dark:border-slate-700">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl">📹</span>
+            {/* Pulsing ring */}
+            <div className="relative w-20 h-20 mx-auto mb-5">
+              <span className="absolute inset-0 rounded-full bg-emerald-400/20 animate-ping" />
+              <div className="relative w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+                <span className="text-3xl">📹</span>
+              </div>
             </div>
+
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
               Incoming Video Call
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 mb-6">
               {callerName} is calling…
             </p>
-            <div className="flex gap-3 justify-center">
+
+            <div className="flex gap-3">
               <button
                 onClick={rejectCall}
                 className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-700 dark:text-slate-300 hover:text-red-600 font-medium text-sm transition-colors"
@@ -201,11 +359,21 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
       {isCalling && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-md">
           <div className="relative w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl">
+            {/* Header bar */}
             <div className="flex items-center justify-between px-5 py-3 bg-slate-900 border-b border-white/5">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <div className="flex items-center gap-2.5">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    callConnected
+                      ? "bg-emerald-400 animate-pulse"
+                      : "bg-amber-400 animate-pulse"
+                  }`}
+                />
                 <span className="text-sm font-medium text-slate-300">
-                  Live call
+                  {/* ✅ Show "Calling…" before connected, timer after */}
+                  {callConnected
+                    ? formatDuration(callDuration)
+                    : `Calling ${otherUserName}…`}
                 </span>
               </div>
               <button
@@ -216,8 +384,11 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
               </button>
             </div>
 
-            {/* ✅ fix 3: always use callTargetId — never null for both caller and receiver */}
-            <VideoCall otherUserId={callTargetId} onEndCall={endCall} />
+            <VideoCall
+              otherUserId={callTargetId}
+              onEndCall={endCall}
+              onConnected={startTimer}
+            />
           </div>
         </div>
       )}

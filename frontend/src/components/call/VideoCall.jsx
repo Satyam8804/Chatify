@@ -3,7 +3,7 @@ import { useWebRTC } from "../../hooks/RTCPeerConnection";
 import { useSocket } from "../../context/socketContext";
 import { Video, VideoOff, Mic, MicOff, PhoneOff, Signal } from "lucide-react";
 
-const VideoCall = ({ otherUserId, onEndCall }) => {
+const VideoCall = ({ otherUserId, onEndCall, onConnected }) => {
   const { peerRef, createPeer } = useWebRTC();
   const { socket } = useSocket();
 
@@ -32,6 +32,7 @@ const VideoCall = ({ otherUserId, onEndCall }) => {
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = e.streams[0];
           setIsConnected(true);
+          onConnected?.(); // ✅ notify parent — starts the call timer
         }
       };
 
@@ -98,17 +99,10 @@ const VideoCall = ({ otherUserId, onEndCall }) => {
       if (peerRef.current) await peerRef.current.addIceCandidate(candidate);
     });
 
-    // ✅ fix 3: when other user ends the call, close this side too
-    socket.on("call-ended", () => {
-      cleanup();
-      onEndCall();
-    });
-
     return () => {
       socket.off("webrtc-offer");
       socket.off("webrtc-answer");
       socket.off("ice-candidate");
-      socket.off("call-ended");
     };
   }, [socket]);
 
