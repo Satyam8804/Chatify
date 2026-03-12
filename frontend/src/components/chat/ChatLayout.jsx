@@ -122,6 +122,7 @@ const ChatLayout = () => {
       socket.emit("video-call-user", {
         receiverId: otherUser._id,
       });
+      document.documentElement.requestFullscreen().catch(() => {});
 
       setCallTargetId(otherUser._id);
       callTargetIdRef.current = otherUser._id;
@@ -158,6 +159,7 @@ const ChatLayout = () => {
       socket.emit("call-ended", { to: callTargetIdRef.current });
     }
     resetCall();
+    document.exitFullscreen().catch(() => {});
   }, [socket, resetCall]);
 
   return (
@@ -200,8 +202,8 @@ const ChatLayout = () => {
 
       {/* ── Video call overlay — renders over everything ── */}
       {isCalling && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-md">
-          <div className="relative w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 z-[100] bg-slate-950 h-[100dvh] w-[100vw]">
+          <div className="relative w-full h-full">
             {/* Header bar */}
             <div className="flex items-center justify-between px-5 py-3 bg-slate-900 border-b border-white/5">
               <div className="flex items-center gap-2.5">

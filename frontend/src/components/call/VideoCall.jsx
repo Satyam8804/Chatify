@@ -178,8 +178,7 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
 
   return (
     <div
-      className="relative w-full bg-slate-950 overflow-hidden rounded-b-2xl"
-      style={{ height: "min(560px, calc(100dvh - 160px))" }}
+      className="relative w-full h-full bg-slate-950 overflow-hidden"
     >
       {/* ── Remote video ── */}
       <video
