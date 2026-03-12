@@ -21,7 +21,23 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
 
-  // ─── Start call (caller) ─────────────────────────────
+  // ─── Cleanup — exposed to parent via ref ─────────────
+  // Parent (ChatWindow) calls this on ANY exit path:
+  // end call, reject, remote hangup, 30s timeout
+  const cleanup = () => {
+    if (peerRef.current) {
+      peerRef.current.close();
+      peerRef.current = null;
+    }
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
+    }
+  };
+
+  useImperativeHandle(ref, () => ({ cleanup }));
+
+  // ─── Start call (caller side) ────────────────────────
   const startConnection = async () => {
     const peer = createPeer();
     try {
@@ -29,16 +45,16 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
         video: true,
         audio: true,
       });
+
       localStreamRef.current = stream;
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-
       stream.getTracks().forEach((track) => peer.addTrack(track, stream));
 
       peer.ontrack = (e) => {
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = e.streams[0];
           setIsConnected(true);
-          onConnected?.(); // ✅ notify parent — starts the call timer
+          onConnected?.(); // tell ChatWindow → start timer
         }
       };
 
@@ -58,16 +74,16 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
     }
   };
 
-  // ─── Auto-start on mount ─────────────────────────────
+  // ─── Auto-start camera on mount ──────────────────────
   useEffect(() => {
     if (otherUserId) startConnection();
   }, []);
 
-  // ─── Socket listeners ────────────────────────────────
+  // ─── WebRTC socket listeners (receiver side) ─────────
   useEffect(() => {
     if (!socket) return;
 
-    socket.on("webrtc-offer", async ({ offer, from }) => {
+    const handleOffer = async ({ offer, from }) => {
       const peer = createPeer();
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
@@ -76,13 +92,13 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
 
       localStreamRef.current = stream;
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-
       stream.getTracks().forEach((track) => peer.addTrack(track, stream));
 
       peer.ontrack = (e) => {
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = e.streams[0];
           setIsConnected(true);
+          onConnected?.(); // tell ChatWindow → start timer
         }
       };
 
@@ -95,39 +111,26 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
       const answer = await peer.createAnswer();
       await peer.setLocalDescription(answer);
       socket.emit("webrtc-answer", { answer, to: from });
-    });
+    };
 
-    socket.on("webrtc-answer", async ({ answer }) => {
+    const handleAnswer = async ({ answer }) => {
       if (peerRef.current) await peerRef.current.setRemoteDescription(answer);
-    });
+    };
 
-    socket.on("ice-candidate", async ({ candidate }) => {
+    const handleIce = async ({ candidate }) => {
       if (peerRef.current) await peerRef.current.addIceCandidate(candidate);
-    });
+    };
+
+    socket.on("webrtc-offer", handleOffer);
+    socket.on("webrtc-answer", handleAnswer);
+    socket.on("ice-candidate", handleIce);
 
     return () => {
-      socket.off("webrtc-offer");
-      socket.off("webrtc-answer");
-      socket.off("ice-candidate");
+      socket.off("webrtc-offer", handleOffer);
+      socket.off("webrtc-answer", handleAnswer);
+      socket.off("ice-candidate", handleIce);
     };
   }, [socket]);
-
-  // ─── Cleanup helper ──────────────────────────────────
-  const cleanup = () => {
-    if (peerRef.current) {
-      peerRef.current.close();
-      peerRef.current = null;
-    }
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((t) => t.stop());
-      localStreamRef.current = null;
-    }
-  };
-
-  // ─── Expose cleanup to parent via ref ────────────────
-  useImperativeHandle(ref, () => ({
-    cleanup,
-  }));
 
   // ─── Controls ────────────────────────────────────────
   const toggleMute = () => {
@@ -144,10 +147,10 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
     setIsVideoOff(!track.enabled);
   };
 
-  const endCall = () => {
-    // ✅ fix 3: notify the other user before closing
-    socket.emit("call-ended", { to: otherUserId });
-    cleanup();
+  // ── End call button just calls parent ────────────────
+  // ChatWindow.endCall() handles: emit call-ended, cleanup(), reset state
+  // VideoCall does NOT emit call-ended itself — prevents double emit
+  const handleEndClick = () => {
     onEndCall();
   };
 
@@ -159,13 +162,11 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
     "flex items-center justify-center w-12 h-12 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 backdrop-blur-sm transition-all duration-200 active:scale-95";
 
   return (
-    // ✅ fix 1: removed fixed h-[560px], use dynamic height; removed group/hover approach
     <div
       className="relative w-full bg-slate-950 overflow-hidden rounded-b-2xl"
       style={{ height: "min(560px, calc(100dvh - 160px))" }}
     >
       {/* ── Remote video ── */}
-      {/* object-contain so portrait mobile video never gets cropped on desktop */}
       <video
         ref={remoteVideoRef}
         autoPlay
@@ -183,7 +184,7 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
         </div>
       )}
 
-      {/* ── Top bar — always visible ── */}
+      {/* ── Top bar ── */}
       <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pt-4 pb-8 bg-gradient-to-b from-slate-950/70 to-transparent">
         <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -196,8 +197,7 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
         </button>
       </div>
 
-      {/* ── PiP local preview — smaller on mobile ── */}
-      {/* ✅ fix 1: responsive sizing with sm: breakpoint */}
+      {/* ── PiP local preview ── */}
       <div className="absolute top-14 right-3 z-20 w-24 h-32 sm:w-32 sm:h-44 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-900">
         <video
           ref={localVideoRef}
@@ -221,15 +221,12 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
         </span>
       </div>
 
-      {/* ── Bottom controls — always visible, not hover-gated ── */}
-      {/* ✅ fix 2: removed opacity-0/group-hover, controls always shown */}
+      {/* ── Controls ── */}
       <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center gap-3 px-4 pb-6 pt-16 bg-gradient-to-t from-slate-950/90 to-transparent">
-        {/* Mic */}
         <button onClick={toggleMute} className={isMuted ? warnBtn : idleBtn}>
           {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
         </button>
 
-        {/* Camera */}
         <button
           onClick={toggleVideo}
           className={isVideoOff ? warnBtn : idleBtn}
@@ -237,12 +234,10 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
           {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
         </button>
 
-        {/* Divider */}
         <div className="w-px h-7 bg-white/10 mx-1" />
 
-        {/* End call */}
         <button
-          onClick={endCall}
+          onClick={handleEndClick}
           className="flex items-center justify-center w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 text-white shadow-[0_8px_24px_rgba(225,29,72,0.4)] transition-all duration-200"
         >
           <PhoneOff size={22} />
