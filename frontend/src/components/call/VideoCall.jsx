@@ -177,9 +177,7 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
     "flex items-center justify-center w-12 h-12 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 backdrop-blur-sm transition-all duration-200 active:scale-95";
 
   return (
-    <div
-      className="relative w-full h-full bg-slate-950 overflow-hidden"
-    >
+    <div className="relative w-full h-[100dvh] bg-slate-950 overflow-hidden">
       {/* ── Remote video ── */}
       <video
         ref={remoteVideoRef}
@@ -236,7 +234,7 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
       </div>
 
       {/* ── Controls ── */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center gap-3 px-4 pb-6 pt-16 bg-gradient-to-t from-slate-950/90 to-transparent">
+      <div className="absolute bottom-6 left-0 right-0 z-20 flex items-center justify-center gap-4">
         <button onClick={toggleMute} className={isMuted ? warnBtn : idleBtn}>
           {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
         </button>
@@ -248,11 +246,9 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
           {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
         </button>
 
-        <div className="w-px h-7 bg-white/10 mx-1" />
-
         <button
           onClick={handleEndClick}
-          className="flex items-center justify-center w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 text-white shadow-[0_8px_24px_rgba(225,29,72,0.4)] transition-all duration-200"
+          className="flex items-center justify-center w-14 h-14 rounded-full bg-rose-600 text-white"
         >
           <PhoneOff size={22} />
         </button>
