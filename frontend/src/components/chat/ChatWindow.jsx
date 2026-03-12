@@ -1,4 +1,3 @@
-// ChatWindow.jsx
 import { useEffect, useState, useRef } from "react";
 import api from "../../api/axios";
 import { useSocket } from "../../context/socketContext";
@@ -6,36 +5,47 @@ import ChatHeader from "./ChatHeader";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import { logger } from "../../utils/logger";
-import seenSound from "../../assets/sound/sent.mp3";
-import sentSound from "../../assets/sound/seen.mp3";
+import receiveSoundFile from "../../assets/sound/sent.mp3";
+import seenSoundFile from "../../assets/sound/seen.mp3";
 import { useAuth } from "../../context/authContext";
 
 const ChatWindow = ({ chat, setSelectedChat }) => {
   const [messages, setMessages] = useState([]);
-  const { socket, setUnreadCounts, setActiveChatId } = useSocket();
-  const receiveSoundRef = useRef(new Audio(sentSound)); // sound when you receive a message
-  const seenSoundRef = useRef(new Audio(seenSound));
-  const { user } = useAuth();
   const [replyTo, setReplyTo] = useState(null);
 
+  const { socket, setUnreadCounts, setActiveChatId } = useSocket();
+  const { user } = useAuth();
+
+  const receiveSoundRef = useRef(new Audio(receiveSoundFile));
+  const seenSoundRef = useRef(new Audio(seenSoundFile));
+
+  // ─── Add / Replace Message ─────────────────────────────────────────────────
   const handleNewMessage = (newMessage) => {
     setMessages((prev) => {
+      // ✅ replace temp message with real one after upload
       if (newMessage.replaceId) {
         return prev.map((msg) =>
           msg._id === newMessage.replaceId ? newMessage : msg
         );
       }
+      // ✅ prevent duplicates
+      const exists = prev.some((msg) => msg._id === newMessage._id);
+      if (exists) return prev;
+
       return [...prev, newMessage];
     });
   };
 
+  // ─── Chat Effect ───────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!socket || !chat?._id) {
-      return;
-    }
+    if (!socket || !chat?._id) return;
 
     setMessages([]);
+    setReplyTo(null);
+    setActiveChatId(chat._id);
+    setUnreadCounts((prev) => ({ ...prev, [chat._id]: 0 }));
 
+    // fetch history
     const fetchMessages = async () => {
       try {
         const res = await api.get(`/messages/${chat._id}`);
@@ -47,26 +57,33 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
 
     fetchMessages();
     socket.emit("join-chat", chat._id);
-    setActiveChatId(chat._id);
-    setUnreadCounts((prev) => ({ ...prev, [chat._id]: 0 }));
     socket.emit("message-seen", { chatId: chat._id });
 
+    // ── Receive message ──────────────────────────────────────────────────────
     const handleReceiveMessage = (message) => {
-      setMessages((prev) => [...prev, message]);
+      // ✅ ignore own messages — already added optimistically via handleNewMessage
+      if (message.sender._id === user._id) return;
+
+      setMessages((prev) => {
+        const exists = prev.some((msg) => msg._id === message._id);
+        if (exists) return prev;
+        return [...prev, message];
+      });
+
       socket.emit("message-seen", { chatId: chat._id });
-      if (message.sender._id !== user._id) {
-        receiveSoundRef.current.currentTime = 0;
-        receiveSoundRef.current.play();
-      }
+      receiveSoundRef.current.currentTime = 0;
+      receiveSoundRef.current.play();
     };
 
-    // ✅ Correct - update all messages in the chat
+    // ── Message seen ─────────────────────────────────────────────────────────
     const handleSeen = ({ chatId, userId }) => {
       if (chatId.toString() !== chat._id.toString()) return;
+
       if (userId !== user._id) {
         seenSoundRef.current.currentTime = 0;
         seenSoundRef.current.play();
       }
+
       setMessages((prev) =>
         prev.map((msg) => ({
           ...msg,
@@ -89,20 +106,22 @@ const ChatWindow = ({ chat, setSelectedChat }) => {
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-slate-900">
-      {/* Header */}
       <ChatHeader
         chat={chat}
         setSelectedChat={setSelectedChat}
         messages={messages}
       />
 
-      {/* Messages */}
       <div className="flex-1 overflow-hidden bg-slate-50 dark:bg-slate-950">
         <MessageList messages={messages} onReply={setReplyTo} />
       </div>
 
-      {/* Input */}
-      <MessageInput chatId={chat._id} onMessageSent={handleNewMessage} replyTo={replyTo} setReplyTo={setReplyTo} />
+      <MessageInput
+        chatId={chat._id}
+        onMessageSent={handleNewMessage}
+        replyTo={replyTo}
+        setReplyTo={setReplyTo}
+      />
     </div>
   );
 };

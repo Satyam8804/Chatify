@@ -12,23 +12,28 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
   const [selectedFiles, setSelectedFiles] = useState([]);
 
   const soundRef = useRef(new Audio(sentSound));
+  const fileInputRef = useRef(null);
+  const menuRef = useRef(null);
 
   const { socket } = useSocket();
   const { user } = useAuth();
 
-  const fileInputRef = useRef(null);
-  const menuRef = useRef(null);
-
+  // ─── Send Message ──────────────────────────────────────────────────────────
   const sendMessage = async () => {
     if (!message.trim() && selectedFiles.length === 0) return;
 
+    const currentReplyTo = replyTo; // ✅ snapshot before clearing
+    setMessage("");
+    setSelectedFiles([]);
+    setReplyTo(null);
+
     try {
-      // TEXT MESSAGE
+      // ── Text message ────────────────────────────────────────────────────────
       if (message.trim()) {
         const res = await api.post("/messages", {
           chatId,
           content: message,
-          replyTo: replyTo?._id || null, // ✅
+          replyTo: currentReplyTo?._id || null,
         });
         const newMessage = res.data;
         onMessageSent(newMessage);
@@ -37,9 +42,12 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
         soundRef.current.play();
       }
 
-      // MEDIA MESSAGES
+      // ── Media messages ──────────────────────────────────────────────────────
       for (const { file, preview } of selectedFiles) {
-        const tempId = Date.now() + Math.random();
+        // ✅ unique tempId per file
+        const tempId = `temp-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2)}`;
 
         const tempMessage = {
           _id: tempId,
@@ -48,38 +56,39 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
           media: [{ url: preview, name: file.name, type: file.type }],
           uploading: true,
           createdAt: new Date(),
-          replyTo: replyTo || null, // ✅
+          replyTo: currentReplyTo || null,
         };
 
-        onMessageSent(tempMessage);
-
-        const formData = new FormData();
-        formData.append("files", file);
-        formData.append("chatId", chatId);
-        if (replyTo?._id) formData.append("replyTo", replyTo._id); // ✅
+        onMessageSent(tempMessage); // ✅ show preview immediately
 
         try {
+          const formData = new FormData();
+          formData.append("files", file);
+          formData.append("chatId", chatId);
+          if (currentReplyTo?._id)
+            formData.append("replyTo", currentReplyTo._id);
+
           const res = await api.post("/messages/media", formData, {
             headers: { "Content-Type": "multipart/form-data" },
           });
+
           const newMessage = res.data;
+          onMessageSent({ ...newMessage, replaceId: tempId }); // ✅ replace temp
           socket.emit("new-message", newMessage);
-          onMessageSent({ ...newMessage, replaceId: tempId });
-          soundRef.current.currentTime = 0; // ✅
-          soundRef.current.play(); // ✅
+          soundRef.current.currentTime = 0;
+          soundRef.current.play();
         } catch (err) {
-          logger(err);
+          logger("Media upload error:", err);
+          // ✅ remove failed temp message
+          onMessageSent({ replaceId: tempId, failed: true });
         }
       }
-
-      setSelectedFiles([]);
-      setMessage("");
-      setReplyTo(null); // ✅ clear reply after sending
     } catch (err) {
-      logger(err.message);
+      logger("Send message error:", err.message);
     }
   };
 
+  // ─── File Upload ───────────────────────────────────────────────────────────
   const handleFileUpload = (e) => {
     const files = Array.from(e.target.files);
     const previews = files.map((file) => ({
@@ -88,24 +97,10 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
     }));
     setSelectedFiles((prev) => [...prev, ...previews]);
     setShowMenu(false);
+    e.target.value = ""; // ✅ reset so same file can be re-selected
   };
 
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target))
-        setShowMenu(false);
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
-
+  // ─── Typing ────────────────────────────────────────────────────────────────
   const handleTyping = (e) => {
     setMessage(e.target.value);
     socket.emit("typing", { chatId, user });
@@ -115,9 +110,26 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
     }, 1000);
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  // ─── Click Outside ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target))
+        setShowMenu(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   return (
     <div className="bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-700 px-4 py-3 flex flex-col gap-2 transition-colors">
-      {/* MEDIA PREVIEW */}
+      {/* Media Preview */}
       {selectedFiles.length > 0 && (
         <div className="flex gap-2 overflow-x-auto pb-1">
           {selectedFiles.map((item, index) => {
@@ -155,7 +167,6 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
                 <span className="text-[9px] text-gray-500 dark:text-slate-400 truncate w-14 text-center px-1">
                   {item.file.name}
                 </span>
-
                 <button
                   onClick={() =>
                     setSelectedFiles((prev) =>
@@ -172,73 +183,70 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
         </div>
       )}
 
-      {/* INPUT BAR */}
+      {/* Input Bar */}
       <div className="flex items-center gap-2">
         {/* Attachment Menu */}
         <div className="relative" ref={menuRef}>
           {showMenu && (
             <div className="absolute bottom-14 left-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-xl rounded-xl w-44 p-1.5 space-y-0.5 animate-menu z-10">
-              <button
-                onClick={() => {
-                  fileInputRef.current.accept = "image/*";
-                  fileInputRef.current.click();
-                }}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
-              >
-                <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center shrink-0">
-                  <Image size={14} className="text-blue-500" />
-                </div>
-                Image
-              </button>
-
-              <button
-                onClick={() => {
-                  fileInputRef.current.accept = "video/*";
-                  fileInputRef.current.click();
-                }}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm cursor-pointer hover:bg-purple-50 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
-              >
-                <div className="w-7 h-7 rounded-full bg-purple-100 dark:bg-purple-500/20 flex items-center justify-center shrink-0">
-                  <Video size={14} className="text-purple-500" />
-                </div>
-                Video
-              </button>
-
-              <button
-                onClick={() => {
-                  fileInputRef.current.accept = "audio/*";
-                  fileInputRef.current.click();
-                }}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm cursor-pointer hover:bg-green-50 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
-              >
-                <div className="w-7 h-7 rounded-full bg-green-100 dark:bg-green-500/20 flex items-center justify-center shrink-0">
-                  <Music size={14} className="text-green-500" />
-                </div>
-                Audio
-              </button>
-
-              <button
-                onClick={() => {
-                  fileInputRef.current.accept = ".pdf,.doc,.docx,.txt";
-                  fileInputRef.current.click();
-                }}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm cursor-pointer hover:bg-red-50 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg"
-              >
-                <div className="w-7 h-7 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center shrink-0">
-                  <FileText size={14} className="text-red-500" />
-                </div>
-                Document
-              </button>
+              {[
+                {
+                  label: "Image",
+                  accept: "image/*",
+                  icon: <Image size={14} className="text-blue-500" />,
+                  bg: "bg-blue-100 dark:bg-blue-500/20",
+                  hover: "hover:bg-blue-50",
+                },
+                {
+                  label: "Video",
+                  accept: "video/*",
+                  icon: <Video size={14} className="text-purple-500" />,
+                  bg: "bg-purple-100 dark:bg-purple-500/20",
+                  hover: "hover:bg-purple-50",
+                },
+                {
+                  label: "Audio",
+                  accept: "audio/*",
+                  icon: <Music size={14} className="text-green-500" />,
+                  bg: "bg-green-100 dark:bg-green-500/20",
+                  hover: "hover:bg-green-50",
+                },
+                {
+                  label: "Document",
+                  accept: ".pdf,.doc,.docx,.txt",
+                  icon: <FileText size={14} className="text-red-500" />,
+                  bg: "bg-red-100 dark:bg-red-500/20",
+                  hover: "hover:bg-red-50",
+                },
+              ].map(({ label, accept, icon, bg, hover }) => (
+                <button
+                  key={label}
+                  onClick={() => {
+                    fileInputRef.current.accept = accept;
+                    fileInputRef.current.click();
+                  }}
+                  className={`flex items-center gap-2 w-full px-3 py-2 text-sm cursor-pointer ${hover} dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg`}
+                >
+                  <div
+                    className={`w-7 h-7 rounded-full ${bg} flex items-center justify-center shrink-0`}
+                  >
+                    {icon}
+                  </div>
+                  {label}
+                </button>
+              ))}
             </div>
           )}
 
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors cursor-pointer "
+            className="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <Plus size={20} />
           </button>
         </div>
+
+        {/* Reply Preview */}
         {replyTo && (
           <div className="flex items-center justify-between px-3 py-2 bg-gray-100 dark:bg-slate-800 rounded-lg text-sm min-w-0">
             <div className="border-l-4 border-emerald-500 pl-2 min-w-0 flex-1">
@@ -257,13 +265,14 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
             </button>
           </div>
         )}
+
         {/* Text Input */}
         <input
           type="text"
           value={message}
           onChange={handleTyping}
-          placeholder="Type a message..."
           onKeyDown={handleKeyDown}
+          placeholder="Type a message..."
           className="flex-1 px-4 py-2.5 rounded-full text-sm bg-gray-100 dark:bg-slate-800 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 transition-all"
         />
 
