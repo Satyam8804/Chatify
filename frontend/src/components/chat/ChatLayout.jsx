@@ -5,8 +5,8 @@ import Sidebar from "./Sidebar";
 import ChatWindow from "./ChatWindow";
 import EmptyChatState from "./EmptyChatState";
 import VideoCall from "../call/VideoCall.jsx";
-import IncomingCallModal from "../call/IncomingCallModal.jsx";
 import outgoingRingFile from "../../assets/sound/outgoing-ring.mp3";
+import IncomingCallModal from "../common/IncomingCallModal.jsx";
 
 const formatDuration = (secs) => {
   const m = String(Math.floor(secs / 60)).padStart(2, "0");
