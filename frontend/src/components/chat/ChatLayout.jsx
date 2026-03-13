@@ -78,14 +78,22 @@ const ChatLayout = () => {
 
   const resetCall = useCallback(() => {
     videoCallRef.current?.cleanup();
+
     stopOutgoingRing();
     clearRingTimeout();
     stopTimer();
+
     setIsCalling(false);
     setCallTargetId(null);
     setCallTargetName("");
+
     isCallingRef.current = false;
     callTargetIdRef.current = null;
+
+    // ⭐ exit fullscreen
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
   }, []);
 
   // ── Socket handlers ──────────────────────────────────────────
