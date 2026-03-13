@@ -4,6 +4,7 @@ import cors from "cors";
 import http from "http";
 import cookieParser from "cookie-parser";
 import { Server } from "socket.io";
+import passport from "./utils/passport.js"; // ✅ passport with Google strategy
 
 import connectDB from "./configs/db.js";
 import userRoute from "./routes/userRoute.routes.js";
@@ -18,6 +19,7 @@ dotenv.config();
 connectDB();
 
 const app = express();
+
 app.use(
   cors({
     origin: process.env.CLIENT_URL || "http://localhost:5173",
@@ -27,15 +29,16 @@ app.use(
 
 app.use(express.json());
 app.use(cookieParser());
+app.use(passport.initialize()); // ✅ initialize passport (no sessions — we use JWT)
 
 app.get("/", (req, res) => {
   res.send("Chatify API running");
 });
+
 app.use("/api/users", userRoute);
 app.use("/api/chats", chatRoutes);
 app.use("/api/messages", messageRoutes);
 
-// serve frontend
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -46,10 +49,10 @@ const io = new Server(server, {
   },
 });
 
-// 🔥 SOCKET SETUP
 io.engine.on("connection_error", (err) => {
   console.log("Engine error:", err.message);
 });
+
 setupSocket(io);
 
 const PORT = process.env.PORT || 5000;

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import AvatarUpload from "./uploadAvatar";
 import Loader from "../utils/Loader";
 import { Mail, Lock, User, ArrowRight, ChevronLeft } from "lucide-react";
-
+import GoogleLoginButton from "./common/GoogleLoginButton.jsx";
 const AuthForm = ({ mode = "login", onSubmit, loading }) => {
   const isLogin = mode === "login";
   const [step, setStep] = useState(1);
@@ -43,7 +43,6 @@ const AuthForm = ({ mode = "login", onSubmit, loading }) => {
 
   return (
     <div className="w-full max-w-sm">
-      {/* Card */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl dark:shadow-slate-900/50 border border-gray-100 dark:border-slate-700 p-8 transition-colors">
         {/* Header */}
         <div className="mb-8">
@@ -55,7 +54,6 @@ const AuthForm = ({ mode = "login", onSubmit, loading }) => {
               <ChevronLeft size={16} /> Back
             </button>
           )}
-
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
             {isLogin
               ? "Welcome back"
@@ -104,6 +102,12 @@ const AuthForm = ({ mode = "login", onSubmit, loading }) => {
               onChange={handleChange}
             />
             <SubmitButton loading={loading} text="Sign in" />
+
+            {/* ── Divider ── */}
+            <Divider />
+
+            {/* ── Google ── */}
+            <GoogleLoginButton />
           </form>
         )}
 
@@ -130,6 +134,12 @@ const AuthForm = ({ mode = "login", onSubmit, loading }) => {
             >
               Continue <ArrowRight size={16} />
             </button>
+
+            {/* ── Divider ── */}
+            <Divider />
+
+            {/* ── Google ── */}
+            <GoogleLoginButton />
           </form>
         )}
 
@@ -185,6 +195,17 @@ const AuthForm = ({ mode = "login", onSubmit, loading }) => {
     </div>
   );
 };
+
+// ── Divider ───────────────────────────────────────────
+const Divider = () => (
+  <div className="flex items-center gap-3 my-1">
+    <div className="flex-1 h-px bg-gray-200 dark:bg-slate-700" />
+    <span className="text-xs text-gray-400 dark:text-slate-500 font-medium">
+      or
+    </span>
+    <div className="flex-1 h-px bg-gray-200 dark:bg-slate-700" />
+  </div>
+);
 
 const Field = ({ icon, label, name, type = "text", onChange }) => (
   <div>

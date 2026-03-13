@@ -33,4 +33,25 @@ router.patch(
 
 router.get("/search", protect, searchUsers);
 
+// Step 1: redirect user to Google consent screen
+
+router.get(
+  "/google",
+  passport.authenticate("google", {
+    scope: ["profile", "email"],
+    session: false,
+  })
+);
+
+// Step 2: Google redirects back here after user consents
+
+router.get(
+  "/google/callback",
+  passport.authenticate("google", {
+    failureRedirect: "/login",
+    session: false,
+  }),
+  googleCallback
+);
+
 export default router;

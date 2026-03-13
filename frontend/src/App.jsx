@@ -5,6 +5,7 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 import Chat from "./pages/Chat.jsx";
 import { Toaster } from "react-hot-toast";
 import PublicRoute from "./routes/PublicRoute.jsx";
+import GoogleAuthSuccess from './auth/google/success/GoogleAuthSuccess';
 
 function App() {
   return (
@@ -18,7 +19,6 @@ function App() {
       />
 
       <Routes>
-        {/* ✅ Root path — PublicRoute redirects to /chat if logged in */}
         <Route
           path="/"
           element={
@@ -43,7 +43,6 @@ function App() {
             </PublicRoute>
           }
         />
-
         <Route
           path="/chat"
           element={
@@ -52,6 +51,9 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* ── Google OAuth redirect landing page ── */}
+        <Route path="/auth/google/success" element={<GoogleAuthSuccess />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

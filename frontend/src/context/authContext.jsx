@@ -16,20 +16,18 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ─── Restore Session on App Boot ──────────────────────────────────────────
+  // ─── Restore Session on App Boot ─────────────────────
   useEffect(() => {
     const restoreSession = async () => {
       try {
-        // 1️⃣ Exchange httpOnly refresh cookie → fresh access token
         const { data: refreshData } = await axios.post(
           `${import.meta.env.VITE_API_URL}/users/refresh-token`,
           {},
           { withCredentials: true }
         );
 
-        setToken(refreshData.accessToken); // ✅ memory only
+        setToken(refreshData.accessToken);
 
-        // 2️⃣ Fetch user profile with the new access token
         const { data: userData } = await api.get("/users/me");
         setUser(userData.user);
       } catch (error) {
@@ -37,14 +35,14 @@ export const AuthProvider = ({ children }) => {
         clearToken();
         setUser(null);
       } finally {
-        setLoading(false); // ✅ always unblock the UI
+        setLoading(false);
       }
     };
 
     restoreSession();
   }, []);
 
-  // ─── Login ─────────────────────────────────────────────────────────────────
+  // ─── Login (email/password) ───────────────────────────
   const login = useCallback(async (credentials) => {
     try {
       const { data } = await api.post("/users/login-user", credentials);
@@ -52,11 +50,26 @@ export const AuthProvider = ({ children }) => {
       setUser(data.user);
     } catch (error) {
       logger(error);
-      throw error; // ✅ re-throw so login form can react
+      throw error;
     }
   }, []);
 
-  // ─── Logout ────────────────────────────────────────────────────────────────
+  // ─── Login with Token (Google OAuth) ─────────────────
+  // Called by GoogleAuthSuccess page after redirect
+  const loginWithToken = useCallback(async (accessToken) => {
+    try {
+      setToken(accessToken);
+      // Fetch full user profile using the token
+      const { data } = await api.get("/users/me");
+      setUser(data.user);
+    } catch (error) {
+      logger(error);
+      clearToken();
+      throw error;
+    }
+  }, []);
+
+  // ─── Logout ───────────────────────────────────────────
   const logout = useCallback(async () => {
     try {
       await api.post("/users/logout");
@@ -64,11 +77,11 @@ export const AuthProvider = ({ children }) => {
       logger("Logout error:", error);
     } finally {
       clearToken();
-      setUser(null); // ✅ always clear locally even if API fails
+      setUser(null);
     }
   }, []);
 
-  // ─── Refresh User Profile ──────────────────────────────────────────────────
+  // ─── Refresh User Profile ─────────────────────────────
   const refreshUser = useCallback(async () => {
     try {
       const { data } = await api.get("/users/me");
@@ -78,17 +91,17 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // ─── Context Value ─────────────────────────────────────────────────────────
   const value = useMemo(
     () => ({
       user,
       isAuthenticated: !!user,
       loading,
       login,
+      loginWithToken, // ✅ exposed for GoogleAuthSuccess
       logout,
       refreshUser,
     }),
-    [user, loading, login, logout, refreshUser] // ✅ complete deps
+    [user, loading, login, loginWithToken, logout, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

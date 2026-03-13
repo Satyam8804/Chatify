@@ -274,3 +274,30 @@ export const searchUsers = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const googleCallback = async (req, res) => {
+  try {
+    const user = req.user; // set by passport
+
+    const accessToken = generateAccessToken(user._id);
+    const refreshToken = generateRefreshToken(user._id);
+
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    const isProduction = process.env.NODE_ENV === "production";
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    const frontendUrl = process.env.CLIENT_URL || "http://localhost:5173";
+    res.redirect(`${frontendUrl}/auth/google/success?token=${accessToken}`);
+  } catch (error) {
+    console.error("GOOGLE CALLBACK ERROR 👉", error);
+    res.redirect(`${process.env.CLIENT_URL}/login?error=oauth_failed`);
+  }
+};

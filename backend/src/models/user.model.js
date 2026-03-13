@@ -4,25 +4,39 @@ const UserSchema = new mongoose.Schema(
   {
     fName: {
       type: String,
-      require: true,
+      required: true,
       trim: true,
     },
     lName: {
       type: String,
-      require: true,
+      required: true,
       default: "",
     },
     email: {
       type: String,
-      require: true,
+      required: true,
       unique: true,
       lowercase: true,
     },
+
+    // ✅ no longer required — Google users won't have a password
     password: {
       type: String,
-      require: true,
-      select:false
+      required: false,
+      select: false,
     },
+
+    // ✅ OAuth fields
+    googleId: {
+      type: String,
+      default: null,
+    },
+    authProvider: {
+      type: String,
+      enum: ["local", "google", "both"], // ← add "both"
+      default: "local",
+    },
+
     avatar: {
       type: String,
       default: "",
@@ -35,10 +49,10 @@ const UserSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-    lastSeen:{
-      type:Date,
-      default:null,
-    }
+    lastSeen: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );
