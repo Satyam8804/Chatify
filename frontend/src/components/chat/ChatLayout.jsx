@@ -159,7 +159,9 @@ const ChatLayout = () => {
       socket.emit("call-ended", { to: callTargetIdRef.current });
     }
     resetCall();
-    document.exitFullscreen().catch(() => {});
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
   }, [socket, resetCall]);
 
   return (

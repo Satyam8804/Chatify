@@ -41,6 +41,14 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
       localStreamRef.current.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
     }
+
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
+    }
   };
 
   useEffect(() => {
