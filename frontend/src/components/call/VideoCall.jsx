@@ -107,7 +107,7 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
   };
 
   // ─── Auto-start camera on mount ──────────────────────
-  
+
   useEffect(() => {
     if (!otherUserId) return;
     startConnection();
@@ -199,9 +199,14 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
   // ─── Controls ────────────────────────────────────────
   const toggleMute = () => {
     if (!localStreamRef.current) return;
-    const track = localStreamRef.current.getAudioTracks()[0];
-    track.enabled = !track.enabled;
-    setIsMuted(!track.enabled);
+
+    const tracks = localStreamRef.current.getAudioTracks();
+
+    tracks.forEach((track) => {
+      track.enabled = !track.enabled;
+    });
+
+    setIsMuted(!tracks[0].enabled);
   };
 
   const toggleVideo = () => {
@@ -212,27 +217,36 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
   };
 
   const switchCamera = async () => {
-    if (switchingRef.current) return; // prevent double click
+    if (switchingRef.current) return;
     switchingRef.current = true;
 
     try {
       const newFacing = facingMode === "user" ? "environment" : "user";
       setFacingMode(newFacing);
 
-      // stop current video track
       const currentStream = localStreamRef.current;
-      const oldVideoTrack = currentStream?.getVideoTracks()[0];
+      const audioTrack = currentStream?.getAudioTracks()[0];
 
+      const oldVideoTrack = currentStream?.getVideoTracks()[0];
       if (oldVideoTrack) oldVideoTrack.stop();
 
-      // request new camera
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: newFacing,
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
+        audio: false,
       });
+
+      // restore microphone track
+      if (audioTrack) {
+        stream.addTrack(audioTrack);
+      }
+
+      if (audioTrack && isMuted) {
+        audioTrack.enabled = false;
+      }
 
       localStreamRef.current = stream;
 
@@ -242,7 +256,6 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
 
       const newVideoTrack = stream.getVideoTracks()[0];
 
-      // replace video track in WebRTC connection
       const sender = peerRef.current
         ?.getSenders()
         .find((s) => s.track?.kind === "video");
@@ -253,7 +266,7 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
     } catch (err) {
       console.error("Camera switch error:", err);
     } finally {
-      switchingRef.current = false; // unlock
+      switchingRef.current = false;
     }
   };
 
