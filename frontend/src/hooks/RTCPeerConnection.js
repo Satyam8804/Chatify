@@ -4,13 +4,22 @@ export const useWebRTC = () => {
   const peerRef = useRef(null);
 
   const createPeer = () => {
+    const peer = peerRef.current;
+
+    // reuse peer if still usable
     if (
-      peerRef.current &&
-      peerRef.current.connectionState !== "closed" &&
-      peerRef.current.connectionState !== "failed" &&
-      peerRef.current.connectionState !== "disconnected"
+      peer &&
+      peer.connectionState !== "closed" &&
+      peer.connectionState !== "failed"
     ) {
-      return peerRef.current;
+      return peer;
+    }
+
+    // close old peer if exists
+    if (peer) {
+      try {
+        peer.close();
+      } catch {}
     }
 
     peerRef.current = new RTCPeerConnection({

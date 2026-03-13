@@ -84,6 +84,8 @@ const VideoCall = forwardRef(
     const createPeerConnection = (userId, userName) => {
       let entry = peersRef.current.get(userId);
 
+      if (entry?.peer) return entry.peer;
+
       const peer = new RTCPeerConnection({
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
@@ -91,11 +93,16 @@ const VideoCall = forwardRef(
           { urls: "stun:stun2.l.google.com:19302" },
         ],
         iceCandidatePoolSize: 10,
+        bundlePolicy: "max-bundle",
       });
 
       peer.onicecandidate = (e) => {
-        if (e.candidate)
-          socket.emit("ice-candidate", { candidate: e.candidate, to: userId });
+        if (e.candidate) {
+          socket.emit("ice-candidate", {
+            candidate: e.candidate,
+            to: userId,
+          });
+        }
       };
 
       peer.ontrack = (e) => {
@@ -119,16 +126,13 @@ const VideoCall = forwardRef(
         }
       };
 
-      peer.oniceconnectionstatechange = () => {
-        if (peer.iceConnectionState === "failed") peer.restartIce();
+      // attach pending ICE if existed
+      entry = {
+        peer,
+        pendingCandidates: entry?.pendingCandidates || [],
       };
 
-      if (!entry) {
-        entry = { peer, pendingCandidates: [] };
-        peersRef.current.set(userId, entry);
-      } else {
-        entry.peer = peer;
-      }
+      peersRef.current.set(userId, entry);
 
       return peer;
     };
@@ -142,14 +146,23 @@ const VideoCall = forwardRef(
 
     // ── Send offer to a participant ───────────────────
     const initiateOffer = async (userId, userName) => {
-      const stream = await getLocalStream(facingMode);
       if (peersRef.current.get(userId)?.peer) return;
 
+      const stream = await getLocalStream(facingMode);
+
       const peer = createPeerConnection(userId, userName);
+
       stream.getTracks().forEach((t) => peer.addTrack(t, stream));
+
       const offer = await peer.createOffer();
+
       await peer.setLocalDescription(offer);
-      socket.emit("webrtc-offer", { offer, to: userId, fromName: user?.fName });
+
+      socket.emit("webrtc-offer", {
+        offer,
+        to: userId,
+        fromName: user?.fName,
+      });
     };
 
     // ── On mount: join room + send offers ────────────
@@ -178,23 +191,26 @@ const VideoCall = forwardRef(
 
       // Incoming offer → answer it
       const handleOffer = async ({ offer, from, fromName }) => {
-        if (peersRef.current.get(from)?.peer) return;
         const stream = await getLocalStream(facingMode);
+
         const peer = createPeerConnection(from, fromName);
+
         stream.getTracks().forEach((t) => peer.addTrack(t, stream));
 
         await peer.setRemoteDescription(offer);
 
         const entry = peersRef.current.get(from);
 
-        if (entry) {
-          for (const c of entry.pendingCandidates)
+        if (entry?.pendingCandidates?.length) {
+          for (const c of entry.pendingCandidates) {
             await peer.addIceCandidate(c);
+          }
           entry.pendingCandidates = [];
         }
 
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
+
         socket.emit("webrtc-answer", { answer, to: from });
       };
 
@@ -247,12 +263,38 @@ const VideoCall = forwardRef(
 
     // ── Cleanup ───────────────────────────────────────
     const cleanup = () => {
-      if (chatId) socket.emit("leave-call-room", { roomId: chatId });
-      peersRef.current.forEach(({ peer }) => peer.close());
+      // leave socket room
+      if (chatId) {
+        socket?.emit("leave-call-room", { roomId: chatId });
+      }
+
+      // stop local media tracks first
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => {
+          try {
+            track.stop();
+          } catch {}
+        });
+      }
+
+      // close all peer connections
+      peersRef.current.forEach(({ peer }) => {
+        try {
+          peer?.close();
+        } catch {}
+      });
+
       peersRef.current.clear();
-      localStreamRef.current?.getTracks().forEach((t) => t.stop());
+
+      // reset local stream
       localStreamRef.current = null;
-      if (localVideoRef.current) localVideoRef.current.srcObject = null;
+
+      // clear video element
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = null;
+      }
+
+      // remove remote videos
       setRemoteStreams([]);
     };
 
