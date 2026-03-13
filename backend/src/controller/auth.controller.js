@@ -2,6 +2,7 @@ import User from "../models/user.model.js";
 import bcrypt from "bcrypt";
 import getInitials from "../utils/getInitials.js";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
+import cloudinary from "../utils/cloudinary.js"; // ✅ needed for destroy in updateMe
 import jwt from "jsonwebtoken";
 
 import {
@@ -24,27 +25,31 @@ export const registerUser = async (req, res) => {
 
     const userExist = await User.findOne({ email: normalizedEmail });
     if (userExist) {
-      return res.status(400).json({
-        message: "User already exists",
-      });
+      return res.status(400).json({ message: "User already exists" });
     }
 
     const hashedPwd = await bcrypt.hash(password, 10);
 
-    let avatarUrl = "";
-
-    if (req.file) {
-      const result = await uploadToCloudinary(req.file.buffer, "avatars");
-      avatarUrl = result.secure_url;
-    }
-
+    // Create user first so we have the _id for the avatar public_id
     const newUser = await User.create({
       fName: fName.trim(),
       lName: lName.trim(),
       email: normalizedEmail,
       password: hashedPwd,
-      avatar: avatarUrl,
+      avatar: "",
     });
+
+    if (req.file) {
+      // ✅ use newUser._id so avatar URL is unique per user
+      const result = await uploadToCloudinary(
+        req.file.buffer,
+        req.file.originalname,
+        "avatars",
+        newUser._id
+      );
+      newUser.avatar = result.secure_url;
+      await newUser.save();
+    }
 
     res.status(201).json({
       message: "Account Created",
@@ -59,9 +64,7 @@ export const registerUser = async (req, res) => {
     });
   } catch (error) {
     console.error("REGISTER ERROR 👉", error);
-    res.status(500).json({
-      message: "Server Error",
-    });
+    res.status(500).json({ message: "Server Error" });
   }
 };
 
@@ -88,7 +91,7 @@ export const loginUser = async (req, res) => {
     }
 
     const accessToken = generateAccessToken(user._id);
-    const refreshToken = generateRefreshToken(user._id); // ✅ named refreshToken
+    const refreshToken = generateRefreshToken(user._id);
 
     user.refreshToken = refreshToken;
     await user.save();
@@ -96,7 +99,6 @@ export const loginUser = async (req, res) => {
     const isProduction = process.env.NODE_ENV === "production";
 
     res.cookie("refreshToken", refreshToken, {
-      // ✅ use refreshToken not newRefreshToken
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? "none" : "lax",
@@ -127,7 +129,6 @@ export const refreshAccessToken = async (req, res) => {
     }
 
     const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-
     const user = await User.findById(decoded.id);
 
     if (!user || user.refreshToken !== refreshToken) {
@@ -178,7 +179,6 @@ export const logout = async (req, res) => {
 export const meRoute = async (req, res) => {
   try {
     const user = req.user;
-    // 🔥 generate fresh access token
     const accessToken = generateAccessToken(user._id);
     res.json({
       user: {
@@ -188,28 +188,25 @@ export const meRoute = async (req, res) => {
         email: user.email,
         avatar: user.avatar,
       },
-      accessToken, // ✅ IMPORTANT
+      accessToken,
     });
   } catch (error) {
-    res.status(500).json({
-      message: "Server error",
-    });
+    res.status(500).json({ message: "Server error" });
   }
 };
 
 export const updateMe = async (req, res) => {
   try {
     const { fName, lName } = req.body;
-
     const updates = {};
 
     if (fName) updates.fName = fName.trim();
     if (lName) updates.lName = lName.trim();
 
     if (req.file) {
-      // ✅ only fetch user if we actually need to delete old avatar
       const currentUser = await User.findById(req.user._id);
 
+      // ✅ delete old avatar from Cloudinary before uploading new one
       if (currentUser?.avatar) {
         const public_id = getPublicIdFromUrl(currentUser.avatar);
         if (public_id) {
@@ -219,7 +216,13 @@ export const updateMe = async (req, res) => {
         }
       }
 
-      const result = await uploadToCloudinary(req.file.buffer, "avatars");
+      // ✅ fixed: req.file.buffer and req.file.originalname
+      const result = await uploadToCloudinary(
+        req.file.buffer,
+        req.file.originalname,
+        "avatars",
+        req.user._id // ✅ unique per user — no cache collisions
+      );
       updates.avatar = result.secure_url;
     }
 
