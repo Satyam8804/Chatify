@@ -10,11 +10,7 @@ export const useWebRTC = () => {
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
-        {
-          urls: "turn:global.turn.twilio.com:3478?transport=udp",
-          username: "YOUR_TURN_USERNAME",
-          credential: "YOUR_TURN_PASSWORD",
-        },
+        { urls: "stun:stun2.l.google.com:19302" },
       ],
       iceCandidatePoolSize: 10,
     });
