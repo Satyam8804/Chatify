@@ -14,6 +14,7 @@ const ChatHeader = ({
   messages,
   onClearChat,
   startCall,
+  isCalling,
 }) => {
   const { user } = useAuth();
   const { onlineUser } = useSocket();
@@ -46,12 +47,11 @@ const ChatHeader = ({
           </button>
         )}
 
-        {/* Avatar + Name (opens info panel) */}
+        {/* Avatar + Name */}
         <div
           className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
           onClick={() => setShowInfo(true)}
         >
-          {/* Avatar */}
           {isGroup ? (
             <div className="w-10 h-10 rounded-full overflow-hidden grid grid-cols-2 grid-rows-2 shrink-0">
               {chat.users.slice(0, 4).map((u) => {
@@ -79,7 +79,6 @@ const ChatHeader = ({
             <Avatar user={friendObj} isOnline={isOnline} />
           )}
 
-          {/* Name + status */}
           <div className="flex flex-col min-w-0">
             <p className="font-semibold text-gray-900 dark:text-slate-100 truncate">
               {isGroup
@@ -113,12 +112,18 @@ const ChatHeader = ({
           </div>
         </div>
 
-        {/* Actions */}
-        {!isGroup && startCall && (
+        {/* ✅ Video call button — works for both 1-to-1 and group */}
+        {startCall && (
           <button
-            onClick={startCall}
-            title="Start video call"
-            className="flex items-center justify-center w-9 h-9 rounded-full text-slate-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"
+            onClick={() => !isCalling && startCall(chat)}
+            disabled={isCalling}
+            title={isCalling ? "Call already in progress" : "Start video call"}
+            className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors
+      ${
+        isCalling
+          ? "text-gray-400 cursor-not-allowed opacity-50"
+          : "text-slate-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-emerald-500 dark:hover:text-emerald-400"
+      }`}
           >
             <Video size={20} />
           </button>

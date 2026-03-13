@@ -12,7 +12,7 @@ import { useAuth } from "../../context/authContext";
 // All call state and video UI have moved to ChatLayout
 // ChatWindow just triggers startCall via prop
 
-const ChatWindow = ({ chat, setSelectedChat, startCall }) => {
+const ChatWindow = ({ chat, setSelectedChat, startCall ,isCalling}) => {
   const [messages, setMessages] = useState([]);
   const [replyTo, setReplyTo] = useState(null);
 
@@ -100,7 +100,9 @@ const ChatWindow = ({ chat, setSelectedChat, startCall }) => {
         setSelectedChat={setSelectedChat}
         messages={messages}
         onClearChat={() => setMessages([])}
-        startCall={() => startCall(chat)} // pass chat to parent
+        // ChatWindow
+        startCall={startCall} // pass chat to parent
+        isCalling={isCalling}
       />
 
       <div className="flex-1 overflow-hidden bg-slate-50 dark:bg-slate-950">

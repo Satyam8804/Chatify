@@ -7,7 +7,7 @@ import {
   useCallback,
 } from "react";
 import axios from "axios";
-import api, { setToken, clearToken } from "../api/axios";
+import api, { setToken, clearToken, getToken } from "../api/axios";
 import { logger } from "../utils/logger";
 
 const AuthContext = createContext(null);
@@ -18,28 +18,44 @@ export const AuthProvider = ({ children }) => {
 
   // ─── Restore Session on App Boot ─────────────────────
   useEffect(() => {
+    let mounted = true;
+
     const restoreSession = async () => {
       try {
-        const { data: refreshData } = await axios.post(
-          `${import.meta.env.VITE_API_URL}/users/refresh-token`,
-          {},
-          { withCredentials: true }
-        );
+        let token = getToken();
 
-        setToken(refreshData.accessToken);
+        // If token already exists, skip refresh request
+        if (!token) {
+          const { data } = await axios.post(
+            `${import.meta.env.VITE_API_URL}/users/refresh-token`,
+            {},
+            { withCredentials: true }
+          );
+
+          token = data.accessToken;
+          setToken(token);
+        }
 
         const { data: userData } = await api.get("/users/me");
-        setUser(userData.user);
+
+        if (mounted) setUser(userData.user);
       } catch (error) {
         logger(error.message);
-        clearToken();
-        setUser(null);
+
+        if (mounted) {
+          clearToken();
+          setUser(null);
+        }
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
     restoreSession();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // ─── Login (email/password) ───────────────────────────
@@ -55,11 +71,10 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // ─── Login with Token (Google OAuth) ─────────────────
-  // Called by GoogleAuthSuccess page after redirect
   const loginWithToken = useCallback(async (accessToken) => {
     try {
       setToken(accessToken);
-      // Fetch full user profile using the token
+
       const { data } = await api.get("/users/me");
       setUser(data.user);
     } catch (error) {
@@ -97,7 +112,7 @@ export const AuthProvider = ({ children }) => {
       isAuthenticated: !!user,
       loading,
       login,
-      loginWithToken, // ✅ exposed for GoogleAuthSuccess
+      loginWithToken,
       logout,
       refreshUser,
     }),

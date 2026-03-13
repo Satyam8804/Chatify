@@ -2,8 +2,6 @@ import { useEffect, useRef } from "react";
 import { useSocket } from "../../context/socketContext";
 import incomingRingFile from "../../assets/sound/incoming-ring.mp3";
 
-// Mounted once in ChatLayout — shows on ANY screen when a call comes in
-
 const IncomingCallModal = ({ onAccept }) => {
   const { socket, incomingCall, setIncomingCall } = useSocket();
 
@@ -21,25 +19,20 @@ const IncomingCallModal = ({ onAccept }) => {
     ringTimeoutRef.current = null;
   };
 
-  // ── Ring + 30s auto-dismiss ──────────────────────────
   useEffect(() => {
     if (!incomingCall) {
       stopRing();
       return;
     }
-
     incomingRingRef.current.currentTime = 0;
     incomingRingRef.current.play().catch(() => {});
-
     ringTimeoutRef.current = setTimeout(() => {
       stopRing();
       setIncomingCall(null);
     }, 30000);
-
     return () => stopRing();
   }, [incomingCall]);
 
-  // ── Caller cancelled before pick up ─────────────────
   useEffect(() => {
     if (!socket) return;
     const handle = () => {
@@ -52,20 +45,17 @@ const IncomingCallModal = ({ onAccept }) => {
 
   if (!incomingCall) return null;
 
-  const callerName = incomingCall?.callerName || "Someone";
+  const { from, callerName, chatId, isGroup } = incomingCall;
 
   const handleAccept = () => {
     stopRing();
-    socket.emit("call-accepted", { to: incomingCall.from });
-    const from = incomingCall.from;
     setIncomingCall(null);
-    onAccept?.(from, callerName); // ✅ pass both so ChatLayout can show name
+    onAccept?.(from, callerName || "Someone", chatId, isGroup);
   };
 
   const handleReject = () => {
     stopRing();
-    socket.emit("call-rejected", { to: incomingCall.from });
-    socket.emit("call-ended", { to: incomingCall.from });
+    socket.emit("call-rejected", { to: from });
     setIncomingCall(null);
   };
 
@@ -78,14 +68,12 @@ const IncomingCallModal = ({ onAccept }) => {
             <span className="text-3xl">📹</span>
           </div>
         </div>
-
         <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-          Incoming Video Call
+          {isGroup ? "Incoming Group Call" : "Incoming Video Call"}
         </h3>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 mb-6">
-          {callerName} is calling…
+          {callerName || "Someone"} is calling…
         </p>
-
         <div className="flex gap-3">
           <button
             onClick={handleReject}

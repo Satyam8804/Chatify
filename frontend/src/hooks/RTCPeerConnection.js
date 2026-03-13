@@ -4,7 +4,14 @@ export const useWebRTC = () => {
   const peerRef = useRef(null);
 
   const createPeer = () => {
-    if (peerRef.current) return peerRef.current;
+    // recreate peer if closed or failed
+    if (
+      peerRef.current &&
+      peerRef.current.connectionState !== "closed" &&
+      peerRef.current.connectionState !== "failed"
+    ) {
+      return peerRef.current;
+    }
 
     peerRef.current = new RTCPeerConnection({
       iceServers: [
@@ -13,6 +20,8 @@ export const useWebRTC = () => {
         { urls: "stun:stun2.l.google.com:19302" },
       ],
       iceCandidatePoolSize: 10,
+      bundlePolicy: "max-bundle",
+      rtcpMuxPolicy: "require",
     });
 
     return peerRef.current;

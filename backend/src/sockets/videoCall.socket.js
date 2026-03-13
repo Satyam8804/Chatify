@@ -1,54 +1,167 @@
 import { onlineUsers } from "./presence.socket.js";
 
 export const videoCallSocket = (io, socket) => {
-  
-  socket.on("video-call-user", ({ receiverId }) => {
-    const receiverSockets = onlineUsers.get(receiverId);
+  // ─────────────────────────────────────────────
+  // Join call room (group calls)
+  // ─────────────────────────────────────────────
+  socket.on("join-call-room", ({ roomId }) => {
+    if (!roomId) return;
 
-    if (!receiverSockets) return;
+    // prevent duplicate joins
+    if (socket.rooms.has(roomId)) return;
 
-    receiverSockets.forEach((socketId) => {
-      io.to(socketId).emit("incoming-call", {
-        from: socket.userId,
-        callerName: socket.user?.fName,
+    socket.join(roomId);
+
+    socket.to(roomId).emit("user-joined-call", {
+      userId: socket.userId,
+      name: socket.user?.fName,
+    });
+  });
+
+  // ─────────────────────────────────────────────
+  // Leave call room
+  // ─────────────────────────────────────────────
+  socket.on("leave-call-room", ({ roomId }) => {
+    if (!roomId) return;
+
+    socket.leave(roomId);
+
+    socket.to(roomId).emit("user-left-call", {
+      userId: socket.userId,
+    });
+  });
+
+  // ─────────────────────────────────────────────
+  // Ring users (start call notification)
+  // ─────────────────────────────────────────────
+  socket.on("video-call-user", ({ chatId, receiverIds, isGroup }) => {
+    if (!receiverIds?.length) return;
+
+    receiverIds.forEach((userId) => {
+      const sockets = onlineUsers.get(userId);
+      if (!sockets) return;
+
+      sockets.forEach((socketId) => {
+        io.to(socketId).emit("incoming-call", {
+          from: socket.userId,
+          callerName: socket.user?.fName,
+          chatId,
+          isGroup: !!isGroup,
+        });
       });
     });
   });
 
-  // Receiver accepted
+  // ─────────────────────────────────────────────
+  // Call accepted (1-to-1)
+  // ─────────────────────────────────────────────
   socket.on("call-accepted", ({ to }) => {
-    io.to(to).emit("call-accepted");
+    if (!to) return;
+
+    const targetSockets = onlineUsers.get(to);
+
+    targetSockets?.forEach((socketId) => {
+      io.to(socketId).emit("call-accepted", {
+        from: socket.userId,
+      });
+    });
   });
 
-  // Receiver rejected
+  // ─────────────────────────────────────────────
+  // Call rejected
+  // ─────────────────────────────────────────────
   socket.on("call-rejected", ({ to }) => {
-    io.to(to).emit("call-rejected");
+    if (!to) return;
+
+    const targetSockets = onlineUsers.get(to);
+
+    targetSockets?.forEach((socketId) => {
+      io.to(socketId).emit("call-rejected", {
+        from: socket.userId,
+      });
+    });
   });
 
-  // Any user ended call
-  socket.on("call-ended", ({ to }) => {
-    io.to(to).emit("call-ended");
+  // ─────────────────────────────────────────────
+  // End call
+  // ─────────────────────────────────────────────
+  socket.on("call-ended", ({ to, roomId }) => {
+    // group call
+    if (roomId) {
+      io.to(roomId).emit("call-ended", {
+        from: socket.userId,
+      });
+
+      socket.leave(roomId);
+      return;
+    }
+
+    // 1-to-1 call
+    if (to) {
+      const targetSockets = onlineUsers.get(to);
+
+      targetSockets?.forEach((socketId) => {
+        io.to(socketId).emit("call-ended", {
+          from: socket.userId,
+        });
+      });
+    }
   });
 
+  // ─────────────────────────────────────────────
   // WebRTC signaling
+  // ─────────────────────────────────────────────
+
   socket.on("webrtc-offer", ({ offer, to }) => {
-    io.to(to).emit("webrtc-offer", {
-      offer,
-      from: socket.userId,
+    if (!offer || !to) return;
+
+    const targetSockets = onlineUsers.get(to);
+
+    targetSockets?.forEach((socketId) => {
+      io.to(socketId).emit("webrtc-offer", {
+        offer,
+        from: socket.userId,
+      });
     });
   });
 
   socket.on("webrtc-answer", ({ answer, to }) => {
-    io.to(to).emit("webrtc-answer", {
-      answer,
-      from: socket.userId,
+    if (!answer || !to) return;
+
+    const targetSockets = onlineUsers.get(to);
+
+    targetSockets?.forEach((socketId) => {
+      io.to(socketId).emit("webrtc-answer", {
+        answer,
+        from: socket.userId,
+      });
     });
   });
 
   socket.on("ice-candidate", ({ candidate, to }) => {
-    io.to(to).emit("ice-candidate", {
-      candidate,
-      from: socket.userId,
+    if (!candidate || !to) return;
+
+    const targetSockets = onlineUsers.get(to);
+
+    targetSockets?.forEach((socketId) => {
+      io.to(socketId).emit("ice-candidate", {
+        candidate,
+        from: socket.userId,
+      });
+    });
+  });
+
+  // ─────────────────────────────────────────────
+  // Cleanup when socket disconnects
+  // ─────────────────────────────────────────────
+  socket.on("disconnecting", () => {
+    socket.rooms.forEach((roomId) => {
+      // skip private socket room
+      if (roomId === socket.id) return;
+
+      socket.to(roomId).emit("user-left-call", {
+        userId: socket.userId,
+      });
     });
   });
 };
