@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useSocket } from "../../context/socketContext";
 import incomingRingFile from "../../assets/sound/incoming-ring.mp3";
 
-const IncomingCallModal = ({ onAccept }) => {
+const IncomingCallModal = ({ onAccept, isCalling }) => {
   const { socket, incomingCall, setIncomingCall } = useSocket();
 
   const incomingRingRef = useRef(new Audio(incomingRingFile));
@@ -33,17 +33,10 @@ const IncomingCallModal = ({ onAccept }) => {
     return () => stopRing();
   }, [incomingCall]);
 
-  useEffect(() => {
-    if (!socket) return;
-    const handle = () => {
-      stopRing();
-      setIncomingCall(null);
-    };
-    socket.on("call-ended", handle);
-    return () => socket.off("call-ended", handle);
-  }, [socket]);
+  // call-ended already handled in SocketContext — no need for duplicate listener here
 
-  if (!incomingCall) return null;
+  // ✅ hide if no incoming call or already in a call
+  if (!incomingCall || isCalling) return null;
 
   const { from, callerName, chatId, isGroup } = incomingCall;
 

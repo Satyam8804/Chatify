@@ -1,41 +1,66 @@
 import { useRef } from "react";
 
+const ICE_SERVERS = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun2.l.google.com:19302" },
+    { urls: "stun:stun3.l.google.com:19302" },
+    { urls: "stun:stun4.l.google.com:19302" },
+    { urls: "stun:global.stun.twilio.com:3478" },
+    { urls: "stun:stun.cloudflare.com:3478" },
+  ],
+  iceCandidatePoolSize: 10,
+  bundlePolicy: "max-bundle",
+  rtcpMuxPolicy: "require",
+  sdpSemantics: "unified-plan",
+};
+
 export const useWebRTC = () => {
-  const peerRef = useRef(null);
+  const peersRef = useRef(new Map());
 
-  const createPeer = () => {
-    const peer = peerRef.current;
+  const getOrCreatePeer = (userId) => {
+    const entry = peersRef.current.get(userId);
+    if (entry?.peer) return entry.peer; // ✅ reuse existing
 
-    // reuse peer if still usable
-    if (
-      peer &&
-      peer.connectionState !== "closed" &&
-      peer.connectionState !== "failed"
-    ) {
-      return peer;
-    }
+    // dead code removed — entry?.peer was already checked above
+    const peer = new RTCPeerConnection(ICE_SERVERS);
 
-    // close old peer if exists
-    if (peer) {
-      try {
-        peer.close();
-      } catch {}
-    }
-
-    peerRef.current = new RTCPeerConnection({
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" },
-        { urls: "stun:stun2.l.google.com:19302" },
-      ],
-      iceCandidatePoolSize: 10,
-      bundlePolicy: "max-bundle",
-      rtcpMuxPolicy: "require",
-      sdpSemantics: "unified-plan",
+    peersRef.current.set(userId, {
+      peer,
+      pendingCandidates: entry?.pendingCandidates || [],
     });
 
-    return peerRef.current;
+    return peer;
   };
 
-  return { peerRef, createPeer };
+  const getPeerEntry   = (userId) => peersRef.current.get(userId);
+  const setPeerEntry   = (userId, data) => peersRef.current.set(userId, data);
+
+  const removePeer = (userId) => {
+    try { peersRef.current.get(userId)?.peer?.close(); } catch {}
+    peersRef.current.delete(userId);
+  };
+
+  const closeAllPeers = () => {
+    peersRef.current.forEach(({ peer }) => { try { peer?.close(); } catch {} });
+    peersRef.current.clear();
+  };
+
+  const replaceVideoTrack = (newTrack) => {
+    peersRef.current.forEach(({ peer }) => {
+      const sender = peer.getSenders().find((s) => s.track?.kind === "video");
+      if (sender) sender.replaceTrack(newTrack);
+    });
+  };
+
+  return {
+    peersRef,
+    getOrCreatePeer,
+    getPeerEntry,
+    setPeerEntry,
+    removePeer,
+    closeAllPeers,
+    replaceVideoTrack,
+  };
 };

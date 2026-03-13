@@ -1,22 +1,34 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { useAuth } from "./authContext";
-import { getToken } from "../api/axios"; // ✅ read from memory
+import { getToken } from "../api/axios";
 import { logger } from "../utils/logger";
 
 const SocketContext = createContext(null);
 
 export const SocketProvider = ({ children }) => {
-  const { user } = useAuth(); // ✅ depend on user, not accessToken
-  const [messageSeen, setMessageSeen] = useState({});
+  const { user } = useAuth();
+
   const [socket, setSocket] = useState(null);
   const [onlineUser, setOnlineUser] = useState(new Set());
   const [unreadCounts, setUnreadCounts] = useState({});
   const [typingUser, setTypingUser] = useState(null);
   const [activeChatId, setActiveChatId] = useState(null);
+  const [messageSeen, setMessageSeen] = useState({});
   const [incomingCall, setIncomingCall] = useState(null);
+
   useEffect(() => {
-    if (!user?._id || socket) return;
+    // ✅ user logged out — disconnect and reset
+    if (!user?._id) {
+      setSocket((prev) => {
+        prev?.disconnect();
+        return null;
+      });
+      setOnlineUser(new Set());
+      setUnreadCounts({});
+      setIncomingCall(null);
+      return;
+    }
 
     const token = getToken();
     if (!token) return;
@@ -31,7 +43,7 @@ export const SocketProvider = ({ children }) => {
 
     newSocket.on("connect", () => logger("🟢 Socket connected:", newSocket.id));
     newSocket.on("connect_error", (err) =>
-      logger(" Socket connect error:", err.message)
+      logger("Socket connect error:", err.message)
     );
     newSocket.on("online-users", (users) => setOnlineUser(new Set(users)));
 
@@ -47,24 +59,35 @@ export const SocketProvider = ({ children }) => {
       });
     });
 
+    // ✅ functional update to avoid stale activeChatId closure
     newSocket.on("message-notification", ({ chatId }) => {
-      if (chatId !== activeChatId) {
-        setUnreadCounts((prev) => ({
-          ...prev,
-          [chatId]: (prev[chatId] || 0) + 1,
-        }));
-      }
+      setActiveChatId((current) => {
+        if (chatId !== current) {
+          setUnreadCounts((prev) => ({
+            ...prev,
+            [chatId]: (prev[chatId] || 0) + 1,
+          }));
+        }
+        return current;
+      });
     });
 
-    newSocket.on("typing", ({ chatId, user }) => {
-      if (chatId === activeChatId) setTypingUser(user);
+    // ✅ functional update to avoid stale activeChatId closure
+    newSocket.on("typing", ({ chatId, user: typingUser }) => {
+      setActiveChatId((current) => {
+        if (chatId === current) setTypingUser(typingUser);
+        return current;
+      });
     });
 
+    // ✅ functional update to avoid stale activeChatId closure
     newSocket.on("stop-typing", ({ chatId }) => {
-      if (chatId === activeChatId) setTypingUser(null);
+      setActiveChatId((current) => {
+        if (chatId === current) setTypingUser(null);
+        return current;
+      });
     });
 
-    // Replace the logger-only handler with this
     newSocket.on("message-seen", ({ chatId, userId }) => {
       setMessageSeen((prev) => ({
         ...prev,
@@ -73,20 +96,13 @@ export const SocketProvider = ({ children }) => {
     });
 
     newSocket.on("incoming-call", (data) => {
-      setIncomingCall((prev) => {
-        if (prev) return prev; // already in call
-        return data;
-      });
+      setIncomingCall((prev) => prev ?? data); // ✅ ignore if already has incoming
     });
 
-    newSocket.on("call-ended", () => {
-      setIncomingCall(null);
-    });
+    newSocket.on("call-ended", () => setIncomingCall(null));
 
-    return () => {
-      newSocket.disconnect();
-    };
-  }, [user?._id]);
+    return () => newSocket.disconnect(); // ✅ cleanup on user change
+  }, [user?._id]); // ✅ re-runs on login/logout
 
   return (
     <SocketContext.Provider

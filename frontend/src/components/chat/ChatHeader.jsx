@@ -9,18 +9,13 @@ import { ArrowLeft, Video } from "lucide-react";
 import ChatInfo from "./ChatInfo";
 
 const ChatHeader = ({
-  chat,
-  setSelectedChat,
-  messages,
-  onClearChat,
-  startCall,
-  isCalling,
+  chat, setSelectedChat, messages, onClearChat, startCall, isCalling,
 }) => {
-  const { user } = useAuth();
+  const { user }      = useAuth();
   const { onlineUser } = useSocket();
   const [showInfo, setShowInfo] = useState(false);
 
-  const userId = user?._id;
+  const userId  = user?._id;
   const isGroup = chat?.isGroupChat;
 
   let friend = null;
@@ -32,12 +27,11 @@ const ChatHeader = ({
   }
 
   const friendObj = typeof friend === "object" ? friend : null;
-  const isOnline = onlineUser?.has(friendObj?._id?.toString());
+  const isOnline  = onlineUser?.has(friendObj?._id?.toString());
 
   return (
     <>
       <div className="h-16 px-3 flex items-center gap-3 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 transition-colors">
-        {/* Mobile back button */}
         {setSelectedChat && (
           <button
             onClick={() => setSelectedChat(null)}
@@ -47,7 +41,6 @@ const ChatHeader = ({
           </button>
         )}
 
-        {/* Avatar + Name */}
         <div
           className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
           onClick={() => setShowInfo(true)}
@@ -63,11 +56,7 @@ const ChatHeader = ({
                     style={{ backgroundColor: u?.avatar ? "transparent" : bg }}
                   >
                     {u?.avatar ? (
-                      <img
-                        src={u.avatar}
-                        alt={u.fName}
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={u.avatar} alt={u.fName} className="w-full h-full object-cover" />
                     ) : (
                       getInitials(u?.fName, u?.lName)
                     )}
@@ -88,20 +77,11 @@ const ChatHeader = ({
 
             {isGroup ? (
               <span className="text-[10px] text-gray-500 dark:text-slate-400 truncate">
-                {chat?.users
-                  .slice(0, 4)
-                  .map((u) => u?.fName)
-                  .join(", ")}
+                {chat?.users.slice(0, 4).map((u) => u?.fName).join(", ")}
                 {chat?.users.length > 4 && `, +${chat.users.length - 4}`}
               </span>
             ) : (
-              <p
-                className={`text-xs ${
-                  isOnline
-                    ? "text-emerald-500"
-                    : "text-gray-400 dark:text-slate-500"
-                }`}
-              >
+              <p className={`text-xs ${isOnline ? "text-emerald-500" : "text-gray-400 dark:text-slate-500"}`}>
                 {isOnline
                   ? "Online"
                   : friendObj?.lastSeen
@@ -112,25 +92,22 @@ const ChatHeader = ({
           </div>
         </div>
 
-        {/* ✅ Video call button — works for both 1-to-1 and group */}
         {startCall && (
           <button
-            onClick={() => !isCalling && startCall(chat)}
+            onClick={() => startCall(chat)} // ✅ disabled handles the guard
             disabled={isCalling}
             title={isCalling ? "Call already in progress" : "Start video call"}
-            className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors
-      ${
-        isCalling
-          ? "text-gray-400 cursor-not-allowed opacity-50"
-          : "text-slate-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-emerald-500 dark:hover:text-emerald-400"
-      }`}
+            className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors ${
+              isCalling
+                ? "text-gray-400 cursor-not-allowed opacity-50"
+                : "text-slate-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-emerald-500 dark:hover:text-emerald-400"
+            }`}
           >
             <Video size={20} />
           </button>
         )}
       </div>
 
-      {/* Info panel */}
       {showInfo && (
         <ChatInfo
           chat={chat}

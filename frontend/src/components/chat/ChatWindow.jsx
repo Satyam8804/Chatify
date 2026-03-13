@@ -9,9 +9,7 @@ import receiveSoundFile from "../../assets/sound/sent.mp3";
 import seenSoundFile from "../../assets/sound/seen.mp3";
 import { useAuth } from "../../context/authContext";
 
-
-
-const ChatWindow = ({ chat, setSelectedChat, startCall ,isCalling}) => {
+const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
   const [messages, setMessages] = useState([]);
   const [replyTo, setReplyTo] = useState(null);
 
@@ -21,7 +19,6 @@ const ChatWindow = ({ chat, setSelectedChat, startCall ,isCalling}) => {
   const receiveSoundRef = useRef(new Audio(receiveSoundFile));
   const seenSoundRef = useRef(new Audio(seenSoundFile));
 
-  // ── New Message Handler ──────────────────────────────
   const handleNewMessage = (newMessage) => {
     setMessages((prev) => {
       if (newMessage.replaceId)
@@ -33,7 +30,6 @@ const ChatWindow = ({ chat, setSelectedChat, startCall ,isCalling}) => {
     });
   };
 
-  // ── Chat Effect ──────────────────────────────────────
   useEffect(() => {
     if (!socket || !chat?._id) return;
 
@@ -56,7 +52,7 @@ const ChatWindow = ({ chat, setSelectedChat, startCall ,isCalling}) => {
     socket.emit("message-seen", { chatId: chat._id });
 
     const handleReceiveMessage = (message) => {
-      if (message.sender._id === user._id) return;
+      if (message.sender._id === user?._id) return; // ✅ safe access
       setMessages((prev) => {
         if (prev.some((msg) => msg._id === message._id)) return prev;
         return [...prev, message];
@@ -68,7 +64,8 @@ const ChatWindow = ({ chat, setSelectedChat, startCall ,isCalling}) => {
 
     const handleSeen = ({ chatId, userId }) => {
       if (chatId.toString() !== chat._id.toString()) return;
-      if (userId !== user._id) {
+      if (userId !== user?._id) {
+        // ✅ safe access
         seenSoundRef.current.currentTime = 0;
         seenSoundRef.current.play();
       }
@@ -90,7 +87,7 @@ const ChatWindow = ({ chat, setSelectedChat, startCall ,isCalling}) => {
       socket.off("message-seen", handleSeen);
       setActiveChatId(null);
     };
-  }, [chat?._id, socket, user._id]);
+  }, [chat?._id, socket, user?._id]); // ✅ safe access in deps
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-slate-900">
@@ -99,8 +96,7 @@ const ChatWindow = ({ chat, setSelectedChat, startCall ,isCalling}) => {
         setSelectedChat={setSelectedChat}
         messages={messages}
         onClearChat={() => setMessages([])}
-        // ChatWindow
-        startCall={startCall} // pass chat to parent
+        startCall={startCall}
         isCalling={isCalling}
       />
 
