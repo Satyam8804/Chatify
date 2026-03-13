@@ -9,8 +9,7 @@ import receiveSoundFile from "../../assets/sound/sent.mp3";
 import seenSoundFile from "../../assets/sound/seen.mp3";
 import { useAuth } from "../../context/authContext";
 
-// All call state and video UI have moved to ChatLayout
-// ChatWindow just triggers startCall via prop
+
 
 const ChatWindow = ({ chat, setSelectedChat, startCall ,isCalling}) => {
   const [messages, setMessages] = useState([]);

@@ -112,7 +112,7 @@ export const videoCallSocket = (io, socket) => {
   // WebRTC signaling
   // ─────────────────────────────────────────────
 
-  socket.on("webrtc-offer", ({ offer, to }) => {
+  socket.on("webrtc-offer", ({ offer, to, fromName }) => {
     if (!offer || !to) return;
 
     const targetSockets = onlineUsers.get(to);
@@ -121,6 +121,7 @@ export const videoCallSocket = (io, socket) => {
       io.to(socketId).emit("webrtc-offer", {
         offer,
         from: socket.userId,
+        fromName,
       });
     });
   });

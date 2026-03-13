@@ -25,7 +25,7 @@ const ChatLayout = () => {
   const [callChatId, setCallChatId] = useState(null);
   const [callParticipants, setCallParticipants] = useState([]); // [{ userId, name }]
   const [isGroupCall, setIsGroupCall] = useState(false);
-
+  const [isCallerUser, setIsCallerUser] = useState(false);
   const { socket } = useSocket();
   const { user } = useAuth();
 
@@ -160,7 +160,7 @@ const ChatLayout = () => {
       setCallTargetName(chatName);
       setIsCalling(true);
       setCallConnected(false);
-
+      setIsCallerUser(true);
       callChatIdRef.current = chat._id;
       isCallingRef.current = true;
       participantsRef.current = participants;
@@ -177,9 +177,6 @@ const ChatLayout = () => {
       } else {
         // ── Group call ──
         socket.emit("join-call-room", { roomId: chat._id });
-
-        // Start timer immediately for group
-        startTimer();
       }
     },
     [socket, user, resetCall, startTimer]
@@ -196,13 +193,15 @@ const ChatLayout = () => {
       callChatIdRef.current = chatId;
       isCallingRef.current = true;
 
+      setIsCallerUser(false);
+
+      // 🔥 IMPORTANT
+      socket.emit("join-call-room", { roomId: chatId });
+
       if (isGroup) {
-        // Group: join room, participants arrive via WebRTC offers
-        socket.emit("join-call-room", { roomId: chatId });
         setCallParticipants([]);
         startTimer();
       } else {
-        // 1-to-1: set caller as participant, notify caller
         setCallParticipants([{ userId: callerId, name: callerName }]);
         socket.emit("call-accepted", { to: callerId });
       }
@@ -295,6 +294,7 @@ const ChatLayout = () => {
               isGroup={isGroupCall}
               onEndCall={endCall}
               onConnected={startTimer}
+              isCaller={isCallerUser}
             />
           </div>
         </div>

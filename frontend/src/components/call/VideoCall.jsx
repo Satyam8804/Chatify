@@ -50,6 +50,7 @@ const VideoCall = forwardRef(
       isGroup,
       onEndCall,
       onConnected,
+      isCaller
     },
     ref
   ) => {
@@ -169,11 +170,12 @@ const VideoCall = forwardRef(
     useEffect(() => {
       if (!socket || !chatId) return;
       socket.emit("join-call-room", { roomId: chatId });
-
       const init = async () => {
         await getLocalStream(facingMode);
-        for (const { userId, name } of participants || []) {
-          await initiateOffer(userId, name);
+        if (isCaller) {
+          for (const { userId, name } of participants || []) {
+            await initiateOffer(userId, name);
+          }
         }
       };
       init();
