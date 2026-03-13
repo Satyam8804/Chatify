@@ -3,7 +3,7 @@
 const GoogleLoginButton = () => {
   const handleGoogleLogin = () => {
     // Redirects to backend which redirects to Google
-    window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/google`;
+    window.location.href = `${import.meta.env.VITE_API_URL}/auth/google`;
   };
 
   return (
