@@ -4,8 +4,7 @@ import cors from "cors";
 import http from "http";
 import cookieParser from "cookie-parser";
 import { Server } from "socket.io";
-import passport from "./utils/passport.js"; // ✅ passport with Google strategy
-
+import passport from "../src/utils/passport.js";
 import connectDB from "./configs/db.js";
 import userRoute from "./routes/userRoute.routes.js";
 import chatRoutes from "./routes/chat.routes.js";

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../context/authContext";
 import { Loader } from "lucide-react";
+import { useAuth } from "../../../context/authContext";
 
 // This page lives at /auth/google/success
 // Google → backend → redirects here with ?token=xxx

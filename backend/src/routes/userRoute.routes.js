@@ -1,4 +1,5 @@
 import { Router } from "express";
+import passport from "../utils/passport.js"
 import {
   registerUser,
   loginUser,
@@ -7,6 +8,7 @@ import {
   logout,
   updateMe,
   searchUsers,
+  googleCallback,
 } from "../controller/auth.controller.js";
 
 import { uploadSingle } from "../middlewares/upload.js";
