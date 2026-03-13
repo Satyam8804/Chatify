@@ -7,7 +7,7 @@ import {
 } from "react";
 import { useSocket } from "../../context/socketContext";
 import { useAuth } from "../../context/authContext";
-import { useWebRTC } from "../../hooks/useWebRTC";
+
 import {
   Video,
   VideoOff,
@@ -16,6 +16,7 @@ import {
   PhoneOff,
   RefreshCcw,
 } from "lucide-react";
+import { useWebRTC } from "../../hooks/RTCPeerConnection";
 
 const RemoteVideo = ({ stream, name }) => {
   const ref = useRef(null);
