@@ -50,7 +50,7 @@ const VideoCall = forwardRef(
       isGroup,
       onEndCall,
       onConnected,
-      isCaller
+      isCaller,
     },
     ref
   ) => {
@@ -159,6 +159,8 @@ const VideoCall = forwardRef(
 
       await peer.setLocalDescription(offer);
 
+      console.log("[VideoCall] sending offer to", userId);
+
       socket.emit("webrtc-offer", {
         offer,
         to: userId,
@@ -167,32 +169,50 @@ const VideoCall = forwardRef(
     };
 
     // ── On mount: join room + send offers ────────────
-    useEffect(() => {
-      if (!socket || !chatId) return;
-      socket.emit("join-call-room", { roomId: chatId });
-      const init = async () => {
-        await getLocalStream(facingMode);
-        if (isCaller) {
-          for (const { userId, name } of participants || []) {
-            await initiateOffer(userId, name);
-          }
+useEffect(() => {
+  if (!socket || !chatId) return;
+
+  let cancelled = false;
+
+  socket.emit("join-call-room", { roomId: chatId });
+
+  const init = async () => {
+    try {
+      await getLocalStream(facingMode);
+
+      if (!cancelled && isCaller) {
+        for (const { userId, name } of participants || []) {
+          console.log("[VideoCall] init: initiating offer to", userId);
+          await initiateOffer(userId, name);
         }
-      };
-      init();
-    }, []);
+      }
+    } catch (err) {
+      console.error("[VideoCall] init error:", err);
+    }
+  };
+
+  init();
+
+  return () => {
+    cancelled = true;
+  };
+}, [socket, chatId, isCaller]);
 
     // ── Socket listeners ──────────────────────────────
     useEffect(() => {
       if (!socket) return;
 
-      // New user joined → WE initiate offer to them
-      const handleUserJoined = async ({ userId, name }) => {
-        if (peersRef.current.has(userId)) return; // prevent duplicate offers
-        await initiateOffer(userId, name);
+      // New user joined — don't create another offer; offers are originated on mount by the caller.
+      const handleUserJoined = ({ userId, name }) => {
+        console.log("[VideoCall] user-joined-call received:", userId, name);
+        // do NOT call initiateOffer() here — that causes offer collisions
       };
 
       // Incoming offer → answer it
+      // Incoming offer
       const handleOffer = async ({ offer, from, fromName }) => {
+        console.log("[VideoCall] got webrtc-offer", { from, fromName });
+
         const stream = await getLocalStream(facingMode);
 
         const peer = createPeerConnection(from, fromName);
@@ -205,7 +225,14 @@ const VideoCall = forwardRef(
 
         if (entry?.pendingCandidates?.length) {
           for (const c of entry.pendingCandidates) {
-            await peer.addIceCandidate(c);
+            try {
+              await peer.addIceCandidate(c);
+            } catch (err) {
+              console.warn(
+                "[VideoCall] addIceCandidate failed (pending):",
+                err
+              );
+            }
           }
           entry.pendingCandidates = [];
         }
@@ -213,21 +240,43 @@ const VideoCall = forwardRef(
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
 
+        console.log("[VideoCall] sending answer →", from);
+
         socket.emit("webrtc-answer", { answer, to: from });
       };
 
       // Incoming answer
+      // Incoming answer
       const handleAnswer = async ({ answer, from }) => {
+        console.log("[VideoCall] got webrtc-answer", { from });
+
         const entry = peersRef.current.get(from);
         if (!entry) return;
+
         await entry.peer.setRemoteDescription(answer);
-        for (const c of entry.pendingCandidates)
-          await entry.peer.addIceCandidate(c);
+
+        for (const c of entry.pendingCandidates) {
+          try {
+            await entry.peer.addIceCandidate(c);
+          } catch (err) {
+            console.warn(
+              "[VideoCall] addIceCandidate failed (answer phase):",
+              err
+            );
+          }
+        }
+
         entry.pendingCandidates = [];
       };
 
       // ICE candidate
+      // ICE candidate
       const handleIce = async ({ candidate, from }) => {
+        console.log("[VideoCall] got ice-candidate", {
+          from,
+          candidate: candidate?.candidate?.slice?.(0, 50),
+        });
+
         let entry = peersRef.current.get(from);
 
         if (!entry) {
@@ -239,7 +288,14 @@ const VideoCall = forwardRef(
         }
 
         if (entry.peer && entry.peer.remoteDescription) {
-          await entry.peer.addIceCandidate(candidate);
+          try {
+            await entry.peer.addIceCandidate(candidate);
+          } catch (err) {
+            console.warn(
+              "[VideoCall] addIceCandidate failed (immediate):",
+              err
+            );
+          }
         } else {
           entry.pendingCandidates.push(candidate);
         }
