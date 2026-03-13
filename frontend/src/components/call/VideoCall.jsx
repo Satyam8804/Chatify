@@ -169,43 +169,35 @@ const VideoCall = forwardRef(
     };
 
     // ── On mount: join room + send offers ────────────
-useEffect(() => {
-  if (!socket || !chatId) return;
+    useEffect(() => {
+      if (!socket || !chatId) return;
 
-  let cancelled = false;
+      socket.emit("join-call-room", { roomId: chatId });
 
-  socket.emit("join-call-room", { roomId: chatId });
+      const init = async () => {
+        await getLocalStream(facingMode);
+      };
 
-  const init = async () => {
-    try {
-      await getLocalStream(facingMode);
-
-      if (!cancelled && isCaller) {
-        for (const { userId, name } of participants || []) {
-          console.log("[VideoCall] init: initiating offer to", userId);
-          await initiateOffer(userId, name);
-        }
-      }
-    } catch (err) {
-      console.error("[VideoCall] init error:", err);
-    }
-  };
-
-  init();
-
-  return () => {
-    cancelled = true;
-  };
-}, [socket, chatId, isCaller]);
+      init();
+    }, [socket, chatId]);
 
     // ── Socket listeners ──────────────────────────────
     useEffect(() => {
       if (!socket) return;
 
-      // New user joined — don't create another offer; offers are originated on mount by the caller.
-      const handleUserJoined = ({ userId, name }) => {
-        console.log("[VideoCall] user-joined-call received:", userId, name);
-        // do NOT call initiateOffer() here — that causes offer collisions
+      const handleUserJoined = async ({ userId, name }) => {
+        console.log(
+          "[VideoCall] user joined:",
+          userId,
+          name,
+          "isCaller:",
+          isCaller
+        );
+
+        if (!isCaller) return;
+        if (peersRef.current.has(userId)) return;
+
+        await initiateOffer(userId, name);
       };
 
       // Incoming offer → answer it
