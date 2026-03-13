@@ -3,13 +3,13 @@
 const GoogleLoginButton = () => {
   const handleGoogleLogin = () => {
     // Redirects to backend which redirects to Google
-    window.location.href = `${import.meta.env.VITE_API_URL}/auth/google`;
+    window.location.href = `${import.meta.env.VITE_API_URL}/users/google`;
   };
 
   return (
     <button
       onClick={handleGoogleLogin}
-      className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-sm transition-colors shadow-sm"
+      className="w-full flex cursor-pointer items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium text-sm transition-colors shadow-sm"
     >
       {/* Google SVG icon */}
       <svg width="18" height="18" viewBox="0 0 48 48">
