@@ -4,11 +4,11 @@ export const useWebRTC = () => {
   const peerRef = useRef(null);
 
   const createPeer = () => {
-    // recreate peer if closed or failed
     if (
       peerRef.current &&
       peerRef.current.connectionState !== "closed" &&
-      peerRef.current.connectionState !== "failed"
+      peerRef.current.connectionState !== "failed" &&
+      peerRef.current.connectionState !== "disconnected"
     ) {
       return peerRef.current;
     }
@@ -22,6 +22,7 @@ export const useWebRTC = () => {
       iceCandidatePoolSize: 10,
       bundlePolicy: "max-bundle",
       rtcpMuxPolicy: "require",
+      sdpSemantics: "unified-plan",
     });
 
     return peerRef.current;

@@ -82,8 +82,15 @@ const VideoCall = forwardRef(
 
     // ── Create RTCPeerConnection for one user ─────────
     const createPeerConnection = (userId, userName) => {
+      let entry = peersRef.current.get(userId);
+
       const peer = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+          { urls: "stun:stun2.l.google.com:19302" },
+        ],
+        iceCandidatePoolSize: 10,
       });
 
       peer.onicecandidate = (e) => {
@@ -93,31 +100,42 @@ const VideoCall = forwardRef(
 
       peer.ontrack = (e) => {
         const stream = e.streams[0];
+
         setRemoteStreams((prev) => {
           if (prev.some((s) => s.userId === userId)) return prev;
           return [...prev, { userId, stream, name: userName }];
         });
+
         onConnected?.();
       };
 
       peer.onconnectionstatechange = () => {
         if (
           peer.connectionState === "failed" ||
-          peer.connectionState === "closed"
-        )
+          peer.connectionState === "closed" ||
+          peer.connectionState === "disconnected"
+        ) {
           removePeer(userId);
+        }
       };
 
       peer.oniceconnectionstatechange = () => {
         if (peer.iceConnectionState === "failed") peer.restartIce();
       };
 
-      peersRef.current.set(userId, { peer, pendingCandidates: [] });
+      if (!entry) {
+        entry = { peer, pendingCandidates: [] };
+        peersRef.current.set(userId, entry);
+      } else {
+        entry.peer = peer;
+      }
+
       return peer;
     };
 
     const removePeer = (userId) => {
-      peersRef.current.get(userId)?.peer.close();
+      const entry = peersRef.current.get(userId);
+      entry?.peer?.close();
       peersRef.current.delete(userId);
       setRemoteStreams((prev) => prev.filter((s) => s.userId !== userId));
     };
@@ -125,6 +143,8 @@ const VideoCall = forwardRef(
     // ── Send offer to a participant ───────────────────
     const initiateOffer = async (userId, userName) => {
       const stream = await getLocalStream(facingMode);
+      if (peersRef.current.get(userId)?.peer) return;
+
       const peer = createPeerConnection(userId, userName);
       stream.getTracks().forEach((t) => peer.addTrack(t, stream));
       const offer = await peer.createOffer();
@@ -158,6 +178,7 @@ const VideoCall = forwardRef(
 
       // Incoming offer → answer it
       const handleOffer = async ({ offer, from, fromName }) => {
+        if (peersRef.current.get(from)?.peer) return;
         const stream = await getLocalStream(facingMode);
         const peer = createPeerConnection(from, fromName);
         stream.getTracks().forEach((t) => peer.addTrack(t, stream));
@@ -165,6 +186,7 @@ const VideoCall = forwardRef(
         await peer.setRemoteDescription(offer);
 
         const entry = peersRef.current.get(from);
+
         if (entry) {
           for (const c of entry.pendingCandidates)
             await peer.addIceCandidate(c);
@@ -188,9 +210,17 @@ const VideoCall = forwardRef(
 
       // ICE candidate
       const handleIce = async ({ candidate, from }) => {
-        const entry = peersRef.current.get(from);
-        if (!entry) return;
-        if (entry.peer.remoteDescription) {
+        let entry = peersRef.current.get(from);
+
+        if (!entry) {
+          peersRef.current.set(from, {
+            peer: null,
+            pendingCandidates: [candidate],
+          });
+          return;
+        }
+
+        if (entry.peer && entry.peer.remoteDescription) {
           await entry.peer.addIceCandidate(candidate);
         } else {
           entry.pendingCandidates.push(candidate);
