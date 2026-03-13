@@ -23,6 +23,9 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const localStreamRef = useRef(null);
+  const pendingCandidatesRef = useRef([]);
+  const switchingRef = useRef(false);
+  const isCallerRef = useRef(false);
 
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
@@ -51,7 +54,14 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
   // ─── Start call (caller side) ────────────────────────
   const startConnection = async () => {
     setIsConnected(false);
+    isCallerRef.current = true;
     const peer = createPeer();
+
+    // ⭐ Add ICE state debug here
+    peer.oniceconnectionstatechange = () => {
+      console.log("ICE state:", peer.iceConnectionState);
+    };
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode },
@@ -66,7 +76,7 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = e.streams[0];
           setIsConnected(true);
-          onConnected?.(); // tell ChatWindow → start timer
+          onConnected?.();
         }
       };
 
@@ -87,7 +97,7 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
           onEndCall();
         }
       };
-
+      if (!isCallerRef.current) return;
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
       socket.emit("webrtc-offer", { offer, to: otherUserId });
@@ -97,6 +107,7 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
   };
 
   // ─── Auto-start camera on mount ──────────────────────
+  
   useEffect(() => {
     if (!otherUserId) return;
     startConnection();
@@ -108,6 +119,7 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
 
     const handleOffer = async ({ offer, from }) => {
       const peer = createPeer();
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
@@ -115,33 +127,62 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
 
       localStreamRef.current = stream;
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+
       stream.getTracks().forEach((track) => peer.addTrack(track, stream));
 
       peer.ontrack = (e) => {
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = e.streams[0];
           setIsConnected(true);
-          onConnected?.(); // tell ChatWindow → start timer
+          onConnected?.();
         }
       };
 
       peer.onicecandidate = (e) => {
-        if (e.candidate)
-          socket.emit("ice-candidate", { candidate: e.candidate, to: from });
+        if (e.candidate) {
+          socket.emit("ice-candidate", {
+            candidate: e.candidate,
+            to: from,
+          });
+        }
       };
 
+      // ✅ FIXED LINE
       await peer.setRemoteDescription(offer);
+
       const answer = await peer.createAnswer();
       await peer.setLocalDescription(answer);
+
+      // process queued ICE candidates
+      pendingCandidatesRef.current.forEach(async (c) => {
+        await peer.addIceCandidate(c);
+      });
+
+      pendingCandidatesRef.current = [];
+
       socket.emit("webrtc-answer", { answer, to: from });
     };
 
     const handleAnswer = async ({ answer }) => {
-      if (peerRef.current) await peerRef.current.setRemoteDescription(answer);
+      if (!peerRef.current) return;
+
+      await peerRef.current.setRemoteDescription(answer);
+
+      pendingCandidatesRef.current.forEach(async (c) => {
+        await peerRef.current.addIceCandidate(c);
+      });
+
+      pendingCandidatesRef.current = [];
     };
 
     const handleIce = async ({ candidate }) => {
-      if (peerRef.current) await peerRef.current.addIceCandidate(candidate);
+      if (!peerRef.current) return;
+
+      if (peerRef.current.remoteDescription) {
+        await peerRef.current.addIceCandidate(candidate);
+      } else {
+        pendingCandidatesRef.current.push(candidate);
+      }
     };
 
     socket.on("webrtc-offer", handleOffer);
@@ -171,27 +212,49 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
   };
 
   const switchCamera = async () => {
-    const newFacing = facingMode === "user" ? "environment" : "user";
-    setFacingMode(newFacing);
+    if (switchingRef.current) return; // prevent double click
+    switchingRef.current = true;
 
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((t) => t.stop());
+    try {
+      const newFacing = facingMode === "user" ? "environment" : "user";
+      setFacingMode(newFacing);
+
+      // stop current video track
+      const currentStream = localStreamRef.current;
+      const oldVideoTrack = currentStream?.getVideoTracks()[0];
+
+      if (oldVideoTrack) oldVideoTrack.stop();
+
+      // request new camera
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: newFacing,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+
+      localStreamRef.current = stream;
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+
+      const newVideoTrack = stream.getVideoTracks()[0];
+
+      // replace video track in WebRTC connection
+      const sender = peerRef.current
+        ?.getSenders()
+        .find((s) => s.track?.kind === "video");
+
+      if (sender) {
+        await sender.replaceTrack(newVideoTrack);
+      }
+    } catch (err) {
+      console.error("Camera switch error:", err);
+    } finally {
+      switchingRef.current = false; // unlock
     }
-
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: newFacing },
-      audio: true,
-    });
-
-    localStreamRef.current = stream;
-    localVideoRef.current.srcObject = stream;
-
-    const videoTrack = stream.getVideoTracks()[0];
-    const sender = peerRef.current
-      ?.getSenders()
-      .find((s) => s.track?.kind === "video");
-
-    if (sender) sender.replaceTrack(videoTrack);
   };
 
   const handleEndClick = () => {
@@ -273,8 +336,9 @@ const VideoCall = forwardRef(({ otherUserId, onEndCall, onConnected }, ref) => {
         </button>
 
         <button
+          disabled={switchingRef.current}
           onClick={switchCamera}
-          className="flex items-center justify-center w-12 h-12 rounded-full bg-slate-800/90 border border-white/10 text-slate-300"
+          className={idleBtn}
         >
           <RefreshCcw size={20} />
         </button>
