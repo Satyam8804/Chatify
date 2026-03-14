@@ -118,11 +118,18 @@ const VideoCall = forwardRef(
       const existing = getPeerEntry(userId);
       if (existing?.peer) return existing.peer;
 
+      const entry = getPeerEntry(userId);
       const peer = getOrCreatePeer(userId);
 
-      const entry = getPeerEntry(userId);
+      peer.onicegatheringstatechange = () => {
+        console.log("ICE gathering:", peer.iceGatheringState);
+      };
 
-      // ✅ Apply ICE candidates that arrived before peer existed
+      peer.onicecandidateerror = (e) => {
+        console.warn("ICE candidate error:", e);
+      };
+
+      
       if (entry?.pendingCandidates?.length) {
         entry.pendingCandidates.forEach(async (candidate) => {
           try {
@@ -173,7 +180,7 @@ const VideoCall = forwardRef(
       peer.oniceconnectionstatechange = () => {
         console.log("ICE state:", peer.iceConnectionState);
 
-        if (["failed", "disconnected"].includes(peer.iceConnectionState)) {
+        if (peer.iceConnectionState === "failed") {
           peer.restartIce();
         }
       };
@@ -182,9 +189,12 @@ const VideoCall = forwardRef(
       peer.onconnectionstatechange = () => {
         console.log("Peer state:", peer.connectionState);
 
-        if (
-          ["failed", "closed", "disconnected"].includes(peer.connectionState)
-        ) {
+        if (peer.connectionState === "failed") {
+          handleRemovePeer(userId);
+        }
+
+        // optional: cleanup when call truly ends
+        if (peer.connectionState === "closed") {
           handleRemovePeer(userId);
         }
       };
