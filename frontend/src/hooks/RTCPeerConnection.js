@@ -34,22 +34,35 @@ export const useWebRTC = () => {
     return peer;
   };
 
-  const getPeerEntry   = (userId) => peersRef.current.get(userId);
-  const setPeerEntry   = (userId, data) => peersRef.current.set(userId, data);
+  const getPeerEntry = (userId) => peersRef.current.get(userId);
+  const setPeerEntry = (userId, data) => peersRef.current.set(userId, data);
 
   const removePeer = (userId) => {
-    try { peersRef.current.get(userId)?.peer?.close(); } catch {}
+    try {
+      peersRef.current.get(userId)?.peer?.close();
+    } catch {}
     peersRef.current.delete(userId);
   };
 
   const closeAllPeers = () => {
-    peersRef.current.forEach(({ peer }) => { try { peer?.close(); } catch {} });
+    peersRef.current.forEach(({ peer }) => {
+      try {
+        peer?.close();
+      } catch {}
+    });
     peersRef.current.clear();
   };
 
   const replaceVideoTrack = (newTrack) => {
     peersRef.current.forEach(({ peer }) => {
       const sender = peer.getSenders().find((s) => s.track?.kind === "video");
+      if (sender) sender.replaceTrack(newTrack);
+    });
+  };
+
+  const replaceAudioTrack = (newTrack) => {
+    peersRef.current.forEach(({ peer }) => {
+      const sender = peer.getSenders().find((s) => s.track?.kind === "audio");
       if (sender) sender.replaceTrack(newTrack);
     });
   };
@@ -62,5 +75,6 @@ export const useWebRTC = () => {
     removePeer,
     closeAllPeers,
     replaceVideoTrack,
+    replaceAudioTrack
   };
 };

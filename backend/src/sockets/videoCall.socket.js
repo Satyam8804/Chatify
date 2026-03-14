@@ -20,12 +20,10 @@ export const videoCallSocket = (io, socket) => {
     socket.emit("existing-participants", {
       participants: existingParticipants,
     });
-    socket
-      .to(roomId)
-      .emit("user-joined-call", {
-        userId: socket.userId,
-        name: socket.user?.fName,
-      });
+    socket.to(roomId).emit("user-joined-call", {
+      userId: socket.userId,
+      name: socket.user?.fName,
+    });
   });
 
   socket.on("leave-call-room", ({ roomId }) => {
@@ -43,6 +41,20 @@ export const videoCallSocket = (io, socket) => {
           callerName: socket.user?.fName,
           chatId,
           isGroup: !!isGroup,
+        });
+      });
+    });
+  });
+
+  socket.on("invite-to-call", ({ chatId, inviteeIds }) => {
+    if (!inviteeIds?.length) return;
+    inviteeIds.forEach((userId) => {
+      onlineUsers.get(userId)?.forEach((socketId) => {
+        io.to(socketId).emit("incoming-call", {
+          from: socket.userId,
+          callerName: socket.user?.fName,
+          chatId,
+          isGroup: true, // ✅ upgrade to group
         });
       });
     });
