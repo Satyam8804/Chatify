@@ -34,7 +34,7 @@ const ICE_SERVERS = {
 export const useWebRTC = () => {
   const peersRef = useRef(new Map());
 
-  const getOrCreatePeer = (userId) => {
+  const getOrCreatePeer = (userId, polite = false) => {
     const entry = peersRef.current.get(userId);
 
     if (entry?.peer) return entry.peer;
@@ -45,8 +45,10 @@ export const useWebRTC = () => {
       peer,
       pendingCandidates: entry?.pendingCandidates || [],
       makingOffer: false,
-      polite: false, // ✅ set from VideoCall after creation if needed
+      polite,
     });
+
+    return peer; // ✅ IMPORTANT
   };
 
   const getPeerEntry = (userId) => peersRef.current.get(userId);

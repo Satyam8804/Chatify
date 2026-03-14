@@ -107,70 +107,78 @@ const VideoCall = forwardRef(
       });
     };
 
-    // ─── Create peer ───────────────────────────────────────────────────────────
     const createPeerConnection = (userId, userName) => {
       const existing = getPeerEntry(userId);
       if (existing?.peer) return existing.peer;
 
-      const peer = getOrCreatePeer(userId);
+      const polite = String(user._id) > String(userId);
+      const peer = getOrCreatePeer(userId, polite);
+
+      if (!peer) {
+        console.error("[VideoCall] Failed to create peer for:", userId);
+        return null;
+      }
 
       peer.onicecandidate = (e) => {
-        if (e.candidate)
+        if (e.candidate) {
           socket.emit("ice-candidate", { candidate: e.candidate, to: userId });
+        }
       };
 
       peer.ontrack = (e) => {
-        const incomingStream = e.streams[0];
+        const incomingStream = e.streams?.[0];
+        if (!incomingStream) return;
+
         setRemoteStreams((prev) => {
           const exists = prev.find((s) => s.userId === userId);
+
           if (exists) {
+            if (exists.stream === incomingStream) return prev;
             return prev.map((s) =>
-              s.userId === userId
-                ? { ...s, stream: incomingStream || s.stream }
-                : s
+              s.userId === userId ? { ...s, stream: incomingStream } : s
             );
           }
-          return [
-            ...prev,
-            {
-              userId,
-              stream: incomingStream || new MediaStream([e.track]),
-              name: userName,
-            },
-          ];
+
+          return [...prev, { userId, stream: incomingStream, name: userName }];
         });
+
         onConnected?.();
       };
 
       peer.onconnectionstatechange = () => {
         if (
-          ["failed", "closed", "disconnected"].includes(peer.connectionState)
+          peer.connectionState === "failed" ||
+          peer.connectionState === "closed"
         ) {
           handleRemovePeer(userId);
         }
       };
 
       peer.oniceconnectionstatechange = () => {
-        if (peer.iceConnectionState === "failed") peer.restartIce();
+        if (peer.iceConnectionState === "failed") {
+          peer.restartIce();
+        }
       };
 
       return peer;
     };
 
-    // ─── Send offer ────────────────────────────────────────────────────────────
     const initiateOffer = async (userId, userName) => {
-      const stream = await getLocalStream();
       const peer = createPeerConnection(userId, userName);
+      if (!peer) return; // ✅ guard
+      const stream = await getLocalStream();
+
       const entry = getPeerEntry(userId);
-      if (!entry) return;
-      if (peer.signalingState !== "stable") return;
+      if (!entry || peer.signalingState !== "stable") return;
 
       addTracksIfNeeded(peer, stream);
 
       try {
         entry.makingOffer = true;
+
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
+
         socket.emit("webrtc-offer", {
           offer: peer.localDescription,
           to: userId,
@@ -244,6 +252,7 @@ const VideoCall = forwardRef(
       const handleOffer = async ({ offer, from, fromName }) => {
         const stream = await getLocalStream();
         const peer = createPeerConnection(from, fromName);
+        if (!peer) return;
 
         let entry = getPeerEntry(from);
         if (!entry) {
@@ -585,4 +594,3 @@ const VideoCall = forwardRef(
 );
 
 export default VideoCall;
-
