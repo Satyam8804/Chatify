@@ -127,8 +127,9 @@ const VideoCall = forwardRef(
 
       const peer = getOrCreatePeer(userId);
 
-      // ✅ apply any ICE candidates that arrived before peer existed
       const entry = getPeerEntry(userId);
+
+      // ✅ Apply ICE candidates that arrived before peer existed
       if (entry?.pendingCandidates?.length) {
         entry.pendingCandidates.forEach(async (candidate) => {
           try {
@@ -141,19 +142,21 @@ const VideoCall = forwardRef(
         entry.pendingCandidates = [];
       }
 
+      // ✅ Send ICE candidates to remote peer
       peer.onicecandidate = (e) => {
-        if (e.candidate) {
-          socket.emit("ice-candidate", {
-            candidate: e.candidate,
-            to: userId,
-          });
-        }
+        if (!e.candidate) return;
+
+        socket.emit("ice-candidate", {
+          candidate: e.candidate,
+          to: userId,
+        });
       };
 
+      // ✅ Receive remote track
       peer.ontrack = (e) => {
-        const stream = e.streams[0] || new MediaStream([e.track]);
+        const stream = e.streams?.[0] || new MediaStream([e.track]);
 
-        console.log("REMOTE TRACK", userId, e.streams);
+        console.log("REMOTE TRACK", userId);
 
         setRemoteStreams((prev) => {
           const exists = prev.find((s) => s.userId === userId);
@@ -170,13 +173,19 @@ const VideoCall = forwardRef(
         onConnected?.();
       };
 
+      // ✅ ICE connection monitoring
       peer.oniceconnectionstatechange = () => {
+        console.log("ICE state:", peer.iceConnectionState);
+
         if (["failed", "disconnected"].includes(peer.iceConnectionState)) {
           peer.restartIce();
         }
       };
 
+      // ✅ Peer connection monitoring
       peer.onconnectionstatechange = () => {
+        console.log("Peer state:", peer.connectionState);
+
         if (
           ["failed", "closed", "disconnected"].includes(peer.connectionState)
         ) {
@@ -233,6 +242,12 @@ const VideoCall = forwardRef(
     useEffect(() => {
       if (!socket || !chatId) return;
 
+      cleanedUpRef.current = false;
+
+      closeAllPeers();
+      setRemoteStreams([]);
+      setInvitedUsers(new Set());
+
       const init = async () => {
         try {
           await getLocalStream();
@@ -248,6 +263,7 @@ const VideoCall = forwardRef(
         socket.emit("leave-call-room", { roomId: chatId });
       };
     }, [socket, chatId]);
+
     useEffect(() => {
       if (!socket) return;
 
@@ -384,9 +400,6 @@ const VideoCall = forwardRef(
       };
     }, [socket, user?._id]);
 
-    // ─────────────────────────────────────────────
-    // Cleanup
-    // ─────────────────────────────────────────────
     const cleanup = () => {
       if (cleanedUpRef.current) return;
 
@@ -409,15 +422,13 @@ const VideoCall = forwardRef(
       }
 
       setRemoteStreams([]);
+      setInvitedUsers(new Set());
     };
 
     useEffect(() => () => cleanup(), []);
 
     useImperativeHandle(ref, () => ({ cleanup }));
 
-    // ─────────────────────────────────────────────
-    // Controls
-    // ─────────────────────────────────────────────
     const toggleMute = () => {
       if (!localStreamRef.current) return;
 
@@ -448,24 +459,13 @@ const VideoCall = forwardRef(
       setIsVideoOff(!track.enabled);
     };
 
-    // ─────────────────────────────────────────────
-    // Camera switch
-    // ─────────────────────────────────────────────
     const switchCamera = async () => {
       if (switchingRef.current) return;
-
       switchingRef.current = true;
 
       try {
         const newFacing =
           facingModeRef.current === "user" ? "environment" : "user";
-
-        localStreamRef.current?.getVideoTracks()[0]?.stop();
-
-        localStreamRef.current = null;
-
-        facingModeRef.current = newFacing;
-        setFacingMode(newFacing);
 
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -476,19 +476,31 @@ const VideoCall = forwardRef(
           audio: false,
         });
 
-        const newAudioTrack = stream.getAudioTracks()[0];
+        const newVideoTrack = stream.getVideoTracks()[0];
 
-        if (newAudioTrack) {
-          newAudioTrack.enabled = !isMutedRef.current;
-        }
+        if (!newVideoTrack) return;
 
-        localStreamRef.current = stream;
+        // replace track in peer connections
+        replaceVideoTrack(newVideoTrack);
+
+        // stop old track
+        const oldTrack = localStreamRef.current?.getVideoTracks()[0];
+        oldTrack?.stop();
+
+        // update local stream
+        const newStream = new MediaStream([
+          newVideoTrack,
+          ...localStreamRef.current.getAudioTracks(),
+        ]);
+
+        localStreamRef.current = newStream;
 
         if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
+          localVideoRef.current.srcObject = newStream;
         }
 
-        replaceVideoTrack(stream.getVideoTracks()[0]);
+        facingModeRef.current = newFacing;
+        setFacingMode(newFacing);
       } catch (err) {
         console.error("Camera switch error:", err);
       } finally {
