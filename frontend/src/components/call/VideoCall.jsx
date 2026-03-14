@@ -173,9 +173,6 @@ const VideoCall = forwardRef(
       return peer;
     };
 
-    // ─────────────────────────────────────────────
-    // Add tracks safely
-    // ─────────────────────────────────────────────
     const addTracksIfNeeded = (peer, stream) => {
       const existingSenders = peer.getSenders();
 
@@ -188,32 +185,34 @@ const VideoCall = forwardRef(
       });
     };
 
-    // ─────────────────────────────────────────────
-    // Create offer
-    // ─────────────────────────────────────────────
     const initiateOffer = async (userId, userName) => {
-      if (getPeerEntry(userId)?.peer) return;
+      const entry = getPeerEntry(userId);
+      if (entry?.peer) return;
 
       const stream = await getLocalStream();
       const peer = createPeerConnection(userId, userName);
 
-      addTracksIfNeeded(peer, stream);
+      entry.makingOffer = true;
       
+      // Only create offer if connection is stable
       if (peer.signalingState !== "stable") return;
-      const offer = await peer.createOffer();
 
-      await peer.setLocalDescription(offer);
+      addTracksIfNeeded(peer, stream);
 
-      socket.emit("webrtc-offer", {
-        offer,
-        to: userId,
-        fromName: user?.fName,
-      });
+      try {
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+
+        socket.emit("webrtc-offer", {
+          offer: peer.localDescription,
+          to: userId,
+          fromName: user?.fName,
+        });
+      } catch (err) {
+        console.warn("[VideoCall] initiateOffer error:", err);
+      }
     };
 
-    // ─────────────────────────────────────────────
-    // Init call
-    // ─────────────────────────────────────────────
     useEffect(() => {
       if (!socket || !chatId) return;
 
@@ -229,9 +228,6 @@ const VideoCall = forwardRef(
       init();
     }, [socket, chatId]);
 
-    // ─────────────────────────────────────────────
-    // Socket events
-    // ─────────────────────────────────────────────
     useEffect(() => {
       if (!socket) return;
 
@@ -257,31 +253,26 @@ const VideoCall = forwardRef(
         const stream = await getLocalStream();
         const peer = createPeerConnection(from, fromName);
 
-        const existingSenders = peer.getSenders();
+        const entry = getPeerEntry(from);
 
-        stream.getTracks().forEach((track) => {
-          const exists = existingSenders.some((s) => s.track === track);
-          if (!exists) peer.addTrack(track, stream);
-        });
+        const offerCollision =
+          entry.makingOffer || peer.signalingState !== "stable";
+
+        const ignoreOffer = !entry.polite && offerCollision;
+
+        if (ignoreOffer) return;
 
         await peer.setRemoteDescription(offer);
 
-        const entry = getPeerEntry(from);
-
-        if (entry?.pendingCandidates?.length) {
-          for (const c of entry.pendingCandidates) {
-            try {
-              await peer.addIceCandidate(c);
-            } catch {}
-          }
-
-          setPeerEntry(from, { ...entry, pendingCandidates: [] });
-        }
+        addTracksIfNeeded(peer, stream);
 
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
 
-        socket.emit("webrtc-answer", { answer, to: from });
+        socket.emit("webrtc-answer", {
+          answer: peer.localDescription,
+          to: from,
+        });
       };
 
       const handleAnswer = async ({ answer, from }) => {
@@ -290,22 +281,9 @@ const VideoCall = forwardRef(
 
         const peer = entry.peer;
 
-        // Prevent duplicate answer application
-        if (peer.signalingState === "stable") return;
+        if (peer.signalingState !== "have-local-offer") return;
 
-        try {
-          await peer.setRemoteDescription(answer);
-        } catch (err) {
-          console.warn("[WebRTC] setRemoteDescription failed:", err);
-        }
-
-        for (const c of entry.pendingCandidates || []) {
-          try {
-            await peer.addIceCandidate(c);
-          } catch {}
-        }
-
-        setPeerEntry(from, { ...entry, pendingCandidates: [] });
+        await peer.setRemoteDescription(answer);
       };
 
       const handleIce = async ({ candidate, from }) => {
@@ -460,12 +438,8 @@ const VideoCall = forwardRef(
       }
     };
 
-    // ─────────────────────────────────────────────
-    // Add participant
-    // ─────────────────────────────────────────────
     const addableUsers = chat?.users?.filter(
-      (u) =>
-        u._id !== user?._id && !remoteStreams.some((s) => s.userId === u._id)
+      (u) => u._id !== user?._id && !peersRef.current.has(u._id)
     );
 
     const handleInvite = (inviteeId) => {
@@ -577,13 +551,34 @@ const VideoCall = forwardRef(
             <RefreshCcw size={20} />
           </button>
 
-          {addableUsers?.length > 0 && (
-            <button
-              onClick={() => setShowAddParticipant((p) => !p)}
-              className={showAddParticipant ? warnBtn : idleBtn}
-            >
-              <UserPlus size={20} />
-            </button>
+          {showAddParticipant && addableUsers?.length > 0 && (
+            <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 bg-slate-800 border border-white/10 rounded-2xl p-3 w-56 shadow-2xl">
+              <div className="flex items-center justify-between mb-2 px-1">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                  Add to call
+                </span>
+
+                <button
+                  onClick={() => setShowAddParticipant(false)}
+                  className="text-slate-500 hover:text-white"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {addableUsers.map((u) => (
+                <button
+                  key={u._id}
+                  onClick={() => handleInvite(u._id)}
+                  className="flex items-center gap-2 w-full px-3 py-2 hover:bg-slate-700 rounded-xl text-sm text-white transition-colors"
+                >
+                  <Avatar user={u} size={28} IsInside />
+                  <span className="truncate">
+                    {u.fName} {u.lName}
+                  </span>
+                </button>
+              ))}
+            </div>
           )}
 
           <button

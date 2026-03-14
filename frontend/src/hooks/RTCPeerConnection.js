@@ -1,4 +1,6 @@
 import { useRef } from "react";
+import { useAuth } from "../context/authContext";
+import { useSocket } from "../context/socketContext";
 
 const ICE_SERVERS = {
   iceServers: [
@@ -33,17 +35,18 @@ const ICE_SERVERS = {
 
 export const useWebRTC = () => {
   const peersRef = useRef(new Map());
+  const { socket } = useSocket();
 
   const getOrCreatePeer = (userId) => {
     const entry = peersRef.current.get(userId);
     if (entry?.peer) return entry.peer; // ✅ reuse existing
 
-    // dead code removed — entry?.peer was already checked above
     const peer = new RTCPeerConnection(ICE_SERVERS);
-
     peersRef.current.set(userId, {
       peer,
       pendingCandidates: entry?.pendingCandidates || [],
+      makingOffer: false,
+      polite: String(userId) > String(socket.userId),
     });
 
     return peer;

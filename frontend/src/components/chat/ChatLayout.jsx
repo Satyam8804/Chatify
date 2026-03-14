@@ -169,13 +169,17 @@ const ChatLayout = () => {
       isCallingRef.current = true;
       isGroupCallRef.current = !!isGroup;
 
+      // Join the call room so server will send existing-participants
+      socket.emit("join-call-room", { roomId: chatId });
+
       if (!isGroup) {
-        receiverIdRef.current = callerId; // ✅ store caller as receiver for endCall
+        receiverIdRef.current = callerId;
         socket.emit("call-accepted", { to: callerId });
+      } else {
+        startTimer();
       }
-      // group: VideoCall joins room itself via join-call-room → existing-participants
     },
-    [socket]
+    [socket, startTimer]
   );
 
   const endCall = useCallback(() => {
