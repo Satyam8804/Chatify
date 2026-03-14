@@ -56,7 +56,7 @@ const RemoteVideo = ({ stream, name }) => {
 // Video Call Component
 // ─────────────────────────────────────────────
 const VideoCall = forwardRef(
-  ({ chatId, onEndCall, onConnected, chat }, ref) => {
+  ({ chatId, onEndCall, onConnected, chat, friends }, ref) => {
     const { socket } = useSocket();
     const { user } = useAuth();
 
@@ -157,7 +157,10 @@ const VideoCall = forwardRef(
       };
 
       peer.oniceconnectionstatechange = () => {
-        if (peer.iceConnectionState === "failed") {
+        if (
+          peer.iceConnectionState === "failed" ||
+          peer.iceConnectionState === "disconnected"
+        ) {
           peer.restartIce();
         }
       };
@@ -174,14 +177,14 @@ const VideoCall = forwardRef(
     };
 
     const addTracksIfNeeded = (peer, stream) => {
-      const existingSenders = peer.getSenders();
+      const senders = peer.getSenders();
 
       stream.getTracks().forEach((track) => {
-        const alreadyAdded = existingSenders.some((s) => s.track === track);
+        const alreadyAdded = senders.some(
+          (s) => s.track && s.track.kind === track.kind
+        );
 
-        if (!alreadyAdded) {
-          peer.addTrack(track, stream);
-        }
+        if (!alreadyAdded) peer.addTrack(track, stream);
       });
     };
 
@@ -225,6 +228,9 @@ const VideoCall = forwardRef(
         } catch (err) {
           console.error("[VideoCall] init error:", err);
         }
+        return () => {
+          socket.emit("leave-call-room", { roomId: chatId });
+        };
       };
 
       init();
@@ -256,8 +262,8 @@ const VideoCall = forwardRef(
         const peer = createPeerConnection(from, fromName);
 
         let entry = getPeerEntry(from);
-
         if (!entry) {
+          getOrCreatePeer(from);
           entry = getPeerEntry(from);
         }
 
@@ -269,6 +275,16 @@ const VideoCall = forwardRef(
         if (ignoreOffer) return;
 
         await peer.setRemoteDescription(offer);
+
+        if (entry?.pendingCandidates?.length) {
+          for (const candidate of entry.pendingCandidates) {
+            try {
+              await peer.addIceCandidate(candidate);
+            } catch {}
+          }
+
+          setPeerEntry(from, { ...entry, pendingCandidates: [] });
+        }
 
         addTracksIfNeeded(peer, stream);
 
@@ -329,7 +345,7 @@ const VideoCall = forwardRef(
         socket.off("ice-candidate", handleIce);
         socket.off("user-left-call", handleUserLeft);
       };
-    }, [socket]);
+    }, [socket, user?._id]);
 
     // ─────────────────────────────────────────────
     // Cleanup
@@ -420,7 +436,7 @@ const VideoCall = forwardRef(
             width: { ideal: 1280 },
             height: { ideal: 720 },
           },
-          audio: true,
+          audio: false,
         });
 
         const newAudioTrack = stream.getAudioTracks()[0];
@@ -444,10 +460,14 @@ const VideoCall = forwardRef(
       }
     };
 
-    const addableUsers = chat?.users?.filter(
-      (u) =>
-        u._id !== user?._id && !remoteStreams.some((s) => s.userId === u._id)
-    );
+    const sourceUsers = chat?.isGroupChat ? chat?.users : friends;
+
+    const addableUsers = (sourceUsers || []).filter((u) => {
+      const uid = String(u._id);
+      const me = String(user?._id);
+
+      return uid !== me && !peersRef.current.has(uid);
+    });
 
     const handleInvite = (inviteeId) => {
       socket.emit("invite-to-call", {
@@ -475,9 +495,12 @@ const VideoCall = forwardRef(
     const warnBtn =
       "flex items-center justify-center w-12 h-12 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 backdrop-blur-sm transition-all duration-200 active:scale-95";
 
-    // ─────────────────────────────────────────────
-    // Render
-    // ─────────────────────────────────────────────
+    console.log(
+      "addableUsers",
+      addableUsers,
+      "peers:",
+      Array.from(peersRef.current.keys())
+    );
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
         {/* Remote videos */}
@@ -559,22 +582,40 @@ const VideoCall = forwardRef(
             <RefreshCcw size={20} />
           </button>
 
-          {showAddParticipant && (
-            <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 bg-slate-800 border border-white/10 rounded-2xl p-3 w-56 shadow-2xl">
-              <div className="flex items-center justify-between mb-2 px-1">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                  Add to call
-                </span>
+          {/* ADD PARTICIPANT BUTTON */}
+          <button
+            onClick={() => setShowAddParticipant((p) => !p)}
+            className={showAddParticipant ? warnBtn : idleBtn}
+          >
+            <UserPlus size={20} />
+          </button>
 
-                <button
-                  onClick={() => setShowAddParticipant(false)}
-                  className="text-slate-500 hover:text-white"
-                >
-                  <X size={14} />
-                </button>
-              </div>
+          {/* END CALL */}
+          <button
+            onClick={onEndCall}
+            className="flex items-center justify-center w-14 h-14 rounded-full bg-rose-600 text-white active:scale-95 transition-all"
+          >
+            <PhoneOff size={22} />
+          </button>
+        </div>
 
-              {addableUsers?.length > 0 ? (
+        {showAddParticipant && (
+          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 bg-slate-800 border border-white/10 rounded-2xl p-3 w-56 shadow-2xl">
+            <div className="flex items-center justify-between mb-2 px-1">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                Add to call
+              </span>
+
+              <button
+                onClick={() => setShowAddParticipant(false)}
+                className="text-slate-500 hover:text-white"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="max-h-60 overflow-y-auto space-y-1">
+              {addableUsers.length > 0 ? (
                 addableUsers.map((u) => (
                   <button
                     key={u._id}
@@ -593,15 +634,8 @@ const VideoCall = forwardRef(
                 </div>
               )}
             </div>
-          )}
-
-          <button
-            onClick={onEndCall}
-            className="flex items-center justify-center w-14 h-14 rounded-full bg-rose-600 text-white active:scale-95 transition-all"
-          >
-            <PhoneOff size={22} />
-          </button>
-        </div>
+          </div>
+        )}
       </div>
     );
   }

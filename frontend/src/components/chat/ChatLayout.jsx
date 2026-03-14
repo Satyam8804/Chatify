@@ -193,6 +193,8 @@ const ChatLayout = () => {
     resetCall();
   }, [socket, resetCall]);
 
+  const friends = selectedChat?.users?.filter((u) => u._id !== user._id) || [];
+
   return (
     <div className="h-screen w-full flex bg-gray-100 dark:bg-slate-950 transition-colors">
       <div
@@ -258,7 +260,8 @@ const ChatLayout = () => {
             <VideoCall
               ref={videoCallRef}
               chatId={callChatId}
-              chat={selectedChat} // ✅ add this
+              chat={selectedChat}
+              friends={friends}
               onEndCall={endCall}
               onConnected={startTimer}
             />
