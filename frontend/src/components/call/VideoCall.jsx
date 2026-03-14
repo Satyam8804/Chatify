@@ -198,7 +198,8 @@ const VideoCall = forwardRef(
       const peer = createPeerConnection(userId, userName);
 
       addTracksIfNeeded(peer, stream);
-
+      
+      if (peer.signalingState !== "stable") return;
       const offer = await peer.createOffer();
 
       await peer.setLocalDescription(offer);
@@ -287,11 +288,20 @@ const VideoCall = forwardRef(
         const entry = getPeerEntry(from);
         if (!entry?.peer) return;
 
-        await entry.peer.setRemoteDescription(answer);
+        const peer = entry.peer;
 
-        for (const c of entry.pendingCandidates) {
+        // Prevent duplicate answer application
+        if (peer.signalingState === "stable") return;
+
+        try {
+          await peer.setRemoteDescription(answer);
+        } catch (err) {
+          console.warn("[WebRTC] setRemoteDescription failed:", err);
+        }
+
+        for (const c of entry.pendingCandidates || []) {
           try {
-            await entry.peer.addIceCandidate(c);
+            await peer.addIceCandidate(c);
           } catch {}
         }
 
