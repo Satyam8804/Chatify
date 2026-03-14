@@ -121,14 +121,25 @@ const VideoCall = forwardRef(
       setRemoteStreams((prev) => prev.filter((s) => s.userId !== userId));
     };
 
-    // ─────────────────────────────────────────────
-    // Create peer connection
-    // ─────────────────────────────────────────────
     const createPeerConnection = (userId, userName) => {
       const existing = getPeerEntry(userId);
       if (existing?.peer) return existing.peer;
 
       const peer = getOrCreatePeer(userId);
+
+      // ✅ apply any ICE candidates that arrived before peer existed
+      const entry = getPeerEntry(userId);
+      if (entry?.pendingCandidates?.length) {
+        entry.pendingCandidates.forEach(async (candidate) => {
+          try {
+            await peer.addIceCandidate(candidate);
+          } catch (err) {
+            console.warn("Failed to add pending ICE", err);
+          }
+        });
+
+        entry.pendingCandidates = [];
+      }
 
       peer.onicecandidate = (e) => {
         if (e.candidate) {
@@ -141,7 +152,9 @@ const VideoCall = forwardRef(
 
       peer.ontrack = (e) => {
         const stream = e.streams[0] || new MediaStream([e.track]);
+
         console.log("REMOTE TRACK", userId, e.streams);
+
         setRemoteStreams((prev) => {
           const exists = prev.find((s) => s.userId === userId);
 
@@ -158,9 +171,7 @@ const VideoCall = forwardRef(
       };
 
       peer.oniceconnectionstatechange = () => {
-        if (
-          ["failed", "disconnected", "closed"].includes(peer.iceConnectionState)
-        ) {
+        if (["failed", "disconnected"].includes(peer.iceConnectionState)) {
           peer.restartIce();
         }
       };
@@ -311,9 +322,22 @@ const VideoCall = forwardRef(
 
         const peer = entry.peer;
 
-        if (peer.signalingState !== "have-local-offer") return;
+        // ✅ Debug log to inspect signaling state when answer arrives
+        console.log(
+          "Answer received from:",
+          from,
+          "state:",
+          peer.signalingState
+        );
 
-        await peer.setRemoteDescription(answer);
+        try {
+          // apply answer only if remote description not already set
+          if (!peer.currentRemoteDescription) {
+            await peer.setRemoteDescription(answer);
+          }
+        } catch (err) {
+          console.warn("Failed to apply answer", err);
+        }
       };
 
       const handleIce = async ({ candidate, from }) => {

@@ -39,14 +39,16 @@ export const useWebRTC = () => {
 
   const getOrCreatePeer = (userId) => {
     const entry = peersRef.current.get(userId);
-    if (entry?.peer) return entry.peer; // ✅ reuse existing
+
+    if (entry?.peer) return entry.peer;
 
     const peer = new RTCPeerConnection(ICE_SERVERS);
+
     peersRef.current.set(userId, {
       peer,
       pendingCandidates: entry?.pendingCandidates || [],
-      makingOffer: false,
-      polite: String(userId) > String(socket.userId),
+      makingOffer: entry?.makingOffer || false,
+      polite: entry?.polite ?? String(userId) > String(socket.userId),
     });
 
     return peer;
