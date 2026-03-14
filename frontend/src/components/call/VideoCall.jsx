@@ -140,7 +140,7 @@ const VideoCall = forwardRef(
 
       peer.ontrack = (e) => {
         const stream = e.streams[0] || new MediaStream([e.track]);
-
+        console.log("REMOTE TRACK", userId, e.streams);
         setRemoteStreams((prev) => {
           const exists = prev.find((s) => s.userId === userId);
 
@@ -158,8 +158,7 @@ const VideoCall = forwardRef(
 
       peer.oniceconnectionstatechange = () => {
         if (
-          peer.iceConnectionState === "failed" ||
-          peer.iceConnectionState === "disconnected"
+          ["failed", "disconnected", "closed"].includes(peer.iceConnectionState)
         ) {
           peer.restartIce();
         }
@@ -218,6 +217,7 @@ const VideoCall = forwardRef(
         entry.makingOffer = false;
       }
     };
+
     useEffect(() => {
       if (!socket || !chatId) return;
 
@@ -228,14 +228,14 @@ const VideoCall = forwardRef(
         } catch (err) {
           console.error("[VideoCall] init error:", err);
         }
-        return () => {
-          socket.emit("leave-call-room", { roomId: chatId });
-        };
       };
 
       init();
-    }, [socket, chatId]);
 
+      return () => {
+        socket.emit("leave-call-room", { roomId: chatId });
+      };
+    }, [socket, chatId]);
     useEffect(() => {
       if (!socket) return;
 
@@ -312,7 +312,12 @@ const VideoCall = forwardRef(
         const entry = getPeerEntry(from);
 
         if (!entry) {
-          setPeerEntry(from, { peer: null, pendingCandidates: [candidate] });
+          setPeerEntry(from, {
+            peer: null,
+            pendingCandidates: [candidate],
+            makingOffer: false,
+            polite: true,
+          });
           return;
         }
 
@@ -452,7 +457,6 @@ const VideoCall = forwardRef(
         }
 
         replaceVideoTrack(stream.getVideoTracks()[0]);
-        replaceAudioTrack(stream.getAudioTracks()[0]);
       } catch (err) {
         console.error("Camera switch error:", err);
       } finally {
@@ -460,7 +464,7 @@ const VideoCall = forwardRef(
       }
     };
 
-    const sourceUsers = chat?.isGroupChat ? chat?.users : friends;
+    const sourceUsers = chat?.users || friends || [];
 
     const addableUsers = (sourceUsers || []).filter((u) => {
       const uid = String(u._id);
