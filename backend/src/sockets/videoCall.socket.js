@@ -5,21 +5,25 @@ export const videoCallSocket = (io, socket) => {
     if (!roomId || socket.rooms.has(roomId)) return;
 
     const existingParticipants = [];
+    socket.join(roomId);
     const room = io.sockets.adapter.rooms.get(roomId);
 
     if (room) {
       room.forEach((socketId) => {
         const s = io.sockets.sockets.get(socketId);
-        if (s?.userId) {
-          existingParticipants.push({ userId: s.userId, name: s.user?.fName });
+        if (s?.userId && s.userId !== socket.userId) {
+          existingParticipants.push({
+            userId: s.userId,
+            name: s.user?.fName,
+          });
         }
       });
     }
 
-    socket.join(roomId);
     socket.emit("existing-participants", {
       participants: existingParticipants,
     });
+
     socket.to(roomId).emit("user-joined-call", {
       userId: socket.userId,
       name: socket.user?.fName,
@@ -27,9 +31,11 @@ export const videoCallSocket = (io, socket) => {
   });
 
   socket.on("leave-call-room", ({ roomId }) => {
-    if (!roomId) return;
-    socket.leave(roomId);
-    socket.to(roomId).emit("user-left-call", { userId: socket.userId });
+    if (roomId) {
+      socket.leave(roomId);
+      socket.to(roomId).emit("user-left-call", { userId: socket.userId });
+      return;
+    }
   });
 
   socket.on("video-call-user", ({ chatId, receiverIds, isGroup }) => {

@@ -3,14 +3,29 @@ import { useRef } from "react";
 const ICE_SERVERS = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun3.l.google.com:19302" },
-    { urls: "stun:stun4.l.google.com:19302" },
-    { urls: "stun:global.stun.twilio.com:3478" },
-    { urls: "stun:stun.cloudflare.com:3478" },
+    {
+      urls: "turn:global.relay.metered.ca:80",
+      username: import.meta.env.VITE_METERED_USERNAME,
+      credential: import.meta.env.VITE_METERED_PASSWORD,
+    },
+    {
+      urls: "turn:global.relay.metered.ca:80?transport=tcp",
+      username: import.meta.env.VITE_METERED_USERNAME,
+      credential: import.meta.env.VITE_METERED_PASSWORD,
+    },
+    {
+      urls: "turn:global.relay.metered.ca:443",
+      username: import.meta.env.VITE_METERED_USERNAME,
+      credential: import.meta.env.VITE_METERED_PASSWORD,
+    },
+    {
+      urls: "turns:global.relay.metered.ca:443?transport=tcp",
+      username: import.meta.env.VITE_METERED_USERNAME,
+      credential: import.meta.env.VITE_METERED_PASSWORD,
+    },
   ],
   iceCandidatePoolSize: 10,
+  iceTransportPolicy: "all",
   bundlePolicy: "max-bundle",
   rtcpMuxPolicy: "require",
   sdpSemantics: "unified-plan",
@@ -38,9 +53,16 @@ export const useWebRTC = () => {
   const setPeerEntry = (userId, data) => peersRef.current.set(userId, data);
 
   const removePeer = (userId) => {
-    try {
-      peersRef.current.get(userId)?.peer?.close();
-    } catch {}
+    const entry = peersRef.current.get(userId);
+
+    if (entry?.peer) {
+      try {
+        entry.peer.ontrack = null;
+        entry.peer.onicecandidate = null;
+        entry.peer.close();
+      } catch {}
+    }
+
     peersRef.current.delete(userId);
   };
 
@@ -56,14 +78,14 @@ export const useWebRTC = () => {
   const replaceVideoTrack = (newTrack) => {
     peersRef.current.forEach(({ peer }) => {
       const sender = peer.getSenders().find((s) => s.track?.kind === "video");
-      if (sender) sender.replaceTrack(newTrack);
+      if (sender && newTrack) sender.replaceTrack(newTrack);
     });
   };
 
   const replaceAudioTrack = (newTrack) => {
     peersRef.current.forEach(({ peer }) => {
       const sender = peer.getSenders().find((s) => s.track?.kind === "audio");
-      if (sender) sender.replaceTrack(newTrack);
+      if (sender && newTrack) sender.replaceTrack(newTrack);
     });
   };
 
@@ -75,6 +97,6 @@ export const useWebRTC = () => {
     removePeer,
     closeAllPeers,
     replaceVideoTrack,
-    replaceAudioTrack
+    replaceAudioTrack,
   };
 };

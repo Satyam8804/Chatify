@@ -20,10 +20,18 @@ import {
   X,
 } from "lucide-react";
 
+// ─────────────────────────────────────────────
+// Remote Video Component
+// ─────────────────────────────────────────────
 const RemoteVideo = ({ stream, name }) => {
   const ref = useRef(null);
+
   useEffect(() => {
-    if (ref.current && stream) ref.current.srcObject = stream;
+    if (!ref.current || !stream) return;
+
+    ref.current.srcObject = stream;
+
+    ref.current.play().catch(() => {});
   }, [stream]);
 
   return (
@@ -34,6 +42,7 @@ const RemoteVideo = ({ stream, name }) => {
         playsInline
         className="w-full h-full object-contain"
       />
+
       {name && (
         <span className="absolute bottom-2 left-3 text-[10px] text-white/50 font-medium">
           {name}
@@ -43,6 +52,9 @@ const RemoteVideo = ({ stream, name }) => {
   );
 };
 
+// ─────────────────────────────────────────────
+// Video Call Component
+// ─────────────────────────────────────────────
 const VideoCall = forwardRef(
   ({ chatId, onEndCall, onConnected, chat }, ref) => {
     const { socket } = useSocket();
@@ -72,28 +84,45 @@ const VideoCall = forwardRef(
     const [facingMode, setFacingMode] = useState("user");
     const [showAddParticipant, setShowAddParticipant] = useState(false);
 
+    // ─────────────────────────────────────────────
+    // Sync refs
+    // ─────────────────────────────────────────────
     useEffect(() => {
       facingModeRef.current = facingMode;
     }, [facingMode]);
 
-    // ─── Local stream ──────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────
+    // Local Media Stream
+    // ─────────────────────────────────────────────
     const getLocalStream = async (forceNew = false) => {
       if (localStreamRef.current && !forceNew) return localStreamRef.current;
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: facingModeRef.current },
         audio: true,
       });
+
       localStreamRef.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+
       return stream;
     };
 
+    // ─────────────────────────────────────────────
+    // Remove peer
+    // ─────────────────────────────────────────────
     const handleRemovePeer = (userId) => {
       removePeer(userId);
+
       setRemoteStreams((prev) => prev.filter((s) => s.userId !== userId));
     };
 
-    // ─── Create peer connection ────────────────────────────────────────────────
+    // ─────────────────────────────────────────────
+    // Create peer connection
+    // ─────────────────────────────────────────────
     const createPeerConnection = (userId, userName) => {
       const existing = getPeerEntry(userId);
       if (existing?.peer) return existing.peer;
@@ -101,27 +130,36 @@ const VideoCall = forwardRef(
       const peer = getOrCreatePeer(userId);
 
       peer.onicecandidate = (e) => {
-        if (e.candidate)
-          socket.emit("ice-candidate", { candidate: e.candidate, to: userId });
+        if (e.candidate) {
+          socket.emit("ice-candidate", {
+            candidate: e.candidate,
+            to: userId,
+          });
+        }
       };
 
-      // ✅ handle multiple ontrack events (audio + video fire separately)
       peer.ontrack = (e) => {
         const stream = e.streams[0] || new MediaStream([e.track]);
+
         setRemoteStreams((prev) => {
           const exists = prev.find((s) => s.userId === userId);
-          if (exists)
+
+          if (exists) {
             return prev.map((s) =>
               s.userId === userId ? { ...s, stream } : s
             );
+          }
+
           return [...prev, { userId, stream, name: userName }];
         });
+
         onConnected?.();
       };
 
-      // ✅ ICE restart on failure
       peer.oniceconnectionstatechange = () => {
-        if (peer.iceConnectionState === "failed") peer.restartIce();
+        if (peer.iceConnectionState === "failed") {
+          peer.restartIce();
+        }
       };
 
       peer.onconnectionstatechange = () => {
@@ -135,32 +173,64 @@ const VideoCall = forwardRef(
       return peer;
     };
 
-    // ─── Send offer ────────────────────────────────────────────────────────────
-    const initiateOffer = async (userId, userName) => {
-      if (getPeerEntry(userId)?.peer) return;
-      const stream = await getLocalStream();
-      const peer = createPeerConnection(userId, userName);
-      stream.getTracks().forEach((t) => peer.addTrack(t, stream));
-      const offer = await peer.createOffer();
-      await peer.setLocalDescription(offer);
-      socket.emit("webrtc-offer", { offer, to: userId, fromName: user?.fName });
+    // ─────────────────────────────────────────────
+    // Add tracks safely
+    // ─────────────────────────────────────────────
+    const addTracksIfNeeded = (peer, stream) => {
+      const existingSenders = peer.getSenders();
+
+      stream.getTracks().forEach((track) => {
+        const alreadyAdded = existingSenders.some((s) => s.track === track);
+
+        if (!alreadyAdded) {
+          peer.addTrack(track, stream);
+        }
+      });
     };
 
-    // ─── Init: stream first, then join room ───────────────────────────────────
+    // ─────────────────────────────────────────────
+    // Create offer
+    // ─────────────────────────────────────────────
+    const initiateOffer = async (userId, userName) => {
+      if (getPeerEntry(userId)?.peer) return;
+
+      const stream = await getLocalStream();
+      const peer = createPeerConnection(userId, userName);
+
+      addTracksIfNeeded(peer, stream);
+
+      const offer = await peer.createOffer();
+
+      await peer.setLocalDescription(offer);
+
+      socket.emit("webrtc-offer", {
+        offer,
+        to: userId,
+        fromName: user?.fName,
+      });
+    };
+
+    // ─────────────────────────────────────────────
+    // Init call
+    // ─────────────────────────────────────────────
     useEffect(() => {
       if (!socket || !chatId) return;
+
       const init = async () => {
         try {
-          await getLocalStream(); // ✅ stream ready before joining
+          await getLocalStream();
           socket.emit("join-call-room", { roomId: chatId });
         } catch (err) {
           console.error("[VideoCall] init error:", err);
         }
       };
+
       init();
     }, [socket, chatId]);
 
-    // ─── Socket listeners ──────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────
+    // Socket events
+    // ─────────────────────────────────────────────
     useEffect(() => {
       if (!socket) return;
 
@@ -175,6 +245,7 @@ const VideoCall = forwardRef(
         try {
           if (!userId || String(userId) === String(user?._id)) return;
           if (getPeerEntry(userId)?.peer) return;
+
           await initiateOffer(userId, name);
         } catch (err) {
           console.error("[VideoCall] handleUserJoined error:", err);
@@ -184,42 +255,57 @@ const VideoCall = forwardRef(
       const handleOffer = async ({ offer, from, fromName }) => {
         const stream = await getLocalStream();
         const peer = createPeerConnection(from, fromName);
-        stream.getTracks().forEach((t) => peer.addTrack(t, stream));
+
+        const existingSenders = peer.getSenders();
+
+        stream.getTracks().forEach((track) => {
+          const exists = existingSenders.some((s) => s.track === track);
+          if (!exists) peer.addTrack(track, stream);
+        });
+
         await peer.setRemoteDescription(offer);
 
         const entry = getPeerEntry(from);
+
         if (entry?.pendingCandidates?.length) {
           for (const c of entry.pendingCandidates) {
             try {
               await peer.addIceCandidate(c);
             } catch {}
           }
+
           setPeerEntry(from, { ...entry, pendingCandidates: [] });
         }
 
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
+
         socket.emit("webrtc-answer", { answer, to: from });
       };
 
       const handleAnswer = async ({ answer, from }) => {
         const entry = getPeerEntry(from);
         if (!entry?.peer) return;
+
         await entry.peer.setRemoteDescription(answer);
+
         for (const c of entry.pendingCandidates) {
           try {
             await entry.peer.addIceCandidate(c);
           } catch {}
         }
+
         setPeerEntry(from, { ...entry, pendingCandidates: [] });
       };
 
       const handleIce = async ({ candidate, from }) => {
         const entry = getPeerEntry(from);
+
         if (!entry) {
           setPeerEntry(from, { peer: null, pendingCandidates: [candidate] });
           return;
         }
+
         if (entry.peer?.remoteDescription) {
           try {
             await entry.peer.addIceCandidate(candidate);
@@ -251,35 +337,54 @@ const VideoCall = forwardRef(
       };
     }, [socket]);
 
-    // ─── Cleanup ───────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────
+    // Cleanup
+    // ─────────────────────────────────────────────
     const cleanup = () => {
       if (cleanedUpRef.current) return;
+
       cleanedUpRef.current = true;
+
       if (chatId) socket?.emit("leave-call-room", { roomId: chatId });
+
       localStreamRef.current?.getTracks().forEach((t) => {
         try {
           t.stop();
         } catch {}
       });
+
       closeAllPeers();
+
       localStreamRef.current = null;
-      if (localVideoRef.current) localVideoRef.current.srcObject = null;
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = null;
+      }
+
       setRemoteStreams([]);
     };
 
     useEffect(() => () => cleanup(), []);
+
     useImperativeHandle(ref, () => ({ cleanup }));
 
-    // ─── Controls ──────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────
+    // Controls
+    // ─────────────────────────────────────────────
     const toggleMute = () => {
       if (!localStreamRef.current) return;
+
       const tracks = localStreamRef.current.getAudioTracks();
+
       tracks.forEach((t) => {
         t.enabled = !t.enabled;
       });
+
       const muted = !tracks[0]?.enabled;
+
       isMutedRef.current = muted;
       setIsMuted(muted);
+
       peersRef.current.forEach(({ peer }) => {
         const sender = peer.getSenders().find((s) => s.track?.kind === "audio");
         if (sender?.track) sender.track.enabled = !muted;
@@ -288,19 +393,30 @@ const VideoCall = forwardRef(
 
     const toggleVideo = () => {
       if (!localStreamRef.current) return;
+
       const track = localStreamRef.current.getVideoTracks()[0];
+
       track.enabled = !track.enabled;
+
       setIsVideoOff(!track.enabled);
     };
 
+    // ─────────────────────────────────────────────
+    // Camera switch
+    // ─────────────────────────────────────────────
     const switchCamera = async () => {
       if (switchingRef.current) return;
+
       switchingRef.current = true;
+
       try {
         const newFacing =
           facingModeRef.current === "user" ? "environment" : "user";
+
         localStreamRef.current?.getVideoTracks()[0]?.stop();
+
         localStreamRef.current = null;
+
         facingModeRef.current = newFacing;
         setFacingMode(newFacing);
 
@@ -314,10 +430,16 @@ const VideoCall = forwardRef(
         });
 
         const newAudioTrack = stream.getAudioTracks()[0];
-        if (newAudioTrack) newAudioTrack.enabled = !isMutedRef.current;
+
+        if (newAudioTrack) {
+          newAudioTrack.enabled = !isMutedRef.current;
+        }
 
         localStreamRef.current = stream;
-        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
 
         replaceVideoTrack(stream.getVideoTracks()[0]);
         replaceAudioTrack(stream.getAudioTracks()[0]);
@@ -328,18 +450,26 @@ const VideoCall = forwardRef(
       }
     };
 
-    // ─── Add participant ───────────────────────────────────────────────────────
-    // ✅ works for both 1-to-1 upgrade and group — anyone not already in call
+    // ─────────────────────────────────────────────
+    // Add participant
+    // ─────────────────────────────────────────────
     const addableUsers = chat?.users?.filter(
       (u) =>
         u._id !== user?._id && !remoteStreams.some((s) => s.userId === u._id)
     );
 
     const handleInvite = (inviteeId) => {
-      socket.emit("invite-to-call", { chatId, inviteeIds: [inviteeId] });
+      socket.emit("invite-to-call", {
+        chatId,
+        inviteeIds: [inviteeId],
+      });
+
       setShowAddParticipant(false);
     };
 
+    // ─────────────────────────────────────────────
+    // Layout helpers
+    // ─────────────────────────────────────────────
     const gridClass =
       remoteStreams.length <= 1
         ? "flex"
@@ -349,12 +479,16 @@ const VideoCall = forwardRef(
 
     const idleBtn =
       "flex items-center justify-center w-12 h-12 rounded-full bg-slate-800/90 border border-white/10 text-slate-300 backdrop-blur-sm transition-all duration-200 active:scale-95";
+
     const warnBtn =
       "flex items-center justify-center w-12 h-12 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 backdrop-blur-sm transition-all duration-200 active:scale-95";
 
+    // ─────────────────────────────────────────────
+    // Render
+    // ─────────────────────────────────────────────
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
-        {/* Remote video grid */}
+        {/* Remote videos */}
         <div className={`flex-1 ${gridClass} gap-1 p-1 min-h-0`}>
           {remoteStreams.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-4">
@@ -378,6 +512,7 @@ const VideoCall = forwardRef(
               Live
             </span>
           </div>
+
           <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
             <span className="text-[10px] text-slate-400">
               {remoteStreams.length + 1} participants
@@ -385,7 +520,7 @@ const VideoCall = forwardRef(
           </div>
         </div>
 
-        {/* PiP local preview */}
+        {/* Local preview */}
         <div className="absolute top-14 right-3 z-20 w-24 h-32 sm:w-32 sm:h-44 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-900">
           <video
             ref={localVideoRef}
@@ -396,6 +531,7 @@ const VideoCall = forwardRef(
               facingMode === "user" ? "scale-x-[-1]" : ""
             } ${isVideoOff ? "opacity-0" : "opacity-100"}`}
           />
+
           {isVideoOff && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-slate-600">
               <VideoOff size={16} />
@@ -404,51 +540,25 @@ const VideoCall = forwardRef(
               </span>
             </div>
           )}
+
           <span className="absolute bottom-1.5 left-0 right-0 text-center text-[9px] text-white/35 font-medium">
             You
           </span>
         </div>
-
-        {/* ✅ Add participant modal */}
-        {showAddParticipant && addableUsers?.length > 0 && (
-          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 bg-slate-800 border border-white/10 rounded-2xl p-3 w-56 shadow-2xl">
-            <div className="flex items-center justify-between mb-2 px-1">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                Add to call
-              </span>
-              <button
-                onClick={() => setShowAddParticipant(false)}
-                className="text-slate-500 hover:text-white"
-              >
-                <X size={14} />
-              </button>
-            </div>
-            {addableUsers.map((u) => (
-              <button
-                key={u._id}
-                onClick={() => handleInvite(u._id)}
-                className="flex items-center gap-2 w-full px-3 py-2 hover:bg-slate-700 rounded-xl text-sm text-white transition-colors"
-              >
-                <Avatar user={u} size={28} IsInside />
-                <span className="truncate">
-                  {u.fName} {u.lName}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* Controls */}
         <div className="absolute bottom-6 left-0 right-0 z-20 flex items-center justify-center gap-4">
           <button onClick={toggleMute} className={isMuted ? warnBtn : idleBtn}>
             {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
           </button>
+
           <button
             onClick={toggleVideo}
             className={isVideoOff ? warnBtn : idleBtn}
           >
             {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
           </button>
+
           <button
             onClick={switchCamera}
             disabled={switchingRef.current}
@@ -457,7 +567,6 @@ const VideoCall = forwardRef(
             <RefreshCcw size={20} />
           </button>
 
-          {/* ✅ add participant — shows if there are uninvited chat members */}
           {addableUsers?.length > 0 && (
             <button
               onClick={() => setShowAddParticipant((p) => !p)}
