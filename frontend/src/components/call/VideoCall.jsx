@@ -85,16 +85,10 @@ const VideoCall = forwardRef(
     const [showAddParticipant, setShowAddParticipant] = useState(false);
     const [invitedUsers, setInvitedUsers] = useState(new Set());
 
-    // ─────────────────────────────────────────────
-    // Sync refs
-    // ─────────────────────────────────────────────
     useEffect(() => {
       facingModeRef.current = facingMode;
     }, [facingMode]);
 
-    // ─────────────────────────────────────────────
-    // Local Media Stream
-    // ─────────────────────────────────────────────
     const getLocalStream = async (forceNew = false) => {
       if (localStreamRef.current && !forceNew) return localStreamRef.current;
 
@@ -112,9 +106,6 @@ const VideoCall = forwardRef(
       return stream;
     };
 
-    // ─────────────────────────────────────────────
-    // Remove peer
-    // ─────────────────────────────────────────────
     const handleRemovePeer = (userId) => {
       removePeer(userId);
 
@@ -242,15 +233,31 @@ const VideoCall = forwardRef(
     useEffect(() => {
       if (!socket || !chatId) return;
 
+      // reset call lifecycle state
       cleanedUpRef.current = false;
 
+      // clear previous call state
       closeAllPeers();
       setRemoteStreams([]);
       setInvitedUsers(new Set());
 
+      // stop any previous local tracks
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((t) => {
+          try {
+            t.stop();
+          } catch {}
+        });
+        localStreamRef.current = null;
+      }
+
       const init = async () => {
         try {
-          await getLocalStream();
+          const stream = await getLocalStream();
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = stream;
+          }
+
           socket.emit("join-call-room", { roomId: chatId });
         } catch (err) {
           console.error("[VideoCall] init error:", err);
@@ -261,6 +268,9 @@ const VideoCall = forwardRef(
 
       return () => {
         socket.emit("leave-call-room", { roomId: chatId });
+
+        // cleanup peers when leaving room
+        closeAllPeers();
       };
     }, [socket, chatId]);
 
@@ -490,7 +500,7 @@ const VideoCall = forwardRef(
         // update local stream
         const newStream = new MediaStream([
           newVideoTrack,
-          ...localStreamRef.current.getAudioTracks(),
+          ...(localStreamRef.current?.getAudioTracks() || []),
         ]);
 
         localStreamRef.current = newStream;
@@ -516,8 +526,12 @@ const VideoCall = forwardRef(
       ).filter((u) => String(u._id) !== String(user?._id));
     }, [chats, user]);
 
-    const sourceUsers = selectedChat?.isGroupChat
-      ? selectedChat?.users
+    const callChat = useMemo(() => {
+      return chats?.find((c) => String(c._id) === String(chatId));
+    }, [chats, chatId]);
+
+    const sourceUsers = callChat?.isGroupChat
+      ? callChat?.users
       : usersWithoutMe;
 
     const addableUsers = sourceUsers.filter((u) => {
