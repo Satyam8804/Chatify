@@ -4,6 +4,7 @@ import {
   useState,
   forwardRef,
   useImperativeHandle,
+  useMemo,
 } from "react";
 import { useSocket } from "../../context/socketContext";
 import { useAuth } from "../../context/authContext";
@@ -56,7 +57,7 @@ const RemoteVideo = ({ stream, name }) => {
 // Video Call Component
 // ─────────────────────────────────────────────
 const VideoCall = forwardRef(
-  ({ chatId, onEndCall, onConnected, chat, friends }, ref) => {
+  ({ chatId, onEndCall, onConnected, chats, selectedChat }, ref) => {
     const { socket } = useSocket();
     const { user } = useAuth();
 
@@ -68,7 +69,6 @@ const VideoCall = forwardRef(
       removePeer,
       closeAllPeers,
       replaceVideoTrack,
-      replaceAudioTrack,
     } = useWebRTC();
 
     const localVideoRef = useRef(null);
@@ -83,6 +83,7 @@ const VideoCall = forwardRef(
     const [isVideoOff, setIsVideoOff] = useState(false);
     const [facingMode, setFacingMode] = useState("user");
     const [showAddParticipant, setShowAddParticipant] = useState(false);
+    const [invitedUsers, setInvitedUsers] = useState(new Set());
 
     // ─────────────────────────────────────────────
     // Sync refs
@@ -247,6 +248,13 @@ const VideoCall = forwardRef(
       };
 
       const handleUserJoined = async ({ userId, name }) => {
+        // remove from invited list because they joined
+        setInvitedUsers((prev) => {
+          const updated = new Set(prev);
+          updated.delete(userId);
+          return updated;
+        });
+
         try {
           if (!userId || String(userId) === String(user?._id)) return;
           if (getPeerEntry(userId)?.peer) return;
@@ -464,25 +472,26 @@ const VideoCall = forwardRef(
       }
     };
 
-    const allUsers = [
-      ...new Map(
-        chat
-          .flatMap((c) => c.users)
-          .filter((u) => u._id !== user._id)
-          .map((u) => [u._id, u])
-      ).values(),
-    ];
+    const usersWithoutMe = useMemo(() => {
+      return Array.from(
+        new Map(
+          (chats ?? []).flatMap((c) => c?.users ?? []).map((u) => [u._id, u])
+        ).values()
+      ).filter((u) => String(u._id) !== String(user?._id));
+    }, [chats, user]);
 
-    const usersWithoutMe = allUsers.filter(
-      (u) => String(u._id) !== String(user?._id)
-    );
-
-    const sourceUsers = chat?.isGroupChat ? chat?.users : usersWithoutMe;
+    const sourceUsers = selectedChat?.isGroupChat
+      ? selectedChat?.users
+      : usersWithoutMe;
 
     const addableUsers = sourceUsers.filter((u) => {
       const uid = String(u._id);
 
-      return !peersRef.current.has(uid);
+      return (
+        uid !== String(user?._id) &&
+        !peersRef.current.has(uid) &&
+        !invitedUsers.has(uid)
+      );
     });
 
     const handleInvite = (inviteeId) => {
@@ -491,11 +500,13 @@ const VideoCall = forwardRef(
         inviteeIds: [inviteeId],
       });
 
+      setInvitedUsers((prev) => new Set(prev).add(inviteeId));
+
       setShowAddParticipant(false);
     };
 
-    console.log("chat", chat);
-    console.log("chat users", chat?.users);
+    console.log("chat", selectedChat);
+    console.log("chat users", selectedChat?.users);
     console.log("addableUsers", addableUsers);
 
     const gridClass =

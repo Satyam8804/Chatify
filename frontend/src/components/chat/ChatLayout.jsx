@@ -261,7 +261,7 @@ const ChatLayout = () => {
             <VideoCall
               ref={videoCallRef}
               chatId={callChatId}
-              chat={selectedChat}
+              selectedChat={selectedChat}
               chats={chats}
               onEndCall={endCall}
               onConnected={startTimer}
