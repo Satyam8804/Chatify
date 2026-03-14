@@ -103,7 +103,7 @@ const ChatLayout = () => {
     const onCallRejected = () => resetCall();
 
     const onCallEnded = () => {
-      if (!isGroupCallRef.current) resetCall();
+      resetCall();
     };
 
     socket.on("call-accepted", onCallAccepted);
@@ -184,14 +184,17 @@ const ChatLayout = () => {
   );
 
   const endCall = useCallback(() => {
+    videoCallRef.current?.cleanup(); // stop media immediately
+
     if (socket) {
       if (isGroupCallRef.current) {
         socket.emit("leave-call-room", { roomId: callChatIdRef.current });
       } else if (receiverIdRef.current) {
-        socket.emit("call-ended", { to: receiverIdRef.current }); // ✅ uses ref
+        socket.emit("call-ended", { to: receiverIdRef.current });
       }
     }
-    resetCall();
+
+    resetCall(); // this sets isCalling = false
   }, [socket, resetCall]);
 
   return (

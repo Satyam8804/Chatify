@@ -129,7 +129,6 @@ const VideoCall = forwardRef(
         console.warn("ICE candidate error:", e);
       };
 
-      
       if (entry?.pendingCandidates?.length) {
         entry.pendingCandidates.forEach(async (candidate) => {
           try {
@@ -176,12 +175,11 @@ const VideoCall = forwardRef(
         onConnected?.();
       };
 
-      // ✅ ICE connection monitoring
-      peer.oniceconnectionstatechange = () => {
-        console.log("ICE state:", peer.iceConnectionState);
+      peer.onconnectionstatechange = () => {
+        console.log("Peer state:", peer.connectionState);
 
-        if (peer.iceConnectionState === "failed") {
-          peer.restartIce();
+        if (["failed", "closed"].includes(peer.connectionState)) {
+          handleRemovePeer(userId);
         }
       };
 
