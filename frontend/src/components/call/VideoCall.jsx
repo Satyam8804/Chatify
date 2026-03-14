@@ -464,13 +464,25 @@ const VideoCall = forwardRef(
       }
     };
 
-    const sourceUsers = chat?.users || friends || [];
+    const allUsers = [
+      ...new Map(
+        chat
+          .flatMap((c) => c.users)
+          .filter((u) => u._id !== user._id)
+          .map((u) => [u._id, u])
+      ).values(),
+    ];
 
-    const addableUsers = (sourceUsers || []).filter((u) => {
+    const usersWithoutMe = allUsers.filter(
+      (u) => String(u._id) !== String(user?._id)
+    );
+
+    const sourceUsers = chat?.isGroupChat ? chat?.users : usersWithoutMe;
+
+    const addableUsers = sourceUsers.filter((u) => {
       const uid = String(u._id);
-      const me = String(user?._id);
 
-      return uid !== me && !peersRef.current.has(uid);
+      return !peersRef.current.has(uid);
     });
 
     const handleInvite = (inviteeId) => {

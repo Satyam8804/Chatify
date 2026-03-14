@@ -13,13 +13,13 @@ import Profile from "../profile/Profile";
 import ChatifyLogo from "../../assets/logo.png";
 import ThemeModal from "../common/ThemeModal";
 
-const Sidebar = ({ selectedChat, setSelectedChat }) => {
+const Sidebar = ({ selectedChat, setSelectedChat,chats,setChats }) => {
   const { loading, user } = useAuth();
   const { onlineUser, unreadCounts, socket } = useSocket();
 
   const [showDirectModal, setShowDirectModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
-  const [chats, setChats] = useState([]);
+  
 
   const [showMenus, setShowMenus] = useState(false);
   const [showProfile, setShowProfile] = useState(false);

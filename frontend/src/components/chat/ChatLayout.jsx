@@ -22,6 +22,7 @@ const ChatLayout = () => {
   const [callConnected, setCallConnected] = useState(false);
   const [callChatId, setCallChatId] = useState(null);
   const [isGroupCall, setIsGroupCall] = useState(false);
+  const [chats, setChats] = useState([]);
 
   const { socket } = useSocket();
   const { user } = useAuth();
@@ -193,8 +194,6 @@ const ChatLayout = () => {
     resetCall();
   }, [socket, resetCall]);
 
-  const friends = selectedChat?.users?.filter((u) => u._id !== user._id) || [];
-
   return (
     <div className="h-screen w-full flex bg-gray-100 dark:bg-slate-950 transition-colors">
       <div
@@ -205,6 +204,8 @@ const ChatLayout = () => {
         <Sidebar
           selectedChat={selectedChat}
           setSelectedChat={setSelectedChat}
+          setChats={setChats}
+          chats={chats}
         />
       </div>
 
@@ -261,7 +262,7 @@ const ChatLayout = () => {
               ref={videoCallRef}
               chatId={callChatId}
               chat={selectedChat}
-              friends={friends}
+              chats={chats}
               onEndCall={endCall}
               onConnected={startTimer}
             />
