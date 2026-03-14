@@ -186,20 +186,20 @@ const VideoCall = forwardRef(
     };
 
     const initiateOffer = async (userId, userName) => {
-      const entry = getPeerEntry(userId);
-      if (entry?.peer) return;
-
       const stream = await getLocalStream();
+
       const peer = createPeerConnection(userId, userName);
 
-      entry.makingOffer = true;
-      
-      // Only create offer if connection is stable
+      const entry = getPeerEntry(userId);
+      if (!entry) return;
+
       if (peer.signalingState !== "stable") return;
 
       addTracksIfNeeded(peer, stream);
 
       try {
+        entry.makingOffer = true;
+
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
 
@@ -208,11 +208,13 @@ const VideoCall = forwardRef(
           to: userId,
           fromName: user?.fName,
         });
+
+        entry.makingOffer = false;
       } catch (err) {
         console.warn("[VideoCall] initiateOffer error:", err);
+        entry.makingOffer = false;
       }
     };
-
     useEffect(() => {
       if (!socket || !chatId) return;
 
@@ -253,7 +255,11 @@ const VideoCall = forwardRef(
         const stream = await getLocalStream();
         const peer = createPeerConnection(from, fromName);
 
-        const entry = getPeerEntry(from);
+        let entry = getPeerEntry(from);
+
+        if (!entry) {
+          entry = getPeerEntry(from);
+        }
 
         const offerCollision =
           entry.makingOffer || peer.signalingState !== "stable";
@@ -439,7 +445,8 @@ const VideoCall = forwardRef(
     };
 
     const addableUsers = chat?.users?.filter(
-      (u) => u._id !== user?._id && !peersRef.current.has(u._id)
+      (u) =>
+        u._id !== user?._id && !remoteStreams.some((s) => s.userId === u._id)
     );
 
     const handleInvite = (inviteeId) => {
@@ -451,9 +458,10 @@ const VideoCall = forwardRef(
       setShowAddParticipant(false);
     };
 
-    // ─────────────────────────────────────────────
-    // Layout helpers
-    // ─────────────────────────────────────────────
+    console.log("chat", chat);
+    console.log("chat users", chat?.users);
+    console.log("addableUsers", addableUsers);
+
     const gridClass =
       remoteStreams.length <= 1
         ? "flex"
@@ -551,7 +559,7 @@ const VideoCall = forwardRef(
             <RefreshCcw size={20} />
           </button>
 
-          {showAddParticipant && addableUsers?.length > 0 && (
+          {showAddParticipant && (
             <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 bg-slate-800 border border-white/10 rounded-2xl p-3 w-56 shadow-2xl">
               <div className="flex items-center justify-between mb-2 px-1">
                 <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
@@ -566,18 +574,24 @@ const VideoCall = forwardRef(
                 </button>
               </div>
 
-              {addableUsers.map((u) => (
-                <button
-                  key={u._id}
-                  onClick={() => handleInvite(u._id)}
-                  className="flex items-center gap-2 w-full px-3 py-2 hover:bg-slate-700 rounded-xl text-sm text-white transition-colors"
-                >
-                  <Avatar user={u} size={28} IsInside />
-                  <span className="truncate">
-                    {u.fName} {u.lName}
-                  </span>
-                </button>
-              ))}
+              {addableUsers?.length > 0 ? (
+                addableUsers.map((u) => (
+                  <button
+                    key={u._id}
+                    onClick={() => handleInvite(u._id)}
+                    className="flex items-center gap-2 w-full px-3 py-2 hover:bg-slate-700 rounded-xl text-sm text-white transition-colors"
+                  >
+                    <Avatar user={u} size={28} IsInside />
+                    <span className="truncate">
+                      {u.fName} {u.lName}
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <div className="text-xs text-slate-400 text-center py-2">
+                  No users available
+                </div>
+              )}
             </div>
           )}
 
