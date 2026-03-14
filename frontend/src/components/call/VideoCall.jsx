@@ -30,7 +30,9 @@ const RemoteVideo = ({ stream, name }) => {
   useEffect(() => {
     if (!ref.current || !stream) return;
 
-    ref.current.srcObject = stream;
+    if (ref.current.srcObject !== stream) {
+      ref.current.srcObject = stream;
+    }
 
     ref.current.play().catch(() => {});
   }, [stream]);
@@ -145,20 +147,23 @@ const VideoCall = forwardRef(
 
       // ✅ Receive remote track
       peer.ontrack = (e) => {
-        const stream = e.streams?.[0] || new MediaStream([e.track]);
-
-        console.log("REMOTE TRACK", userId);
+        console.log("REMOTE TRACK:", userId, e.track.kind);
 
         setRemoteStreams((prev) => {
-          const exists = prev.find((s) => s.userId === userId);
+          let entry = prev.find((s) => s.userId === userId);
 
-          if (exists) {
-            return prev.map((s) =>
-              s.userId === userId ? { ...s, stream } : s
-            );
+          if (!entry) {
+            entry = {
+              userId,
+              name: userName,
+              stream: new MediaStream(),
+            };
+            prev = [...prev, entry];
           }
 
-          return [...prev, { userId, stream, name: userName }];
+          entry.stream.addTrack(e.track);
+
+          return [...prev];
         });
 
         onConnected?.();
