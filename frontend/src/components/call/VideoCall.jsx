@@ -21,19 +21,12 @@ import {
   X,
 } from "lucide-react";
 
-// ─────────────────────────────────────────────
-// Remote Video Component
-// ─────────────────────────────────────────────
 const RemoteVideo = ({ stream, name }) => {
   const ref = useRef(null);
 
   useEffect(() => {
     if (!ref.current || !stream) return;
-
-    if (ref.current.srcObject !== stream) {
-      ref.current.srcObject = stream;
-    }
-
+    if (ref.current.srcObject !== stream) ref.current.srcObject = stream;
     ref.current.play().catch(() => {});
   }, [stream]);
 
@@ -45,7 +38,6 @@ const RemoteVideo = ({ stream, name }) => {
         playsInline
         className="w-full h-full object-contain"
       />
-
       {name && (
         <span className="absolute bottom-2 left-3 text-[10px] text-white/50 font-medium">
           {name}
@@ -55,11 +47,8 @@ const RemoteVideo = ({ stream, name }) => {
   );
 };
 
-// ─────────────────────────────────────────────
-// Video Call Component
-// ─────────────────────────────────────────────
 const VideoCall = forwardRef(
-  ({ chatId, onEndCall, onConnected, chats, selectedChat }, ref) => {
+  ({ chatId, onEndCall, onConnected, chats }, ref) => {
     const { socket } = useSocket();
     const { user } = useAuth();
 
@@ -71,6 +60,7 @@ const VideoCall = forwardRef(
       removePeer,
       closeAllPeers,
       replaceVideoTrack,
+      replaceAudioTrack,
     } = useWebRTC();
 
     const localVideoRef = useRef(null);
@@ -91,186 +81,127 @@ const VideoCall = forwardRef(
       facingModeRef.current = facingMode;
     }, [facingMode]);
 
+    // ─── Local stream ──────────────────────────────────────────────────────────
     const getLocalStream = async (forceNew = false) => {
       if (localStreamRef.current && !forceNew) return localStreamRef.current;
-
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: facingModeRef.current },
         audio: true,
       });
-
       localStreamRef.current = stream;
-
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
-
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
       return stream;
     };
 
     const handleRemovePeer = (userId) => {
       removePeer(userId);
-
       setRemoteStreams((prev) => prev.filter((s) => s.userId !== userId));
     };
 
+    // ─── Add tracks safely ─────────────────────────────────────────────────────
+    const addTracksIfNeeded = (peer, stream) => {
+      const senders = peer.getSenders();
+      stream.getTracks().forEach((track) => {
+        const alreadyAdded = senders.some((s) => s.track?.kind === track.kind);
+        if (!alreadyAdded) peer.addTrack(track, stream);
+      });
+    };
+
+    // ─── Create peer ───────────────────────────────────────────────────────────
     const createPeerConnection = (userId, userName) => {
       const existing = getPeerEntry(userId);
       if (existing?.peer) return existing.peer;
 
-      const entry = getPeerEntry(userId);
       const peer = getOrCreatePeer(userId);
 
-      peer.onicegatheringstatechange = () => {
-        console.log("ICE gathering:", peer.iceGatheringState);
-      };
-
-      peer.onicecandidateerror = (e) => {
-        console.warn("ICE candidate error:", e);
-      };
-
-      if (entry?.pendingCandidates?.length) {
-        entry.pendingCandidates.forEach(async (candidate) => {
-          try {
-            await peer.addIceCandidate(candidate);
-          } catch (err) {
-            console.warn("Failed to add pending ICE", err);
-          }
-        });
-
-        entry.pendingCandidates = [];
-      }
-
-      // ✅ Send ICE candidates to remote peer
       peer.onicecandidate = (e) => {
-        if (!e.candidate) return;
-
-        socket.emit("ice-candidate", {
-          candidate: e.candidate,
-          to: userId,
-        });
+        if (e.candidate)
+          socket.emit("ice-candidate", { candidate: e.candidate, to: userId });
       };
 
-      // ✅ Receive remote track
       peer.ontrack = (e) => {
-        console.log("REMOTE TRACK:", userId, e.track.kind);
-
+        const incomingStream = e.streams[0];
         setRemoteStreams((prev) => {
-          let entry = prev.find((s) => s.userId === userId);
-
-          if (!entry) {
-            entry = {
-              userId,
-              name: userName,
-              stream: new MediaStream(),
-            };
-            prev = [...prev, entry];
+          const exists = prev.find((s) => s.userId === userId);
+          if (exists) {
+            return prev.map((s) =>
+              s.userId === userId
+                ? { ...s, stream: incomingStream || s.stream }
+                : s
+            );
           }
-
-          entry.stream.addTrack(e.track);
-
-          return [...prev];
+          return [
+            ...prev,
+            {
+              userId,
+              stream: incomingStream || new MediaStream([e.track]),
+              name: userName,
+            },
+          ];
         });
-
         onConnected?.();
       };
 
       peer.onconnectionstatechange = () => {
-        console.log("Peer state:", peer.connectionState);
-
-        if (["failed", "closed"].includes(peer.connectionState)) {
+        if (
+          ["failed", "closed", "disconnected"].includes(peer.connectionState)
+        ) {
           handleRemovePeer(userId);
         }
       };
 
-      // ✅ Peer connection monitoring
-      peer.onconnectionstatechange = () => {
-        console.log("Peer state:", peer.connectionState);
-
-        if (peer.connectionState === "failed") {
-          handleRemovePeer(userId);
-        }
-
-        // optional: cleanup when call truly ends
-        if (peer.connectionState === "closed") {
-          handleRemovePeer(userId);
-        }
+      peer.oniceconnectionstatechange = () => {
+        if (peer.iceConnectionState === "failed") peer.restartIce();
       };
 
       return peer;
     };
 
-    const addTracksIfNeeded = (peer, stream) => {
-      const senders = peer.getSenders();
-
-      stream.getTracks().forEach((track) => {
-        const alreadyAdded = senders.some(
-          (s) => s.track && s.track.kind === track.kind
-        );
-
-        if (!alreadyAdded) peer.addTrack(track, stream);
-      });
-    };
-
+    // ─── Send offer ────────────────────────────────────────────────────────────
     const initiateOffer = async (userId, userName) => {
       const stream = await getLocalStream();
-
       const peer = createPeerConnection(userId, userName);
-
       const entry = getPeerEntry(userId);
       if (!entry) return;
-
       if (peer.signalingState !== "stable") return;
 
       addTracksIfNeeded(peer, stream);
 
       try {
         entry.makingOffer = true;
-
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
-
         socket.emit("webrtc-offer", {
           offer: peer.localDescription,
           to: userId,
           fromName: user?.fName,
         });
-
-        entry.makingOffer = false;
       } catch (err) {
         console.warn("[VideoCall] initiateOffer error:", err);
+      } finally {
         entry.makingOffer = false;
       }
     };
 
+    // ─── Init ──────────────────────────────────────────────────────────────────
     useEffect(() => {
       if (!socket || !chatId) return;
 
-      // reset call lifecycle state
       cleanedUpRef.current = false;
-
-      // clear previous call state
       closeAllPeers();
       setRemoteStreams([]);
       setInvitedUsers(new Set());
 
-      // stop any previous local tracks
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((t) => {
-          try {
-            t.stop();
-          } catch {}
-        });
-        localStreamRef.current = null;
-      }
+      localStreamRef.current?.getTracks().forEach((t) => {
+        try {
+          t.stop();
+        } catch {}
+      });
+      localStreamRef.current = null;
 
       const init = async () => {
         try {
-          const stream = await getLocalStream();
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = stream;
-          }
-
+          await getLocalStream();
           socket.emit("join-call-room", { roomId: chatId });
         } catch (err) {
           console.error("[VideoCall] init error:", err);
@@ -280,13 +211,11 @@ const VideoCall = forwardRef(
       init();
 
       return () => {
-        socket.emit("leave-call-room", { roomId: chatId });
-
-        // cleanup peers when leaving room
         closeAllPeers();
       };
     }, [socket, chatId]);
 
+    // ─── Socket listeners ──────────────────────────────────────────────────────
     useEffect(() => {
       if (!socket) return;
 
@@ -298,17 +227,14 @@ const VideoCall = forwardRef(
       };
 
       const handleUserJoined = async ({ userId, name }) => {
-        // remove from invited list because they joined
         setInvitedUsers((prev) => {
           const updated = new Set(prev);
           updated.delete(userId);
           return updated;
         });
-
         try {
           if (!userId || String(userId) === String(user?._id)) return;
           if (getPeerEntry(userId)?.peer) return;
-
           await initiateOffer(userId, name);
         } catch (err) {
           console.error("[VideoCall] handleUserJoined error:", err);
@@ -327,10 +253,7 @@ const VideoCall = forwardRef(
 
         const offerCollision =
           entry.makingOffer || peer.signalingState !== "stable";
-
-        const ignoreOffer = !entry.polite && offerCollision;
-
-        if (ignoreOffer) return;
+        if (!entry.polite && offerCollision) return;
 
         await peer.setRemoteDescription(offer);
 
@@ -340,7 +263,6 @@ const VideoCall = forwardRef(
               await peer.addIceCandidate(candidate);
             } catch {}
           }
-
           setPeerEntry(from, { ...entry, pendingCandidates: [] });
         }
 
@@ -348,7 +270,6 @@ const VideoCall = forwardRef(
 
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
-
         socket.emit("webrtc-answer", {
           answer: peer.localDescription,
           to: from,
@@ -358,30 +279,17 @@ const VideoCall = forwardRef(
       const handleAnswer = async ({ answer, from }) => {
         const entry = getPeerEntry(from);
         if (!entry?.peer) return;
-
-        const peer = entry.peer;
-
-        // ✅ Debug log to inspect signaling state when answer arrives
-        console.log(
-          "Answer received from:",
-          from,
-          "state:",
-          peer.signalingState
-        );
-
         try {
-          // apply answer only if remote description not already set
-          if (!peer.currentRemoteDescription) {
-            await peer.setRemoteDescription(answer);
+          if (!entry.peer.currentRemoteDescription) {
+            await entry.peer.setRemoteDescription(answer);
           }
         } catch (err) {
-          console.warn("Failed to apply answer", err);
+          console.warn("Failed to apply answer:", err);
         }
       };
 
       const handleIce = async ({ candidate, from }) => {
         const entry = getPeerEntry(from);
-
         if (!entry) {
           setPeerEntry(from, {
             peer: null,
@@ -391,7 +299,6 @@ const VideoCall = forwardRef(
           });
           return;
         }
-
         if (entry.peer?.remoteDescription) {
           try {
             await entry.peer.addIceCandidate(candidate);
@@ -423,49 +330,34 @@ const VideoCall = forwardRef(
       };
     }, [socket, user?._id]);
 
+    // ─── Cleanup ───────────────────────────────────────────────────────────────
     const cleanup = () => {
       if (cleanedUpRef.current) return;
-
       cleanedUpRef.current = true;
-
-      if (chatId) socket?.emit("leave-call-room", { roomId: chatId });
-
       localStreamRef.current?.getTracks().forEach((t) => {
         try {
           t.stop();
         } catch {}
       });
-
       closeAllPeers();
-
       localStreamRef.current = null;
-
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = null;
-      }
-
+      if (localVideoRef.current) localVideoRef.current.srcObject = null;
       setRemoteStreams([]);
-      setInvitedUsers(new Set());
     };
 
     useEffect(() => () => cleanup(), []);
-
     useImperativeHandle(ref, () => ({ cleanup }));
 
+    // ─── Controls ──────────────────────────────────────────────────────────────
     const toggleMute = () => {
       if (!localStreamRef.current) return;
-
       const tracks = localStreamRef.current.getAudioTracks();
-
       tracks.forEach((t) => {
         t.enabled = !t.enabled;
       });
-
       const muted = !tracks[0]?.enabled;
-
       isMutedRef.current = muted;
       setIsMuted(muted);
-
       peersRef.current.forEach(({ peer }) => {
         const sender = peer.getSenders().find((s) => s.track?.kind === "audio");
         if (sender?.track) sender.track.enabled = !muted;
@@ -474,18 +366,14 @@ const VideoCall = forwardRef(
 
     const toggleVideo = () => {
       if (!localStreamRef.current) return;
-
       const track = localStreamRef.current.getVideoTracks()[0];
-
       track.enabled = !track.enabled;
-
       setIsVideoOff(!track.enabled);
     };
 
     const switchCamera = async () => {
       if (switchingRef.current) return;
       switchingRef.current = true;
-
       try {
         const newFacing =
           facingModeRef.current === "user" ? "environment" : "user";
@@ -496,31 +384,23 @@ const VideoCall = forwardRef(
             width: { ideal: 1280 },
             height: { ideal: 720 },
           },
-          audio: false,
+          audio: true,
         });
 
         const newVideoTrack = stream.getVideoTracks()[0];
+        const newAudioTrack = stream.getAudioTracks()[0];
+        if (newAudioTrack) newAudioTrack.enabled = !isMutedRef.current;
 
-        if (!newVideoTrack) return;
+        localStreamRef.current?.getTracks().forEach((t) => {
+          try {
+            t.stop();
+          } catch {}
+        });
+        localStreamRef.current = stream;
+        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
-        // replace track in peer connections
-        replaceVideoTrack(newVideoTrack);
-
-        // stop old track
-        const oldTrack = localStreamRef.current?.getVideoTracks()[0];
-        oldTrack?.stop();
-
-        // update local stream
-        const newStream = new MediaStream([
-          newVideoTrack,
-          ...(localStreamRef.current?.getAudioTracks() || []),
-        ]);
-
-        localStreamRef.current = newStream;
-
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = newStream;
-        }
+        replaceVideoTrack(newVideoTrack); // ✅ replace in all peers
+        replaceAudioTrack(newAudioTrack); // ✅ replace in all peers
 
         facingModeRef.current = newFacing;
         setFacingMode(newFacing);
@@ -531,46 +411,41 @@ const VideoCall = forwardRef(
       }
     };
 
-    const usersWithoutMe = useMemo(() => {
-      return Array.from(
-        new Map(
-          (chats ?? []).flatMap((c) => c?.users ?? []).map((u) => [u._id, u])
-        ).values()
-      ).filter((u) => String(u._id) !== String(user?._id));
-    }, [chats, user]);
-
+    // ─── Add participant ───────────────────────────────────────────────────────
     const callChat = useMemo(() => {
       return chats?.find((c) => String(c._id) === String(chatId));
     }, [chats, chatId]);
 
-    const sourceUsers = callChat?.isGroupChat
-      ? callChat?.users
-      : usersWithoutMe;
+    const addableUsers = useMemo(() => {
+      const alreadyInCall = new Set([
+        String(user?._id),
+        ...remoteStreams.map((s) => String(s.userId)),
+        ...Array.from(invitedUsers),
+      ]);
 
-    const addableUsers = sourceUsers.filter((u) => {
-      const uid = String(u._id);
-
-      return (
-        uid !== String(user?._id) &&
-        !peersRef.current.has(uid) &&
-        !invitedUsers.has(uid)
-      );
-    });
+      if (callChat?.isGroupChat) {
+        // group — only members of this group not already in call
+        return (callChat?.users || []).filter(
+          (u) => !alreadyInCall.has(String(u._id))
+        );
+      } else {
+        // 1-to-1 — all unique users across all chats
+        const allUsers = new Map();
+        (chats || []).forEach((c) => {
+          (c.users || []).forEach((u) => {
+            if (!alreadyInCall.has(String(u._id)))
+              allUsers.set(String(u._id), u);
+          });
+        });
+        return Array.from(allUsers.values());
+      }
+    }, [callChat, chats, remoteStreams, invitedUsers, user?._id]);
 
     const handleInvite = (inviteeId) => {
-      socket.emit("invite-to-call", {
-        chatId,
-        inviteeIds: [inviteeId],
-      });
-
+      socket.emit("invite-to-call", { chatId, inviteeIds: [inviteeId] });
       setInvitedUsers((prev) => new Set(prev).add(inviteeId));
-
       setShowAddParticipant(false);
     };
-
-    console.log("chat", selectedChat);
-    console.log("chat users", selectedChat?.users);
-    console.log("addableUsers", addableUsers);
 
     const gridClass =
       remoteStreams.length <= 1
@@ -581,19 +456,11 @@ const VideoCall = forwardRef(
 
     const idleBtn =
       "flex items-center justify-center w-12 h-12 rounded-full bg-slate-800/90 border border-white/10 text-slate-300 backdrop-blur-sm transition-all duration-200 active:scale-95";
-
     const warnBtn =
       "flex items-center justify-center w-12 h-12 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 backdrop-blur-sm transition-all duration-200 active:scale-95";
 
-    console.log(
-      "addableUsers",
-      addableUsers,
-      "peers:",
-      Array.from(peersRef.current.keys())
-    );
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
-        {/* Remote videos */}
         <div className={`flex-1 ${gridClass} gap-1 p-1 min-h-0`}>
           {remoteStreams.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-4">
@@ -609,7 +476,6 @@ const VideoCall = forwardRef(
           )}
         </div>
 
-        {/* Top bar */}
         <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pt-4 pb-8 bg-gradient-to-b from-slate-950/70 to-transparent">
           <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -617,7 +483,6 @@ const VideoCall = forwardRef(
               Live
             </span>
           </div>
-
           <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
             <span className="text-[10px] text-slate-400">
               {remoteStreams.length + 1} participants
@@ -625,7 +490,6 @@ const VideoCall = forwardRef(
           </div>
         </div>
 
-        {/* Local preview */}
         <div className="absolute top-14 right-3 z-20 w-24 h-32 sm:w-32 sm:h-44 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-900">
           <video
             ref={localVideoRef}
@@ -636,7 +500,6 @@ const VideoCall = forwardRef(
               facingMode === "user" ? "scale-x-[-1]" : ""
             } ${isVideoOff ? "opacity-0" : "opacity-100"}`}
           />
-
           {isVideoOff && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-slate-600">
               <VideoOff size={16} />
@@ -645,25 +508,21 @@ const VideoCall = forwardRef(
               </span>
             </div>
           )}
-
           <span className="absolute bottom-1.5 left-0 right-0 text-center text-[9px] text-white/35 font-medium">
             You
           </span>
         </div>
 
-        {/* Controls */}
         <div className="absolute bottom-6 left-0 right-0 z-20 flex items-center justify-center gap-4">
           <button onClick={toggleMute} className={isMuted ? warnBtn : idleBtn}>
             {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
           </button>
-
           <button
             onClick={toggleVideo}
             className={isVideoOff ? warnBtn : idleBtn}
           >
             {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
           </button>
-
           <button
             onClick={switchCamera}
             disabled={switchingRef.current}
@@ -671,16 +530,12 @@ const VideoCall = forwardRef(
           >
             <RefreshCcw size={20} />
           </button>
-
-          {/* ADD PARTICIPANT BUTTON */}
           <button
             onClick={() => setShowAddParticipant((p) => !p)}
             className={showAddParticipant ? warnBtn : idleBtn}
           >
             <UserPlus size={20} />
           </button>
-
-          {/* END CALL */}
           <button
             onClick={onEndCall}
             className="flex items-center justify-center w-14 h-14 rounded-full bg-rose-600 text-white active:scale-95 transition-all"
@@ -695,7 +550,6 @@ const VideoCall = forwardRef(
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
                 Add to call
               </span>
-
               <button
                 onClick={() => setShowAddParticipant(false)}
                 className="text-slate-500 hover:text-white"
@@ -703,8 +557,7 @@ const VideoCall = forwardRef(
                 <X size={14} />
               </button>
             </div>
-
-            <div className="max-h-60 overflow-y-auto space-y-1">
+            <div className="max-h-60 overflow-y-auto hide-scrollbar space-y-1">
               {addableUsers.length > 0 ? (
                 addableUsers.map((u) => (
                   <button
@@ -732,3 +585,4 @@ const VideoCall = forwardRef(
 );
 
 export default VideoCall;
+

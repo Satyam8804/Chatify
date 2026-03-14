@@ -8,7 +8,6 @@ export default function messageSocket(io, socket) {
 
     if (!chatId) return;
 
-    console.log("ChatId:", chatId);
 
     // emit to active chat room
     socket.to(chatId).emit("receive-message", message);

@@ -1,6 +1,4 @@
 import { useRef } from "react";
-import { useAuth } from "../context/authContext";
-import { useSocket } from "../context/socketContext";
 
 const ICE_SERVERS = {
   iceServers: [
@@ -35,7 +33,6 @@ const ICE_SERVERS = {
 
 export const useWebRTC = () => {
   const peersRef = useRef(new Map());
-  const { socket } = useSocket();
 
   const getOrCreatePeer = (userId) => {
     const entry = peersRef.current.get(userId);
@@ -47,11 +44,9 @@ export const useWebRTC = () => {
     peersRef.current.set(userId, {
       peer,
       pendingCandidates: entry?.pendingCandidates || [],
-      makingOffer: entry?.makingOffer || false,
-      polite: entry?.polite ?? String(userId) > String(socket.userId),
+      makingOffer: false,
+      polite: false, // ✅ set from VideoCall after creation if needed
     });
-
-    return peer;
   };
 
   const getPeerEntry = (userId) => peersRef.current.get(userId);

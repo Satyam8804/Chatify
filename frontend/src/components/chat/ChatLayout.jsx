@@ -103,7 +103,7 @@ const ChatLayout = () => {
     const onCallRejected = () => resetCall();
 
     const onCallEnded = () => {
-      resetCall();
+      if (!isGroupCallRef.current) resetCall();
     };
 
     socket.on("call-accepted", onCallAccepted);
@@ -170,22 +170,17 @@ const ChatLayout = () => {
       isCallingRef.current = true;
       isGroupCallRef.current = !!isGroup;
 
-      // Join the call room so server will send existing-participants
-      socket.emit("join-call-room", { roomId: chatId });
+      // ✅ removed socket.emit("join-call-room") — VideoCall handles it on mount
 
       if (!isGroup) {
         receiverIdRef.current = callerId;
         socket.emit("call-accepted", { to: callerId });
-      } else {
-        startTimer();
       }
     },
     [socket, startTimer]
   );
 
   const endCall = useCallback(() => {
-    videoCallRef.current?.cleanup(); // stop media immediately
-
     if (socket) {
       if (isGroupCallRef.current) {
         socket.emit("leave-call-room", { roomId: callChatIdRef.current });
@@ -193,8 +188,7 @@ const ChatLayout = () => {
         socket.emit("call-ended", { to: receiverIdRef.current });
       }
     }
-
-    resetCall(); // this sets isCalling = false
+    resetCall(); // ✅ resetCall handles cleanup
   }, [socket, resetCall]);
 
   return (
@@ -264,7 +258,6 @@ const ChatLayout = () => {
             <VideoCall
               ref={videoCallRef}
               chatId={callChatId}
-              selectedChat={selectedChat}
               chats={chats}
               onEndCall={endCall}
               onConnected={startTimer}

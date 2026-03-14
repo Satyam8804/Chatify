@@ -4,32 +4,29 @@ export const videoCallSocket = (io, socket) => {
   socket.on("join-call-room", ({ roomId }) => {
     if (!roomId || socket.rooms.has(roomId)) return;
 
+    // ✅ collect BEFORE joining so self isn't included
     const existingParticipants = [];
-    socket.join(roomId);
     const room = io.sockets.adapter.rooms.get(roomId);
-
     if (room) {
       room.forEach((socketId) => {
         const s = io.sockets.sockets.get(socketId);
-        if (s?.userId && s.userId !== socket.userId) {
-          existingParticipants.push({
-            userId: s.userId,
-            name: s.user?.fName,
-          });
-        }
+        if (s?.userId)
+          existingParticipants.push({ userId: s.userId, name: s.user?.fName });
       });
     }
+
+    socket.join(roomId); // ✅ join AFTER collecting
 
     socket.emit("existing-participants", {
       participants: existingParticipants,
     });
-
-    socket.to(roomId).emit("user-joined-call", {
-      userId: socket.userId,
-      name: socket.user?.fName,
-    });
+    socket
+      .to(roomId)
+      .emit("user-joined-call", {
+        userId: socket.userId,
+        name: socket.user?.fName,
+      });
   });
-
   socket.on("leave-call-room", ({ roomId }) => {
     if (roomId) {
       socket.leave(roomId);
