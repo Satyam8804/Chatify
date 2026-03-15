@@ -343,12 +343,12 @@ const VideoCall = forwardRef(
 
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
-        <div className="flex-1 relative min-h-0">
+        <div className="flex-1 relative min-h-0 h-full">
           {/* Remote streams */}
           <div
-            className={`absolute inset-0 ${
-              swapped ? "hidden" : gridClass
-            } gap-1 p-1`}
+            className={`absolute inset-0 flex gap-1 p-1 ${
+              swapped ? "hidden" : ""
+            }`}
           >
             {remoteStreams.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-4">
@@ -357,21 +357,38 @@ const VideoCall = forwardRef(
                   Connecting…
                 </p>
               </div>
+            ) : remoteStreams.length === 1 ? (
+              <div
+                className="flex-1 min-w-0 min-h-0 cursor-pointer"
+                onClick={() => {
+                  if (selectedRemoteIndex !== 0 || !swapped) {
+                    setSelectedRemoteIndex(0);
+                    setSwapped(true);
+                  }
+                }}
+              >
+                <RemoteVideo
+                  stream={remoteStreams[0].stream}
+                  name={remoteStreams[0].name}
+                />
+              </div>
             ) : (
-              remoteStreams.map(({ userId, stream, name }, index) => (
-                <div
-                  key={userId}
-                  className="relative flex-1 min-w-0 min-h-0 cursor-pointer"
-                  onClick={() => {
-                    if (selectedRemoteIndex !== index || !swapped) {
-                      setSelectedRemoteIndex(index);
-                      setSwapped(true);
-                    }
-                  }}
-                >
-                  <RemoteVideo stream={stream} name={name} />
-                </div>
-              ))
+              <div className={`w-full h-full ${gridClass} gap-1`}>
+                {remoteStreams.map(({ userId, stream, name }, index) => (
+                  <div
+                    key={userId}
+                    className="relative min-w-0 min-h-0 cursor-pointer"
+                    onClick={() => {
+                      if (selectedRemoteIndex !== index || !swapped) {
+                        setSelectedRemoteIndex(index);
+                        setSwapped(true);
+                      }
+                    }}
+                  >
+                    <RemoteVideo stream={stream} name={name} />
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
