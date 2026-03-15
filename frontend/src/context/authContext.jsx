@@ -16,7 +16,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-
     const restoreSession = async () => {
       try {
         let token = getToken();
@@ -41,9 +40,6 @@ export const AuthProvider = ({ children }) => {
 
     restoreSession();
 
-    return () => {
-      mounted = false;
-    };
   }, []);
 
   const login = useCallback(async (credentials) => {
