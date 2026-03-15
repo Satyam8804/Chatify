@@ -15,6 +15,9 @@ const Chat = () => {
   const { user, loading } = useAuth();
   const [messageIndex, setMessageIndex] = useState(0);
 
+  console.log("Auth loading:", loading);
+  console.log("User:", user);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setMessageIndex((prev) => (prev + 1) % loadingMessages.length);
@@ -26,7 +29,6 @@ const Chat = () => {
   if (loading) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-white dark:bg-slate-900 transition-colors">
-
         {/* Logo */}
         <img
           src={chatifyLogo}
@@ -42,11 +44,12 @@ const Chat = () => {
         {/* Spinner */}
         <Loader className="w-10 h-10 animate-spin text-emerald-500 mb-5" />
 
-        {/* Animated text */}
-        <p className="text-gray-600 dark:text-slate-400 text-sm transition-opacity duration-500">
+        <p
+          key={messageIndex}
+          className="text-gray-800 dark:text-slate-300 text-sm font-medium animate-pulse"
+        >
           {loadingMessages[messageIndex]}
         </p>
-
       </div>
     );
   }
