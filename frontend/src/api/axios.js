@@ -4,9 +4,15 @@ import { logger } from "../utils/logger";
 
 let inMemoryToken = null;
 
-export const setToken = (token) => (inMemoryToken = token);
+export const setToken = (token) => {
+  inMemoryToken = token;
+};
+
 export const getToken = () => inMemoryToken;
-export const clearToken = () => (inMemoryToken = null);
+
+export const clearToken = () => {
+  inMemoryToken = null;
+};
 
 let refreshPromise = null;
 
@@ -26,7 +32,12 @@ const refreshAccessToken = () => {
     .catch((err) => {
       logger(err);
       clearToken();
-      window.location.href = "/login";
+
+      // redirect only if not already on login
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+
       return Promise.reject(err);
     })
     .finally(() => {
@@ -43,7 +54,11 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = getToken();
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
   return config;
 });
 
@@ -62,6 +77,11 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     const status = error.response?.status;
+
+    // 🚨 FIX: if no token → do not try refresh
+    if (!getToken()) {
+      return Promise.reject(error);
+    }
 
     if (status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;

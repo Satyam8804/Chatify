@@ -14,9 +14,7 @@ const Login = () => {
   const handleLogin = async (data) => {
     try {
       setLoading(true);
-
       await login(data);
-
       navigate("/chat", { replace: true });
     } catch (error) {
       logger(error)

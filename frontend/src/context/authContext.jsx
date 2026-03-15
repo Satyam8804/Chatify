@@ -20,12 +20,12 @@ export const AuthProvider = ({ children }) => {
 
     const restoreSession = async () => {
       try {
-        let token = getToken();
+        const token = getToken();
 
+        // 🚨 If no token in memory → user not logged in
         if (!token) {
-          const { data } = await api.post("/users/refresh-token");
-          token = data.accessToken;
-          setToken(token);
+          setUser(null);
+          return;
         }
 
         const { data } = await api.get("/users/me");
@@ -33,6 +33,7 @@ export const AuthProvider = ({ children }) => {
         if (mounted) setUser(data.user);
       } catch (error) {
         logger(error);
+
         if (mounted) {
           clearToken();
           setUser(null);
