@@ -177,7 +177,7 @@ const ChatLayout = () => {
         socket.emit("call-accepted", { to: callerId });
       }
     },
-    [socket, startTimer]
+    [socket]
   );
 
   const endCall = useCallback(() => {
@@ -232,29 +232,34 @@ const ChatLayout = () => {
       />
 
       {isCalling && (
-        <div className="fixed inset-0 z-[100] bg-slate-950 h-[100dvh] w-[100vw]">
-          <div className="relative w-full h-[calc(100dvh-48px)]">
-            <div className="flex items-center justify-between px-5 py-3 bg-slate-900 border-b border-white/5">
-              <div className="flex items-center gap-2.5">
-                <span
-                  className={`w-2 h-2 rounded-full animate-pulse ${
-                    callConnected ? "bg-emerald-400" : "bg-amber-400"
-                  }`}
-                />
-                <span className="text-sm font-medium text-slate-300">
-                  {callConnected
-                    ? formatDuration(callDuration)
-                    : `Calling ${callTargetName}…`}
-                </span>
-              </div>
-              <button
-                onClick={endCall}
-                className="text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg transition-colors"
-              >
-                End Call
-              </button>
+        <div
+          className="fixed inset-0 z-[100] bg-slate-950 flex flex-col"
+          style={{ height: "100dvh" }}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3 bg-slate-900 border-b border-white/5 shrink-0">
+            <div className="flex items-center gap-2.5">
+              <span
+                className={`w-2 h-2 rounded-full animate-pulse ${
+                  callConnected ? "bg-emerald-400" : "bg-amber-400"
+                }`}
+              />
+              <span className="text-sm font-medium text-slate-300">
+                {callConnected
+                  ? formatDuration(callDuration)
+                  : `Calling ${callTargetName}…`}
+              </span>
             </div>
+            <button
+              onClick={endCall}
+              className="text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              End Call
+            </button>
+          </div>
 
+          {/* VideoCall fills remaining height */}
+          <div className="flex-1 min-h-0 w-full">
             <VideoCall
               ref={videoCallRef}
               chatId={callChatId}

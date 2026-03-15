@@ -343,7 +343,7 @@ const VideoCall = forwardRef(
 
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
-        <div className="flex-1 relative min-h-0 h-full">
+        <div className="flex-1 relative min-h-0 overflow-hidden">
           {/* Remote streams */}
           <div
             className={`absolute inset-0 flex gap-1 p-1 ${
