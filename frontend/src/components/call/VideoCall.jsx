@@ -448,11 +448,11 @@ const VideoCall = forwardRef(
             </div>
           )}
 
-          <span className="absolute bottom-1.5 left-0 right-0 text-center text-[9px] text-white/35 font-medium z-10">
-            {swapped
-              ? remoteStreams[selectedRemoteIndex]?.name || "Remote"
-              : "You"}
-          </span>
+          {!swapped && (
+            <span className="absolute bottom-1.5 left-0 right-0 text-center text-[9px] text-white/35 font-medium z-10">
+              You
+            </span>
+          )}
         </div>
 
         <CallControls
