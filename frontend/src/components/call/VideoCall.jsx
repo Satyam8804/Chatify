@@ -71,6 +71,7 @@ const VideoCall = forwardRef(
     const isVideoOffRef = useRef(false);
     const currentDeviceIdRef = useRef(null);
     const camerasRef = useRef([]);
+    const cameraIndexRef = useRef(0);
 
     const [remoteStreams, setRemoteStreams] = useState([]);
     const [isMuted, setIsMuted] = useState(false);
@@ -284,6 +285,21 @@ const VideoCall = forwardRef(
 
       localStreamRef.current = null;
 
+      const handleDeviceChange = async () => {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+
+        const newCameras = devices.filter(
+          (d) => d.kind === "videoinput" && d.deviceId
+        );
+
+        const currentIdx = newCameras.findIndex(
+          (d) => d.deviceId === currentDeviceIdRef.current
+        );
+
+        cameraIndexRef.current = currentIdx === -1 ? 0 : currentIdx;
+        camerasRef.current = newCameras;
+      };
+
       const init = async () => {
         try {
           await getLocalStream();
@@ -302,6 +318,11 @@ const VideoCall = forwardRef(
             }))
           );
 
+          navigator.mediaDevices.addEventListener(
+            "devicechange",
+            handleDeviceChange
+          );
+
           socket.emit("join-call-room", { roomId: chatId });
         } catch (err) {
           console.error("[VideoCall] init error:", err);
@@ -310,12 +331,12 @@ const VideoCall = forwardRef(
 
       init();
 
-      navigator.mediaDevices.addEventListener("devicechange", async () => {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        camerasRef.current = devices.filter((d) => d.kind === "videoinput");
-      });
-
       return () => {
+        navigator.mediaDevices.removeEventListener(
+          "devicechange",
+          handleDeviceChange
+        );
+
         socket.emit("leave-call-room", { roomId: chatId });
         closeAllPeers();
       };
@@ -326,8 +347,21 @@ const VideoCall = forwardRef(
 
       const handleExistingParticipants = async ({ participants }) => {
         console.log("[VideoCall] existing-participants →", participants);
+
         for (const { userId, name } of participants) {
           if (!userId || String(userId) === String(user?._id)) continue;
+
+          if (getPeerEntry(userId)?.peer) {
+            console.warn("[VideoCall] peer already exists for", userId);
+            continue;
+          }
+
+          const entry = getPeerEntry(userId);
+          if (entry?.makingOffer) {
+            console.warn("[VideoCall] offer already in progress for", userId);
+            continue;
+          }
+
           await initiateOffer(userId, name);
         }
       };
@@ -550,48 +584,37 @@ const VideoCall = forwardRef(
       setIsSwitching(true);
 
       try {
-        const videoDevices = camerasRef.current;
+        const cameras = camerasRef.current;
 
-        console.log(
-          "[VideoCall] available cameras:",
-          videoDevices.map((d) => ({
-            label: d.label,
-            deviceId: d.deviceId,
-          }))
-        );
-
-        if (videoDevices.length < 2) {
-          console.warn("[VideoCall] only one camera found");
+        if (cameras.length < 2) {
+          console.warn("[VideoCall] only one camera available");
           return;
         }
 
-        const currentIndex = videoDevices.findIndex(
-          (d) => d.deviceId === currentDeviceIdRef.current
-        );
+        cameraIndexRef.current = (cameraIndexRef.current + 1) % cameras.length;
 
-        console.log("[VideoCall] currentIndex:", currentIndex);
+        const nextCamera = cameras[cameraIndexRef.current];
 
-        const nextIndex =
-          currentIndex === -1 ? 0 : (currentIndex + 1) % videoDevices.length;
-
-        const nextDevice = videoDevices[nextIndex];
-
-        console.log(
-          "[VideoCall] switching to:",
-          nextDevice.label,
-          nextDevice.deviceId
-        );
+        console.log("[VideoCall] switching to:", nextCamera.label);
 
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: { exact: nextDevice.deviceId } },
+          video: {
+            deviceId: { exact: nextCamera.deviceId },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
           audio: false,
         });
 
         const newVideoTrack = stream.getVideoTracks()[0];
+        stream.getTracks().forEach((t) => {
+          if (t !== newVideoTrack) t.stop();
+        });
 
         const oldStream = localStreamRef.current;
         const oldAudioTrack = oldStream?.getAudioTracks()[0];
 
+        // stop old video track
         oldStream?.getVideoTracks().forEach((t) => {
           try {
             t.stop();
@@ -603,31 +626,29 @@ const VideoCall = forwardRef(
           ...(oldAudioTrack ? [oldAudioTrack] : []),
         ]);
 
-        currentDeviceIdRef.current = nextDevice.deviceId;
-
         localStreamRef.current = newStream;
 
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = newStream;
         }
 
+        // replace track in all peers
         peersRef.current.forEach(({ peer }) => {
           const sender = peer
             .getSenders()
             .find((s) => s.track?.kind === "video");
 
-          if (sender) {
-            sender.replaceTrack(newVideoTrack);
-          }
+          if (sender) sender.replaceTrack(newVideoTrack);
         });
 
         const newFacing =
-          facingModeRef.current === "user" ? "environment" : "user";
+          newVideoTrack.getSettings()?.facingMode ||
+          (facingMode === "user" ? "environment" : "user");
 
         facingModeRef.current = newFacing;
         setFacingMode(newFacing);
 
-        console.log("[VideoCall] camera switched");
+        console.log("[VideoCall] camera switched successfully");
       } catch (err) {
         console.error("[VideoCall] camera switch error:", err);
       } finally {
@@ -635,6 +656,7 @@ const VideoCall = forwardRef(
         setIsSwitching(false);
       }
     };
+
     const callChat = useMemo(() => {
       return chats?.find((c) => String(c._id) === String(chatId));
     }, [chats, chatId]);
