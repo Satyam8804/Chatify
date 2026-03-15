@@ -48,7 +48,7 @@ const AuthForm = ({ mode = "login", onSubmit, loading }) => {
         <img
           src={logo}
           alt="Chatify"
-          className="w-14 h-14 object-contain mb-2 drop-shadow-lg drop-shadow-emerald-500/40"
+          className="w-16 h-16 object-contain mb-2 drop-shadow-lg drop-shadow-emerald-500/40"
         />
         <h1 className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
           Chatify
