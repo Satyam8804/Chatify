@@ -105,6 +105,18 @@ export const SocketProvider = ({ children }) => {
 
     newSocket.on("call-ended", () => setIncomingCall(null));
 
+    newSocket.on("reconnect", (attempt) => {
+      logger("🔄 Socket reconnected after", attempt, "attempts");
+    });
+
+    newSocket.on("reconnect_error", (err) => {
+      logger("❌ Socket reconnect error:", err.message);
+    });
+
+    newSocket.on("disconnect", (reason) => {
+      logger("🔴 Socket disconnected:", reason);
+    });
+    
     return () => newSocket.disconnect(); // ✅ cleanup on user change
   }, [user?._id]); // ✅ re-runs on login/logout
 

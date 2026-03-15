@@ -29,7 +29,7 @@ const ProtectedRoute = ({ children }) => {
         }
         return prev + 1;
       });
-    }, 1500);
+    }, 800);
 
     return () => clearInterval(interval);
   }, []);
