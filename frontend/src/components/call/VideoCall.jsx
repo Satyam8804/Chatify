@@ -82,6 +82,7 @@ const VideoCall = forwardRef(
     const [invitedUsers, setInvitedUsers] = useState(new Set());
     const [isSwitching, setIsSwitching] = useState(false);
     const [swapped, setSwapped] = useState(false);
+    const [selectedRemoteIndex, setSelectedRemoteIndex] = useState(0);
 
     useEffect(() => {
       facingModeRef.current = facingMode;
@@ -92,7 +93,13 @@ const VideoCall = forwardRef(
         localVideoMainRef.current.srcObject = localStreamRef.current;
         localVideoMainRef.current.play().catch(() => {});
       }
-    }, [swapped]);
+    }, [swapped, isSwitching]);
+
+    useEffect(() => {
+      if (selectedRemoteIndex >= remoteStreams.length)
+        setSelectedRemoteIndex(0);
+      if (remoteStreams.length === 0 && swapped) setSwapped(false);
+    }, [remoteStreams, selectedRemoteIndex, swapped]);
 
     const getLocalStream = async (forceNew = false) => {
       if (localStreamRef.current && !forceNew) return localStreamRef.current;
@@ -492,13 +499,15 @@ const VideoCall = forwardRef(
         } catch {}
       });
       currentDeviceIdRef.current = null;
-      camerasRef.current = []; // ✅ add
-      cameraIndexRef.current = 0; // ✅ add
+      camerasRef.current = [];
+      cameraIndexRef.current = 0;
       closeAllPeers();
       localStreamRef.current = null;
       if (localVideoRef.current) localVideoRef.current.srcObject = null;
+      if (localVideoMainRef.current) localVideoMainRef.current.srcObject = null;
       setRemoteStreams([]);
       setSwapped(false);
+      setSelectedRemoteIndex(0);
     };
 
     cleanupRef.current = cleanup;
@@ -603,8 +612,13 @@ const VideoCall = forwardRef(
           localVideoRef.current.play().catch(() => {});
         }
 
+        if (localVideoMainRef.current) {
+          localVideoMainRef.current.srcObject = composedStream;
+          localVideoMainRef.current.play().catch(() => {});
+        }
+
         peersRef.current.forEach(({ peer }) => {
-          if (!peer) return;
+          if (!peer || peer.connectionState === "closed") return;
           try {
             const senders = peer.getSenders();
             const oldVideoSender = senders.find(
@@ -694,11 +708,42 @@ const VideoCall = forwardRef(
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
         {/* Main view */}
-        <div
-          className={`flex-1 ${swapped ? "flex" : gridClass} gap-1 p-1 min-h-0`}
-        >
-          {swapped ? (
-            // Local in main when swapped
+        <div className="flex-1 relative min-h-0">
+          {/* Remote streams — hidden when swapped */}
+          <div
+            className={`absolute inset-0 ${
+              swapped ? "hidden" : gridClass
+            } gap-1 p-1`}
+          >
+            {remoteStreams.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-4">
+                <div className="w-12 h-12 rounded-full border-2 border-sky-500/20 border-t-sky-400 animate-spin" />
+                <p className="text-sm font-medium text-slate-500 tracking-wide">
+                  Connecting…
+                </p>
+              </div>
+            ) : (
+              remoteStreams.map(({ userId, stream, name }, index) => (
+                <div
+                  key={userId}
+                  className="relative flex-1 min-w-0 min-h-0 cursor-pointer"
+                  onClick={() => {
+                    if (selectedRemoteIndex !== index || !swapped) {
+                      setSelectedRemoteIndex(index);
+                      setSwapped(true);
+                    }
+                  }}
+                >
+                  <RemoteVideo stream={stream} name={name} />
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Local video in main — hidden when not swapped */}
+          <div
+            className={`absolute inset-0 p-1 ${swapped ? "flex" : "hidden"}`}
+          >
             <div className="relative flex-1 min-w-0 min-h-0 bg-slate-900 rounded-2xl overflow-hidden border border-white/5">
               <video
                 ref={localVideoMainRef}
@@ -721,18 +766,7 @@ const VideoCall = forwardRef(
                 You
               </span>
             </div>
-          ) : remoteStreams.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center gap-4">
-              <div className="w-12 h-12 rounded-full border-2 border-sky-500/20 border-t-sky-400 animate-spin" />
-              <p className="text-sm font-medium text-slate-500 tracking-wide">
-                Connecting…
-              </p>
-            </div>
-          ) : (
-            remoteStreams.map(({ userId, stream, name }) => (
-              <RemoteVideo key={userId} stream={stream} name={name} />
-            ))
-          )}
+          </div>
         </div>
 
         {/* Top bar */}
@@ -750,43 +784,48 @@ const VideoCall = forwardRef(
           </div>
         </div>
 
-        {/* PiP — localVideoRef always here */}
+        {/* PiP */}
         <div
-          onClick={() => remoteStreams.length === 1 && setSwapped((p) => !p)}
+          onClick={() => remoteStreams.length > 0 && setSwapped((p) => !p)}
           className={`absolute top-14 right-3 z-20 w-24 h-32 sm:w-32 sm:h-44 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-900 transition-transform ${
-            remoteStreams.length === 1 ? "cursor-pointer active:scale-95" : ""
+            remoteStreams.length > 0 ? "cursor-pointer active:scale-95" : ""
           }`}
         >
-          {swapped ? (
-            remoteStreams[0] ? (
+          {/* Local video in PiP — always mounted, hidden when swapped */}
+          <div className={`absolute inset-0 ${swapped ? "hidden" : "block"}`}>
+            <video
+              ref={localVideoRef}
+              autoPlay
+              muted
+              playsInline
+              className={`w-full h-full object-cover transition-opacity duration-300 ${
+                isFrontCamera ? "scale-x-[-1]" : ""
+              } ${isVideoOff ? "opacity-0" : "opacity-100"}`}
+            />
+            {isVideoOff && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-slate-600">
+                <VideoOff size={16} />
+                <span className="text-[8px] font-bold uppercase tracking-widest text-slate-700">
+                  Off
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Selected remote in PiP — shown when swapped */}
+          {swapped && remoteStreams[selectedRemoteIndex] && (
+            <div className="absolute inset-0">
               <RemoteVideo
-                stream={remoteStreams[0].stream}
-                name={remoteStreams[0].name}
+                stream={remoteStreams[selectedRemoteIndex].stream}
+                name={remoteStreams[selectedRemoteIndex].name}
               />
-            ) : null
-          ) : (
-            <>
-              <video
-                ref={localVideoRef}
-                autoPlay
-                muted
-                playsInline
-                className={`w-full h-full object-cover transition-opacity duration-300 ${
-                  isFrontCamera ? "scale-x-[-1]" : ""
-                } ${isVideoOff ? "opacity-0" : "opacity-100"}`}
-              />
-              {isVideoOff && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-slate-600">
-                  <VideoOff size={16} />
-                  <span className="text-[8px] font-bold uppercase tracking-widest text-slate-700">
-                    Off
-                  </span>
-                </div>
-              )}
-            </>
+            </div>
           )}
-          <span className="absolute bottom-1.5 left-0 right-0 text-center text-[9px] text-white/35 font-medium">
-            {swapped ? remoteStreams[0]?.name || "Remote" : "You"}
+
+          <span className="absolute bottom-1.5 left-0 right-0 text-center text-[9px] text-white/35 font-medium z-10">
+            {swapped
+              ? remoteStreams[selectedRemoteIndex]?.name || "Remote"
+              : "You"}
           </span>
         </div>
 
