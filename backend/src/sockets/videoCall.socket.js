@@ -1,10 +1,37 @@
 import { onlineUsers } from "./presence.socket.js";
 
+const routeToUser = (io, userId, roomId, event, data) => {
+  if (roomId) {
+    const room = io.sockets.adapter.rooms.get(roomId);
+    if (room) {
+      let sent = false;
+      room.forEach((socketId) => {
+        const s = io.sockets.sockets.get(socketId);
+        if (s?.userId === userId) {
+          s.emit(event, data);
+          sent = true;
+          console.log(`[Server] ${event} sent via room to ${userId}`);
+        }
+      });
+      if (sent) return;
+    }
+  }
+
+  const targets = onlineUsers.get(userId);
+  if (targets?.size) {
+    console.log(`[Server] ${event} fallback via onlineUsers to ${userId}`);
+    targets.forEach((socketId) => io.to(socketId).emit(event, data));
+  } else {
+    console.warn(`[Server] ${event} — no socket found for ${userId}`);
+  }
+};
+
 export const videoCallSocket = (io, socket) => {
   socket.on("join-call-room", ({ roomId }) => {
     if (!roomId || socket.rooms.has(roomId)) return;
 
-    // ✅ collect BEFORE joining so self isn't included
+    console.log(`[Server] ${socket.userId} joining room ${roomId}`);
+
     const existingParticipants = [];
     const room = io.sockets.adapter.rooms.get(roomId);
     if (room) {
@@ -15,7 +42,12 @@ export const videoCallSocket = (io, socket) => {
       });
     }
 
-    socket.join(roomId); // ✅ join AFTER collecting
+    socket.join(roomId);
+
+    console.log(
+      `[Server] existing participants for ${socket.userId}:`,
+      existingParticipants
+    );
 
     socket.emit("existing-participants", {
       participants: existingParticipants,
@@ -25,12 +57,12 @@ export const videoCallSocket = (io, socket) => {
       name: socket.user?.fName,
     });
   });
+
   socket.on("leave-call-room", ({ roomId }) => {
-    if (roomId) {
-      socket.leave(roomId);
-      socket.to(roomId).emit("user-left-call", { userId: socket.userId });
-      return;
-    }
+    if (!roomId) return;
+    console.log(`[Server] ${socket.userId} leaving room ${roomId}`);
+    socket.leave(roomId);
+    socket.to(roomId).emit("user-left-call", { userId: socket.userId });
   });
 
   socket.on("video-call-user", ({ chatId, receiverIds, isGroup }) => {
@@ -55,7 +87,7 @@ export const videoCallSocket = (io, socket) => {
           from: socket.userId,
           callerName: socket.user?.fName,
           chatId,
-          isGroup: true, // ✅ upgrade to group
+          isGroup: true,
         });
       });
     });
@@ -89,44 +121,42 @@ export const videoCallSocket = (io, socket) => {
   });
 
   socket.on("webrtc-offer", ({ offer, to, fromName, roomId }) => {
-    if (!offer || !to || !roomId) return;
-    const room = io.sockets.adapter.rooms.get(roomId);
-    if (!room) return;
-    room.forEach((socketId) => {
-      const s = io.sockets.sockets.get(socketId);
-      if (s?.userId === to) {
-        s.emit("webrtc-offer", { offer, from: socket.userId, fromName });
-      }
+    if (!offer || !to) return;
+    console.log(
+      `[Server] webrtc-offer from ${socket.userId} to ${to} roomId ${roomId}`
+    );
+    sendToUser(io, to, roomId, "webrtc-offer", {
+      offer,
+      from: socket.userId,
+      fromName,
     });
   });
 
   socket.on("webrtc-answer", ({ answer, to, roomId }) => {
-    if (!answer || !to || !roomId) return;
-    const room = io.sockets.adapter.rooms.get(roomId);
-    if (!room) return;
-    room.forEach((socketId) => {
-      const s = io.sockets.sockets.get(socketId);
-      if (s?.userId === to) {
-        s.emit("webrtc-answer", { answer, from: socket.userId });
-      }
+    if (!answer || !to) return;
+    console.log(
+      `[Server] webrtc-answer from ${socket.userId} to ${to} roomId ${roomId}`
+    );
+    sendToUser(io, to, roomId, "webrtc-answer", {
+      answer,
+      from: socket.userId,
     });
   });
 
   socket.on("ice-candidate", ({ candidate, to, roomId }) => {
-    if (!candidate || !to || !roomId) return;
-    const room = io.sockets.adapter.rooms.get(roomId);
-    if (!room) return;
-    room.forEach((socketId) => {
-      const s = io.sockets.sockets.get(socketId);
-      if (s?.userId === to) {
-        s.emit("ice-candidate", { candidate, from: socket.userId });
-      }
+    if (!candidate || !to) return;
+    sendToUser(io, to, roomId, "ice-candidate", {
+      candidate,
+      from: socket.userId,
     });
   });
 
   socket.on("disconnecting", () => {
     socket.rooms.forEach((roomId) => {
-      if (roomId === socket.id) return;
+      if (roomId === socket.id || roomId === socket.userId?.toString()) return;
+      console.log(
+        `[Server] ${socket.userId} disconnecting from room ${roomId}`
+      );
       socket.to(roomId).emit("user-left-call", { userId: socket.userId });
     });
   });
