@@ -46,6 +46,8 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
     credentials: true,
   },
+  pingInterval: 10000,
+  pingTimeout: 5000,
 });
 
 io.engine.on("connection_error", (err) => {

@@ -37,6 +37,10 @@ export const SocketProvider = ({ children }) => {
       auth: { token },
       autoConnect: true,
       transports: ["websocket"],
+      pingInterval: 10000,
+      pingTimeout: 5000,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
 
     setSocket(newSocket);
