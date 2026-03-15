@@ -1,14 +1,21 @@
 import { VideoOff } from "lucide-react";
 
-const LocalVideo = ({ videoRef, isFrontCamera, isVideoOff, className = "" }) => {
+const LocalVideo = ({
+  videoRef,
+  isFrontCamera,
+  isVideoOff,
+  className = "",
+}) => {
   return (
-    <div className={`relative w-full h-full bg-slate-900 overflow-hidden ${className}`}>
+    <div
+      className={`relative w-full h-full bg-slate-900 overflow-hidden ${className}`}
+    >
       <video
         ref={videoRef}
         autoPlay
         muted
         playsInline
-        className={`w-full h-full object-contain transition-opacity duration-300 ${
+        className={`w-full h-full object-contain transform-gpu transition-opacity duration-300 ${
           isFrontCamera ? "scale-x-[-1]" : ""
         } ${isVideoOff ? "opacity-0" : "opacity-100"}`}
       />

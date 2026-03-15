@@ -15,7 +15,7 @@ const RemoteVideo = ({ stream, name }) => {
         ref={ref}
         autoPlay
         playsInline
-        className="w-full h-full object-contain"
+        className="w-full h-full object-contain transform-gpu"
       />
       {name && (
         <span className="absolute bottom-2 left-3 text-[10px] text-white/50 font-medium">
