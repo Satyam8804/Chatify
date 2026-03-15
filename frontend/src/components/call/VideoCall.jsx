@@ -85,32 +85,50 @@ const VideoCall = forwardRef(
       facingModeRef.current = facingMode;
     }, [facingMode]);
 
+    // getLocalStream: returns existing unless forceNew true
     const getLocalStream = async (forceNew = false) => {
       if (localStreamRef.current && !forceNew) return localStreamRef.current;
 
       console.log("[VideoCall] acquiring local stream");
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facingModeRef.current },
-        audio: true,
-      });
-
-      const videoTrack = stream.getVideoTracks()[0];
-
-      currentDeviceIdRef.current = videoTrack?.getSettings()?.deviceId ?? null;
-
-      console.log(
-        "[VideoCall] local stream acquired, deviceId:",
-        currentDeviceIdRef.current
-      );
-
-      localStreamRef.current = stream;
-
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
+      // stop old if forcing new
+      if (forceNew && localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((t) => {
+          try {
+            t.stop();
+          } catch {}
+        });
+        localStreamRef.current = null;
       }
 
-      return stream;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facingModeRef.current },
+          audio: true,
+        });
+
+        const videoTrack = stream.getVideoTracks()[0];
+        currentDeviceIdRef.current =
+          videoTrack?.getSettings()?.deviceId ?? null;
+        console.log(
+          "[VideoCall] got local stream, deviceId:",
+          currentDeviceIdRef.current,
+          "facingMode:",
+          videoTrack?.getSettings()?.facingMode
+        );
+
+        localStreamRef.current = stream;
+
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+          localVideoRef.current.play().catch(() => {});
+        }
+
+        return stream;
+      } catch (err) {
+        console.error("[VideoCall] getLocalStream error:", err);
+        throw err;
+      }
     };
 
     const handleRemovePeer = (userId) => {
@@ -124,12 +142,16 @@ const VideoCall = forwardRef(
       stream.getTracks().forEach((track) => {
         const alreadyAdded = senders.some((s) => s.track?.kind === track.kind);
         if (!alreadyAdded) {
-          const sender = peer.addTrack(track, stream);
-          if (track.kind === "audio" && isMutedRef.current) {
-            sender.track.enabled = false;
-          }
-          if (track.kind === "video" && isVideoOffRef.current) {
-            sender.track.enabled = false;
+          try {
+            const sender = peer.addTrack(track, stream);
+            if (track.kind === "audio" && isMutedRef.current) {
+              sender.track.enabled = false;
+            }
+            if (track.kind === "video" && isVideoOffRef.current) {
+              sender.track.enabled = false;
+            }
+          } catch (err) {
+            console.warn("[VideoCall] addTrack failed:", err);
           }
         }
       });
@@ -153,21 +175,18 @@ const VideoCall = forwardRef(
 
       peer.onicecandidate = (e) => {
         if (e.candidate) {
-          console.log("[VideoCall] sending ICE candidate to", userId);
           socket.emit("ice-candidate", {
             candidate: e.candidate,
             to: userId,
             roomId: chatId,
           });
-        } else {
-          console.log("[VideoCall] ICE gathering complete for", userId);
         }
       };
 
       peer.ontrack = (e) => {
         const incomingStream = e.streams?.[0];
         console.log(
-          "[VideoCall] ontrack fired from",
+          "[VideoCall] ontrack from",
           userId,
           "stream:",
           !!incomingStream
@@ -189,12 +208,6 @@ const VideoCall = forwardRef(
       };
 
       peer.onconnectionstatechange = () => {
-        console.log(
-          "[VideoCall] connection state →",
-          peer.connectionState,
-          "for",
-          userId
-        );
         if (
           peer.connectionState === "failed" ||
           peer.connectionState === "closed"
@@ -204,50 +217,28 @@ const VideoCall = forwardRef(
       };
 
       peer.oniceconnectionstatechange = () => {
-        console.log(
-          "[VideoCall] ICE connection state →",
-          peer.iceConnectionState,
-          "for",
-          userId
-        );
         if (peer.iceConnectionState === "failed") {
-          console.warn("[VideoCall] ICE failed, restarting for", userId);
-          peer.restartIce();
+          try {
+            peer.restartIce();
+          } catch {}
         }
       };
 
       peer.onsignalingstatechange = () => {
-        console.log(
-          "[VideoCall] signaling state →",
-          peer.signalingState,
-          "for",
-          userId
-        );
+        // optional debug
       };
 
       return peer;
     };
 
     const initiateOffer = async (userId, userName) => {
-      console.log("[VideoCall] initiateOffer →", userId);
       const peer = createPeerConnection(userId, userName);
       if (!peer) return;
       const stream = await getLocalStream();
 
       const entry = getPeerEntry(userId);
-      if (!entry) {
-        console.warn("[VideoCall] no entry found for", userId);
-        return;
-      }
-      if (peer.signalingState !== "stable") {
-        console.warn(
-          "[VideoCall] signalingState not stable for",
-          userId,
-          "→",
-          peer.signalingState
-        );
-        return;
-      }
+      if (!entry) return;
+      if (peer.signalingState !== "stable") return;
 
       addTracksIfNeeded(peer, stream);
 
@@ -255,7 +246,6 @@ const VideoCall = forwardRef(
         entry.makingOffer = true;
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
-        console.log("[VideoCall] offer sent to", userId);
         socket.emit("webrtc-offer", {
           offer: peer.localDescription,
           to: userId,
@@ -286,29 +276,38 @@ const VideoCall = forwardRef(
       localStreamRef.current = null;
 
       const handleDeviceChange = async () => {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-
-        const newCameras = devices.filter(
-          (d) => d.kind === "videoinput" && d.deviceId
-        );
-
-        const currentIdx = newCameras.findIndex(
-          (d) => d.deviceId === currentDeviceIdRef.current
-        );
-
-        cameraIndexRef.current = currentIdx === -1 ? 0 : currentIdx;
-        camerasRef.current = newCameras;
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const newCameras = devices.filter(
+            (d) => d.kind === "videoinput" && d.deviceId
+          );
+          camerasRef.current = newCameras;
+          const idx = newCameras.findIndex(
+            (d) => d.deviceId === currentDeviceIdRef.current
+          );
+          cameraIndexRef.current = idx === -1 ? 0 : idx;
+          console.log(
+            "[VideoCall] devicechange, cameras:",
+            newCameras.map((c) => c.label)
+          );
+        } catch (err) {
+          console.warn("[VideoCall] handleDeviceChange error:", err);
+        }
       };
 
       const init = async () => {
         try {
-          await getLocalStream();
+          await getLocalStream(); // will populate currentDeviceIdRef if permitted
 
           const devices = await navigator.mediaDevices.enumerateDevices();
-
           camerasRef.current = devices.filter(
             (d) => d.kind === "videoinput" && d.deviceId
           );
+
+          const idx = camerasRef.current.findIndex(
+            (d) => d.deviceId === currentDeviceIdRef.current
+          );
+          cameraIndexRef.current = idx === -1 ? 0 : idx;
 
           console.log(
             "[VideoCall] cameras detected:",
@@ -346,45 +345,19 @@ const VideoCall = forwardRef(
       if (!socket) return;
 
       const handleExistingParticipants = async ({ participants }) => {
-        console.log("[VideoCall] existing-participants →", participants);
-
         for (const { userId, name } of participants) {
           if (!userId || String(userId) === String(user?._id)) continue;
-
-          if (getPeerEntry(userId)?.peer) {
-            console.warn("[VideoCall] peer already exists for", userId);
-            continue;
-          }
-
           const entry = getPeerEntry(userId);
-          if (entry?.makingOffer) {
-            console.warn("[VideoCall] offer already in progress for", userId);
-            continue;
-          }
-
+          if (entry?.peer) continue;
+          if (entry?.makingOffer) continue;
           await initiateOffer(userId, name);
         }
       };
 
       const handleUserJoined = async ({ userId, name }) => {
-        console.log("[VideoCall] user-joined-call →", userId);
         if (!userId || String(userId) === String(user?._id)) return;
-        if (getPeerEntry(userId)?.peer) {
-          console.warn(
-            "[VideoCall] peer already exists for",
-            userId,
-            "— skipping"
-          );
-          return;
-        }
-        if (pendingPeersRef.current.has(userId)) {
-          console.warn(
-            "[VideoCall] offer already pending for",
-            userId,
-            "— skipping"
-          );
-          return;
-        }
+        if (getPeerEntry(userId)?.peer) return;
+        if (pendingPeersRef.current.has(userId)) return;
         pendingPeersRef.current.add(userId);
         try {
           await initiateOffer(userId, name);
@@ -394,7 +367,6 @@ const VideoCall = forwardRef(
       };
 
       const handleOffer = async ({ offer, from, fromName }) => {
-        console.log("[VideoCall] received offer from", from);
         const stream = await getLocalStream();
         const peer = createPeerConnection(from, fromName);
         if (!peer) return;
@@ -407,30 +379,11 @@ const VideoCall = forwardRef(
 
         const offerCollision =
           entry.makingOffer || peer.signalingState !== "stable";
-        console.log(
-          "[VideoCall] offerCollision:",
-          offerCollision,
-          "polite:",
-          entry.polite
-        );
-        if (!entry.polite && offerCollision) {
-          console.warn(
-            "[VideoCall] impolite peer ignoring colliding offer from",
-            from
-          );
-          return;
-        }
+        if (!entry.polite && offerCollision) return;
 
         await peer.setRemoteDescription(offer);
-        console.log("[VideoCall] remote description set for", from);
 
         if (entry?.pendingCandidates?.length) {
-          console.log(
-            "[VideoCall] applying",
-            entry.pendingCandidates.length,
-            "pending candidates for",
-            from
-          );
           for (const candidate of entry.pendingCandidates) {
             try {
               await peer.addIceCandidate(candidate);
@@ -443,7 +396,6 @@ const VideoCall = forwardRef(
 
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
-        console.log("[VideoCall] answer sent to", from);
         socket.emit("webrtc-answer", {
           answer: peer.localDescription,
           to: from,
@@ -452,21 +404,11 @@ const VideoCall = forwardRef(
       };
 
       const handleAnswer = async ({ answer, from }) => {
-        console.log("[VideoCall] received answer from", from);
         const entry = getPeerEntry(from);
-        if (!entry?.peer) {
-          console.warn("[VideoCall] no peer entry for answer from", from);
-          return;
-        }
+        if (!entry?.peer) return;
         try {
           if (!entry.peer.currentRemoteDescription) {
             await entry.peer.setRemoteDescription(answer);
-            console.log("[VideoCall] answer applied from", from);
-          } else {
-            console.warn(
-              "[VideoCall] remote description already set for",
-              from
-            );
           }
         } catch (err) {
           console.warn("[VideoCall] failed to apply answer from", from, err);
@@ -474,10 +416,8 @@ const VideoCall = forwardRef(
       };
 
       const handleIce = async ({ candidate, from }) => {
-        console.log("[VideoCall] received ICE candidate from", from);
         const entry = getPeerEntry(from);
         if (!entry) {
-          console.warn("[VideoCall] no entry for ICE from", from, "— queuing");
           setPeerEntry(from, {
             peer: null,
             pendingCandidates: [candidate],
@@ -497,11 +437,6 @@ const VideoCall = forwardRef(
             );
           }
         } else {
-          console.warn(
-            "[VideoCall] queuing ICE candidate from",
-            from,
-            "— no remote description yet"
-          );
           setPeerEntry(from, {
             ...entry,
             pendingCandidates: [...(entry.pendingCandidates || []), candidate],
@@ -510,7 +445,6 @@ const VideoCall = forwardRef(
       };
 
       const handleUserLeft = ({ userId }) => {
-        console.log("[VideoCall] user-left-call →", userId);
         handleRemovePeer(userId);
       };
 
@@ -536,13 +470,14 @@ const VideoCall = forwardRef(
     const cleanup = () => {
       if (cleanedUpRef.current) return;
       cleanedUpRef.current = true;
-      console.log("[VideoCall] cleanup");
       localStreamRef.current?.getTracks().forEach((t) => {
         try {
           t.stop();
         } catch {}
       });
       currentDeviceIdRef.current = null;
+      camerasRef.current = []; // ✅ add
+      cameraIndexRef.current = 0; // ✅ add
       closeAllPeers();
       localStreamRef.current = null;
       if (localVideoRef.current) localVideoRef.current.srcObject = null;
@@ -572,32 +507,48 @@ const VideoCall = forwardRef(
     const toggleVideo = () => {
       if (!localStreamRef.current) return;
       const track = localStreamRef.current.getVideoTracks()[0];
+      if (!track) return;
       track.enabled = !track.enabled;
       isVideoOffRef.current = !track.enabled;
       setIsVideoOff(!track.enabled);
+
+      // reflect on senders
+      peersRef.current.forEach(({ peer }) => {
+        const sender = peer.getSenders().find((s) => s.track?.kind === "video");
+        if (sender?.track) sender.track.enabled = track.enabled;
+      });
     };
 
     const switchCamera = async () => {
       if (switchingRef.current) return;
-
       switchingRef.current = true;
       setIsSwitching(true);
 
       try {
-        const cameras = camerasRef.current;
-
+        const cameras = camerasRef.current || [];
         if (cameras.length < 2) {
           console.warn("[VideoCall] only one camera available");
           return;
         }
 
         cameraIndexRef.current = (cameraIndexRef.current + 1) % cameras.length;
-
         const nextCamera = cameras[cameraIndexRef.current];
+        console.log(
+          "[VideoCall] switching to:",
+          nextCamera.label,
+          nextCamera.deviceId
+        );
 
-        console.log("[VideoCall] switching to:", nextCamera.label);
+        const oldStream = localStreamRef.current;
+        const oldAudioTrack = oldStream?.getAudioTracks()?.[0];
 
-        const stream = await navigator.mediaDevices.getUserMedia({
+        oldStream?.getVideoTracks().forEach((t) => {
+          try {
+            t.stop();
+          } catch {}
+        });
+
+        const newVideoStream = await navigator.mediaDevices.getUserMedia({
           video: {
             deviceId: { exact: nextCamera.deviceId },
             width: { ideal: 1280 },
@@ -606,40 +557,22 @@ const VideoCall = forwardRef(
           audio: false,
         });
 
-        const newVideoTrack = stream.getVideoTracks()[0];
-        stream.getTracks().forEach((t) => {
+        const newVideoTrack = newVideoStream.getVideoTracks()[0];
+        if (!newVideoTrack)
+          throw new Error("No video track from requested camera");
+
+        // stop unused tracks from temp stream
+        newVideoStream.getTracks().forEach((t) => {
           if (t !== newVideoTrack) t.stop();
         });
 
-        const oldStream = localStreamRef.current;
-        const oldAudioTrack = oldStream?.getAudioTracks()[0];
-
-        // stop old video track
-        oldStream?.getVideoTracks().forEach((t) => {
-          try {
-            t.stop();
-          } catch {}
-        });
-
-        const newStream = new MediaStream([
+        const composedStream = new MediaStream([
           newVideoTrack,
           ...(oldAudioTrack ? [oldAudioTrack] : []),
         ]);
 
-        localStreamRef.current = newStream;
-
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = newStream;
-        }
-
-        // replace track in all peers
-        peersRef.current.forEach(({ peer }) => {
-          const sender = peer
-            .getSenders()
-            .find((s) => s.track?.kind === "video");
-
-          if (sender) sender.replaceTrack(newVideoTrack);
-        });
+        localStreamRef.current = composedStream;
+        currentDeviceIdRef.current = nextCamera.deviceId;
 
         const newFacing =
           newVideoTrack.getSettings()?.facingMode ||
@@ -648,7 +581,44 @@ const VideoCall = forwardRef(
         facingModeRef.current = newFacing;
         setFacingMode(newFacing);
 
-        console.log("[VideoCall] camera switched successfully");
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = composedStream;
+          localVideoRef.current.play().catch(() => {});
+        }
+
+        peersRef.current.forEach(({ peer }) => {
+          if (!peer) return;
+          try {
+            const senders = peer.getSenders();
+            const oldVideoSender = senders.find(
+              (s) => s.track?.kind === "video"
+            );
+            if (oldVideoSender) {
+              oldVideoSender.replaceTrack(newVideoTrack).catch((err) => {
+                console.warn("[VideoCall] replaceTrack failed:", err);
+              });
+            } else {
+              peer.addTrack(newVideoTrack, composedStream);
+            }
+          } catch (err) {
+            console.warn("[VideoCall] error updating peer senders:", err);
+          }
+        });
+
+        if (isMutedRef.current) {
+          peersRef.current.forEach(({ peer }) => {
+            const sender = peer
+              .getSenders()
+              .find((s) => s.track?.kind === "audio");
+            if (sender?.track) sender.track.enabled = false;
+          });
+        }
+
+        if (isVideoOffRef.current) {
+          newVideoTrack.enabled = false;
+        }
+
+        console.log("[VideoCall] camera switched to", nextCamera.label);
       } catch (err) {
         console.error("[VideoCall] camera switch error:", err);
       } finally {
@@ -702,7 +672,8 @@ const VideoCall = forwardRef(
     const warnBtn =
       "flex items-center justify-center w-12 h-12 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 backdrop-blur-sm transition-all duration-200 active:scale-95";
 
-    const isFrontCamera = facingModeRef.current === "user";
+    const isFrontCamera = facingMode === "user";
+
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
         <div className={`flex-1 ${gridClass} gap-1 p-1 min-h-0`}>
