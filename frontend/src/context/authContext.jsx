@@ -16,30 +16,26 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
 
     const restoreSession = async () => {
       try {
-        const token = getToken();
+        let token = getToken();
 
-        // 🚨 If no token in memory → user not logged in
+        // If memory token missing → try refresh once
         if (!token) {
-          setUser(null);
-          return;
+          const { data } = await api.post("/users/refresh-token");
+          token = data.accessToken;
+          setToken(token);
         }
 
         const { data } = await api.get("/users/me");
-
-        if (mounted) setUser(data.user);
+        setUser(data.user);
       } catch (error) {
         logger(error);
-
-        if (mounted) {
-          clearToken();
-          setUser(null);
-        }
+        clearToken();
+        setUser(null);
       } finally {
-        if (mounted) setLoading(false);
+        setLoading(false);
       }
     };
 
