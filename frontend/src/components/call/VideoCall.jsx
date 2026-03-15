@@ -52,6 +52,8 @@ const VideoCall = forwardRef(
     const [swapped, setSwapped] = useState(false);
     const [selectedRemoteIndex, setSelectedRemoteIndex] = useState(0);
 
+    const canSwap = remoteStreams.length === 1;
+
     useEffect(() => {
       facingModeRef.current = facingMode;
     }, [facingMode]);
@@ -67,6 +69,7 @@ const VideoCall = forwardRef(
       if (selectedRemoteIndex >= remoteStreams.length)
         setSelectedRemoteIndex(0);
       if (remoteStreams.length === 0 && swapped) setSwapped(false);
+      if (remoteStreams.length > 1 && swapped) setSwapped(false);
     }, [remoteStreams, selectedRemoteIndex, swapped]);
 
     const { getLocalStream, toggleMute, toggleVideo, switchCamera } =
@@ -260,12 +263,14 @@ const VideoCall = forwardRef(
         }
       };
 
+      const handleUserLeft = ({ userId }) => handleRemovePeer(userId);
+
       socket.on("existing-participants", handleExistingParticipants);
       socket.on("user-joined-call", handleUserJoined);
       socket.on("webrtc-offer", handleOffer);
       socket.on("webrtc-answer", handleAnswer);
       socket.on("ice-candidate", handleIce);
-      socket.on("user-left-call", ({ userId }) => handleRemovePeer(userId));
+      socket.on("user-left-call", handleUserLeft);
 
       return () => {
         socket.off("existing-participants", handleExistingParticipants);
@@ -273,7 +278,7 @@ const VideoCall = forwardRef(
         socket.off("webrtc-offer", handleOffer);
         socket.off("webrtc-answer", handleAnswer);
         socket.off("ice-candidate", handleIce);
-        socket.off("user-left-call", ({ userId }) => handleRemovePeer(userId));
+        socket.off("user-left-call", handleUserLeft);
       };
     }, [socket, user?._id, chatId]);
 
@@ -339,6 +344,7 @@ const VideoCall = forwardRef(
         : remoteStreams.length <= 4
         ? "grid grid-cols-2"
         : "grid grid-cols-3";
+
     const isFrontCamera = facingMode === "user";
 
     return (
@@ -360,12 +366,7 @@ const VideoCall = forwardRef(
             ) : remoteStreams.length === 1 ? (
               <div
                 className="flex-1 w-full h-full min-w-0 min-h-0 cursor-pointer"
-                onClick={() => {
-                  if (selectedRemoteIndex !== 0 || !swapped) {
-                    setSelectedRemoteIndex(0);
-                    setSwapped(true);
-                  }
-                }}
+                onClick={() => canSwap && setSwapped(true)}
               >
                 <RemoteVideo
                   stream={remoteStreams[0].stream}
@@ -374,17 +375,8 @@ const VideoCall = forwardRef(
               </div>
             ) : (
               <div className={`w-full h-full ${gridClass} gap-1`}>
-                {remoteStreams.map(({ userId, stream, name }, index) => (
-                  <div
-                    key={userId}
-                    className="relative min-w-0 min-h-0 cursor-pointer"
-                    onClick={() => {
-                      if (selectedRemoteIndex !== index || !swapped) {
-                        setSelectedRemoteIndex(index);
-                        setSwapped(true);
-                      }
-                    }}
-                  >
+                {remoteStreams.map(({ userId, stream, name }) => (
+                  <div key={userId} className="relative min-w-0 min-h-0">
                     <RemoteVideo stream={stream} name={name} />
                   </div>
                 ))}
@@ -392,7 +384,7 @@ const VideoCall = forwardRef(
             )}
           </div>
 
-          {/* Local video in main */}
+          {/* Local video in main — only shown when swapped */}
           <div
             className={`absolute inset-0 p-1 ${swapped ? "flex" : "hidden"}`}
           >
@@ -426,9 +418,9 @@ const VideoCall = forwardRef(
 
         {/* PiP */}
         <div
-          onClick={() => remoteStreams.length > 0 && setSwapped((p) => !p)}
+          onClick={() => canSwap && setSwapped((p) => !p)}
           className={`absolute top-14 right-3 z-20 w-24 h-32 sm:w-32 sm:h-44 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-900 transition-transform ${
-            remoteStreams.length > 0 ? "cursor-pointer active:scale-95" : ""
+            canSwap ? "cursor-pointer active:scale-95" : ""
           }`}
         >
           <div className={`absolute inset-0 ${swapped ? "hidden" : "block"}`}>
