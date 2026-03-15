@@ -69,7 +69,9 @@ api.interceptors.response.use(
     const isMessage = url?.includes("/messages");
 
     if (isMutating && !isMessage) {
-      toast.success(response?.data?.message || "Success");
+      toast.success(response?.data?.message || "Success",{
+        duration: 2000
+      });
     }
 
     return response;
@@ -95,7 +97,9 @@ api.interceptors.response.use(
       }
     }
 
-    toast.error(error?.response?.data?.message || "Something went wrong");
+    toast.error(error?.response?.data?.message || "Something went wrong",{
+      duration: 3000
+    });
     return Promise.reject(error);
   }
 );
