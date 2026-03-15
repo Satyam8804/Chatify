@@ -69,6 +69,7 @@ const VideoCall = forwardRef(
     const isMutedRef = useRef(false);
     const pendingPeersRef = useRef(new Set());
     const isVideoOffRef = useRef(false);
+    const currentDeviceIdRef = useRef(null);
 
     const [remoteStreams, setRemoteStreams] = useState([]);
     const [isMuted, setIsMuted] = useState(false);
@@ -89,9 +90,14 @@ const VideoCall = forwardRef(
         video: { facingMode: facingModeRef.current },
         audio: true,
       });
+      const videoTrack = stream.getVideoTracks()[0];
+      currentDeviceIdRef.current = videoTrack?.getSettings()?.deviceId ?? null;
+      console.log(
+        "[VideoCall] local stream acquired, deviceId:",
+        currentDeviceIdRef.current
+      );
       localStreamRef.current = stream;
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-      console.log("[VideoCall] local stream acquired");
       return stream;
     };
 
@@ -512,18 +518,22 @@ const VideoCall = forwardRef(
       setIsSwitching(true);
 
       try {
-        // Re-request permission first to ensure deviceIds are populated
         await navigator.mediaDevices
-          .getUserMedia({ video: true, audio: false })
+          .getUserMedia({ video: true })
           .then((s) => s.getTracks().forEach((t) => t.stop()));
 
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(
           (d) => d.kind === "videoinput" && d.deviceId
         );
+
         console.log(
-          "[VideoCall] video devices:",
+          "[VideoCall] available cameras:",
           videoDevices.map((d) => ({ label: d.label, deviceId: d.deviceId }))
+        );
+        console.log(
+          "[VideoCall] current deviceId:",
+          currentDeviceIdRef.current
         );
 
         if (videoDevices.length < 2) {
@@ -531,25 +541,19 @@ const VideoCall = forwardRef(
           return;
         }
 
-        const currentTrack = localStreamRef.current?.getVideoTracks()[0];
-        const currentDeviceId = currentTrack?.getSettings()?.deviceId;
-        console.log("[VideoCall] current deviceId:", currentDeviceId);
-
         const currentIndex = videoDevices.findIndex(
-          (d) => d.deviceId === currentDeviceId
+          (d) => d.deviceId === currentDeviceIdRef.current
         );
-        console.log(
-          "[VideoCall] currentIndex:",
-          currentIndex,
-          "total:",
-          videoDevices.length
-        );
+        console.log("[VideoCall] currentIndex:", currentIndex);
 
-        // If currentIndex is -1 (not found), default to switching to index 1
         const nextIndex =
-          currentIndex === -1 ? 1 : (currentIndex + 1) % videoDevices.length;
+          currentIndex === -1 ? 0 : (currentIndex + 1) % videoDevices.length;
         const nextDevice = videoDevices[nextIndex];
-        console.log("[VideoCall] switching to:", nextDevice.label);
+        console.log(
+          "[VideoCall] switching to:",
+          nextDevice.label,
+          nextDevice.deviceId
+        );
 
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { deviceId: { exact: nextDevice.deviceId } },
@@ -571,7 +575,9 @@ const VideoCall = forwardRef(
           ...(oldAudioTrack ? [oldAudioTrack] : []),
         ]);
 
+        currentDeviceIdRef.current = nextDevice.deviceId;
         localStreamRef.current = newStream;
+
         if (localVideoRef.current) localVideoRef.current.srcObject = newStream;
 
         peersRef.current.forEach(({ peer }) => {
@@ -582,7 +588,7 @@ const VideoCall = forwardRef(
         });
 
         const newFacing =
-          newVideoTrack.getSettings()?.facingMode ||
+          newVideoTrack.getSettings()?.facingMode ??
           (facingModeRef.current === "user" ? "environment" : "user");
 
         facingModeRef.current = newFacing;
@@ -678,9 +684,7 @@ const VideoCall = forwardRef(
             muted
             playsInline
             className={`w-full h-full object-contain transition-opacity duration-300 ${
-              facingMode === "user" || facingMode === undefined
-                ? "scale-x-[-1]"
-                : ""
+              facingMode === "user" ? "scale-x-[-1]" : ""
             } ${isVideoOff ? "opacity-0" : "opacity-100"}`}
           />
           {isVideoOff && (
