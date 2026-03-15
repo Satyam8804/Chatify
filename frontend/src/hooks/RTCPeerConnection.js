@@ -3,6 +3,8 @@ import { useRef } from "react";
 const ICE_SERVERS = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun.cloudflare.com:3478" },
     {
       urls: "turn:global.relay.metered.ca:80",
       username: import.meta.env.VITE_METERED_USERNAME || "",
