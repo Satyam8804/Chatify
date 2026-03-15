@@ -392,12 +392,26 @@ const VideoCall = forwardRef(
       switchingRef.current = true;
       setIsSwitching(true);
 
-      const newFacing =
-        facingModeRef.current === "user" ? "environment" : "user";
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter((d) => d.kind === "videoinput");
 
-      const attemptSwitch = async (constraint) => {
+        if (videoDevices.length < 2) {
+          console.warn("Only one camera found");
+          return;
+        }
+
+        const currentTrack = localStreamRef.current?.getVideoTracks()[0];
+        const currentDeviceId = currentTrack?.getSettings()?.deviceId;
+
+        const currentIndex = videoDevices.findIndex(
+          (d) => d.deviceId === currentDeviceId
+        );
+        const nextDevice =
+          videoDevices[(currentIndex + 1) % videoDevices.length];
+
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: constraint },
+          video: { deviceId: { exact: nextDevice.deviceId } },
           audio: false,
         });
 
@@ -429,16 +443,12 @@ const VideoCall = forwardRef(
           if (sender) sender.replaceTrack(newVideoTrack);
         });
 
+        const newFacing =
+          newVideoTrack.getSettings()?.facingMode ||
+          (facingModeRef.current === "user" ? "environment" : "user");
+
         facingModeRef.current = newFacing;
         setFacingMode(newFacing);
-      };
-
-      try {
-        try {
-          await attemptSwitch({ exact: newFacing });
-        } catch {
-          await attemptSwitch(newFacing);
-        }
       } catch (err) {
         console.error("Camera switch error:", err);
       } finally {
@@ -533,7 +543,9 @@ const VideoCall = forwardRef(
             muted
             playsInline
             className={`w-full h-full object-contain transition-opacity duration-300 ${
-              facingMode === "user" ? "scale-x-[-1]" : ""
+              facingMode === "user" || facingMode === undefined
+                ? "scale-x-[-1]"
+                : ""
             } ${isVideoOff ? "opacity-0" : "opacity-100"}`}
           />
           {isVideoOff && (
