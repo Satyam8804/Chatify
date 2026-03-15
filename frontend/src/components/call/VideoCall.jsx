@@ -80,6 +80,7 @@ const VideoCall = forwardRef(
     const [showAddParticipant, setShowAddParticipant] = useState(false);
     const [invitedUsers, setInvitedUsers] = useState(new Set());
     const [isSwitching, setIsSwitching] = useState(false);
+    const [swapped, setSwapped] = useState(false);
 
     useEffect(() => {
       facingModeRef.current = facingMode;
@@ -103,7 +104,11 @@ const VideoCall = forwardRef(
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: facingModeRef.current },
+          video: {
+            facingMode: facingModeRef.current,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
           audio: true,
         });
 
@@ -482,6 +487,7 @@ const VideoCall = forwardRef(
       localStreamRef.current = null;
       if (localVideoRef.current) localVideoRef.current.srcObject = null;
       setRemoteStreams([]);
+      setSwapped(false);
     };
 
     cleanupRef.current = cleanup;
@@ -676,8 +682,32 @@ const VideoCall = forwardRef(
 
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
+        {/* Main view */}
         <div className={`flex-1 ${gridClass} gap-1 p-1 min-h-0`}>
-          {remoteStreams.length === 0 ? (
+          {swapped ? (
+            <div className="relative flex-1 min-w-0 min-h-0 bg-slate-900 rounded-2xl overflow-hidden border border-white/5">
+              <video
+                ref={localVideoRef}
+                autoPlay
+                muted
+                playsInline
+                className={`w-full h-full object-cover transition-opacity duration-300 ${
+                  isFrontCamera ? "scale-x-[-1]" : ""
+                } ${isVideoOff ? "opacity-0" : "opacity-100"}`}
+              />
+              {isVideoOff && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-slate-600">
+                  <VideoOff size={16} />
+                  <span className="text-[8px] font-bold uppercase tracking-widest text-slate-700">
+                    Off
+                  </span>
+                </div>
+              )}
+              <span className="absolute bottom-2 left-3 text-[10px] text-white/50 font-medium">
+                You
+              </span>
+            </div>
+          ) : remoteStreams.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-4">
               <div className="w-12 h-12 rounded-full border-2 border-sky-500/20 border-t-sky-400 animate-spin" />
               <p className="text-sm font-medium text-slate-500 tracking-wide">
@@ -691,6 +721,7 @@ const VideoCall = forwardRef(
           )}
         </div>
 
+        {/* Top bar */}
         <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pt-4 pb-8 bg-gradient-to-b from-slate-950/70 to-transparent">
           <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -705,29 +736,47 @@ const VideoCall = forwardRef(
           </div>
         </div>
 
-        <div className="absolute top-14 right-3 z-20 w-24 h-32 sm:w-32 sm:h-44 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-900">
-          <video
-            ref={localVideoRef}
-            autoPlay
-            muted
-            playsInline
-            className={`w-full h-full object-contain transition-opacity duration-300 ${
-              isFrontCamera ? "scale-x-[-1]" : ""
-            } ${isVideoOff ? "opacity-0" : "opacity-100"}`}
-          />
-          {isVideoOff && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-slate-600">
-              <VideoOff size={16} />
-              <span className="text-[8px] font-bold uppercase tracking-widest text-slate-700">
-                Off
-              </span>
-            </div>
+        {/* PiP view */}
+        <div
+          onClick={() => remoteStreams.length === 1 && setSwapped((p) => !p)}
+          className={`absolute top-14 right-3 z-20 w-24 h-32 sm:w-32 sm:h-44 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-900 transition-transform ${
+            remoteStreams.length === 1 ? "cursor-pointer active:scale-95" : ""
+          }`}
+        >
+          {swapped ? (
+            remoteStreams[0] ? (
+              <RemoteVideo
+                stream={remoteStreams[0].stream}
+                name={remoteStreams[0].name}
+              />
+            ) : null
+          ) : (
+            <>
+              <video
+                ref={localVideoRef}
+                autoPlay
+                muted
+                playsInline
+                className={`w-full h-full object-cover transition-opacity duration-300 ${
+                  isFrontCamera ? "scale-x-[-1]" : ""
+                } ${isVideoOff ? "opacity-0" : "opacity-100"}`}
+              />
+              {isVideoOff && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-slate-600">
+                  <VideoOff size={16} />
+                  <span className="text-[8px] font-bold uppercase tracking-widest text-slate-700">
+                    Off
+                  </span>
+                </div>
+              )}
+            </>
           )}
           <span className="absolute bottom-1.5 left-0 right-0 text-center text-[9px] text-white/35 font-medium">
-            You
+            {swapped ? remoteStreams[0]?.name || "Remote" : "You"}
           </span>
         </div>
 
+        {/* Controls */}
         <div className="absolute bottom-6 left-0 right-0 z-20 flex items-center justify-center gap-4">
           <button onClick={toggleMute} className={isMuted ? warnBtn : idleBtn}>
             {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
@@ -762,6 +811,7 @@ const VideoCall = forwardRef(
           </button>
         </div>
 
+        {/* Add participant panel */}
         {showAddParticipant && (
           <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 bg-slate-800 border border-white/10 rounded-2xl p-3 w-56 shadow-2xl">
             <div className="flex items-center justify-between mb-2 px-1">
