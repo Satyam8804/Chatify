@@ -59,8 +59,6 @@ const VideoCall = forwardRef(
       setPeerEntry,
       removePeer,
       closeAllPeers,
-      replaceVideoTrack,
-      replaceAudioTrack,
     } = useWebRTC();
 
     const localVideoRef = useRef(null);
@@ -69,6 +67,10 @@ const VideoCall = forwardRef(
     const cleanedUpRef = useRef(false);
     const facingModeRef = useRef("user");
     const isMutedRef = useRef(false);
+    const pendingPeersRef = useRef(new Set());
+    const cleanupRef = useRef(null);
+    cleanupRef.current = cleanup;
+    const isVideoOffRef = useRef(false);
 
     const [remoteStreams, setRemoteStreams] = useState([]);
     const [isMuted, setIsMuted] = useState(false);
@@ -76,7 +78,7 @@ const VideoCall = forwardRef(
     const [facingMode, setFacingMode] = useState("user");
     const [showAddParticipant, setShowAddParticipant] = useState(false);
     const [invitedUsers, setInvitedUsers] = useState(new Set());
-
+    const [isSwitching, setIsSwitching] = useState(false);
     useEffect(() => {
       facingModeRef.current = facingMode;
     }, [facingMode]);
@@ -98,12 +100,19 @@ const VideoCall = forwardRef(
       setRemoteStreams((prev) => prev.filter((s) => s.userId !== userId));
     };
 
-    // ─── Add tracks safely ─────────────────────────────────────────────────────
     const addTracksIfNeeded = (peer, stream) => {
       const senders = peer.getSenders();
       stream.getTracks().forEach((track) => {
         const alreadyAdded = senders.some((s) => s.track?.kind === track.kind);
-        if (!alreadyAdded) peer.addTrack(track, stream);
+        if (!alreadyAdded) {
+          const sender = peer.addTrack(track, stream);
+          if (track.kind === "audio" && isMutedRef.current) {
+            sender.track.enabled = false;
+          }
+          if (track.kind === "video" && isVideoOffRef.current) {
+            sender.track.enabled = false;
+          }
+        }
       });
     };
 
@@ -191,7 +200,6 @@ const VideoCall = forwardRef(
       }
     };
 
-    // ─── Init ──────────────────────────────────────────────────────────────────
     useEffect(() => {
       if (!socket || !chatId) return;
 
@@ -219,6 +227,7 @@ const VideoCall = forwardRef(
       init();
 
       return () => {
+        socket.emit("leave-call-room", { roomId: chatId }); // ← add here
         closeAllPeers();
       };
     }, [socket, chatId]);
@@ -235,17 +244,14 @@ const VideoCall = forwardRef(
       };
 
       const handleUserJoined = async ({ userId, name }) => {
-        setInvitedUsers((prev) => {
-          const updated = new Set(prev);
-          updated.delete(userId);
-          return updated;
-        });
+        if (!userId || String(userId) === String(user?._id)) return;
+        if (getPeerEntry(userId)?.peer) return;
+        if (pendingPeersRef.current.has(userId)) return; // guard
+        pendingPeersRef.current.add(userId);
         try {
-          if (!userId || String(userId) === String(user?._id)) return;
-          if (getPeerEntry(userId)?.peer) return;
           await initiateOffer(userId, name);
-        } catch (err) {
-          console.error("[VideoCall] handleUserJoined error:", err);
+        } finally {
+          pendingPeersRef.current.delete(userId);
         }
       };
 
@@ -354,8 +360,8 @@ const VideoCall = forwardRef(
       setRemoteStreams([]);
     };
 
-    useEffect(() => () => cleanup(), []);
-    useImperativeHandle(ref, () => ({ cleanup }));
+    useEffect(() => () => cleanupRef.current?.(), []);
+    useImperativeHandle(ref, () => ({ cleanup: () => cleanupRef.current?.() }));
 
     // ─── Controls ──────────────────────────────────────────────────────────────
     const toggleMute = () => {
@@ -377,46 +383,67 @@ const VideoCall = forwardRef(
       if (!localStreamRef.current) return;
       const track = localStreamRef.current.getVideoTracks()[0];
       track.enabled = !track.enabled;
+      isVideoOffRef.current = !track.enabled;
       setIsVideoOff(!track.enabled);
     };
 
     const switchCamera = async () => {
       if (switchingRef.current) return;
       switchingRef.current = true;
-      try {
-        const newFacing =
-          facingModeRef.current === "user" ? "environment" : "user";
+      setIsSwitching(true);
 
+      const newFacing =
+        facingModeRef.current === "user" ? "environment" : "user";
+
+      const attemptSwitch = async (constraint) => {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: newFacing,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-          audio: true,
+          video: { facingMode: constraint },
+          audio: false,
         });
 
         const newVideoTrack = stream.getVideoTracks()[0];
-        const newAudioTrack = stream.getAudioTracks()[0];
-        if (newAudioTrack) newAudioTrack.enabled = !isMutedRef.current;
+        const oldStream = localStreamRef.current;
+        const oldAudioTrack = oldStream?.getAudioTracks()[0];
 
-        localStreamRef.current?.getTracks().forEach((t) => {
+        oldStream?.getVideoTracks().forEach((t) => {
           try {
             t.stop();
           } catch {}
         });
-        localStreamRef.current = stream;
-        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
-        replaceVideoTrack(newVideoTrack); // ✅ replace in all peers
-        replaceAudioTrack(newAudioTrack); // ✅ replace in all peers
+        const newStream = new MediaStream([
+          newVideoTrack,
+          ...(oldAudioTrack ? [oldAudioTrack] : []),
+        ]);
+
+        localStreamRef.current = newStream;
+
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = newStream;
+        }
+
+        peersRef.current.forEach(({ peer }) => {
+          const sender = peer
+            .getSenders()
+            .find((s) => s.track?.kind === "video");
+          if (sender) sender.replaceTrack(newVideoTrack);
+        });
 
         facingModeRef.current = newFacing;
         setFacingMode(newFacing);
+      };
+
+      try {
+        try {
+          await attemptSwitch({ exact: newFacing });
+        } catch {
+          await attemptSwitch(newFacing);
+        }
       } catch (err) {
         console.error("Camera switch error:", err);
       } finally {
         switchingRef.current = false;
+        setIsSwitching(false);
       }
     };
 
@@ -534,10 +561,13 @@ const VideoCall = forwardRef(
           </button>
           <button
             onClick={switchCamera}
-            disabled={switchingRef.current}
+            disabled={isSwitching}
             className={idleBtn}
           >
-            <RefreshCcw size={20} />
+            <RefreshCcw
+              size={20}
+              className={isSwitching ? "animate-spin" : ""}
+            />
           </button>
           <button
             onClick={() => setShowAddParticipant((p) => !p)}

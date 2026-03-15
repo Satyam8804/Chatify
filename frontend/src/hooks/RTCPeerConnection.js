@@ -45,6 +45,8 @@ export const useWebRTC = () => {
       try {
         entry.peer.ontrack = null;
         entry.peer.onicecandidate = null;
+        entry.peer.onconnectionstatechange = null;
+        entry.peer.oniceconnectionstatechange = null;
         entry.peer.close();
       } catch {}
     }
@@ -55,6 +57,10 @@ export const useWebRTC = () => {
   const closeAllPeers = () => {
     peersRef.current.forEach(({ peer }) => {
       try {
+        peer.ontrack = null;
+        peer.onicecandidate = null;
+        peer.onconnectionstatechange = null;
+        peer.oniceconnectionstatechange = null;
         peer?.close();
       } catch {}
     });
