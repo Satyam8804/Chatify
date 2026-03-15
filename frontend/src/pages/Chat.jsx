@@ -14,39 +14,36 @@ const loadingMessages = [
 const Chat = () => {
   const { user, loading } = useAuth();
   const [messageIndex, setMessageIndex] = useState(0);
+  const [showLoader, setShowLoader] = useState(true);
 
+  // rotate loading messages
   useEffect(() => {
-    console.log("Auth loading:", loading);
-    console.log("User:", user);
     const interval = setInterval(() => {
       setMessageIndex((prev) => (prev + 1) % loadingMessages.length);
-    }, 700);
+    }, 1500);
 
     return () => clearInterval(interval);
   }, []);
 
-  if (loading) {
+  // minimum splash screen duration
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowLoader(false);
+    }, 700);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (loading || showLoader) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-white dark:bg-slate-900 transition-colors">
-        {/* Logo */}
-        <img
-          src={logo}
-          alt="Chatify"
-          className="w-16 h-16 object-contain mb-4 drop-shadow-lg drop-shadow-emerald-500/40"
-        />
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-white dark:bg-slate-900">
+        <img src={logo} alt="Chatify" className="w-16 h-16 mb-4" />
 
-        {/* App Name */}
-        <h1 className="text-2xl font-bold text-emerald-500 mb-6 tracking-wide">
-          Chatify
-        </h1>
+        <h1 className="text-2xl font-bold text-emerald-500 mb-4">Chatify</h1>
 
-        {/* Spinner */}
-        <Loader className="w-10 h-10 animate-spin text-emerald-500 mb-5" />
+        <Loader className="w-10 h-10 animate-spin text-emerald-500 mb-4" />
 
-        <p
-          key={messageIndex}
-          className="text-gray-800 dark:text-slate-300 text-sm font-medium animate-pulse"
-        >
+        <p className="text-gray-700 dark:text-slate-300 text-sm">
           {loadingMessages[messageIndex]}
         </p>
       </div>
