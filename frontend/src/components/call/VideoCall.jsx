@@ -68,8 +68,6 @@ const VideoCall = forwardRef(
     const facingModeRef = useRef("user");
     const isMutedRef = useRef(false);
     const pendingPeersRef = useRef(new Set());
-    const cleanupRef = useRef(null);
-    cleanupRef.current = cleanup;
     const isVideoOffRef = useRef(false);
 
     const [remoteStreams, setRemoteStreams] = useState([]);
@@ -345,7 +343,8 @@ const VideoCall = forwardRef(
       };
     }, [socket, user?._id]);
 
-    // ─── Cleanup ───────────────────────────────────────────────────────────────
+    const cleanupRef = useRef(null);
+
     const cleanup = () => {
       if (cleanedUpRef.current) return;
       cleanedUpRef.current = true;
@@ -360,9 +359,10 @@ const VideoCall = forwardRef(
       setRemoteStreams([]);
     };
 
+    cleanupRef.current = cleanup;
+
     useEffect(() => () => cleanupRef.current?.(), []);
     useImperativeHandle(ref, () => ({ cleanup: () => cleanupRef.current?.() }));
-
     // ─── Controls ──────────────────────────────────────────────────────────────
     const toggleMute = () => {
       if (!localStreamRef.current) return;
