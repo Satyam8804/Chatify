@@ -70,6 +70,7 @@ const VideoCall = forwardRef(
     const pendingPeersRef = useRef(new Set());
     const isVideoOffRef = useRef(false);
     const currentDeviceIdRef = useRef(null);
+    const camerasRef = useRef([]);
 
     const [remoteStreams, setRemoteStreams] = useState([]);
     const [isMuted, setIsMuted] = useState(false);
@@ -85,19 +86,29 @@ const VideoCall = forwardRef(
 
     const getLocalStream = async (forceNew = false) => {
       if (localStreamRef.current && !forceNew) return localStreamRef.current;
+
       console.log("[VideoCall] acquiring local stream");
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: facingModeRef.current },
         audio: true,
       });
+
       const videoTrack = stream.getVideoTracks()[0];
+
       currentDeviceIdRef.current = videoTrack?.getSettings()?.deviceId ?? null;
+
       console.log(
         "[VideoCall] local stream acquired, deviceId:",
         currentDeviceIdRef.current
       );
+
       localStreamRef.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+
       return stream;
     };
 
@@ -270,12 +281,27 @@ const VideoCall = forwardRef(
           t.stop();
         } catch {}
       });
+
       localStreamRef.current = null;
 
       const init = async () => {
         try {
           await getLocalStream();
-          console.log("[VideoCall] joining room", chatId);
+
+          const devices = await navigator.mediaDevices.enumerateDevices();
+
+          camerasRef.current = devices.filter(
+            (d) => d.kind === "videoinput" && d.deviceId
+          );
+
+          console.log(
+            "[VideoCall] cameras detected:",
+            camerasRef.current.map((d) => ({
+              label: d.label,
+              deviceId: d.deviceId,
+            }))
+          );
+
           socket.emit("join-call-room", { roomId: chatId });
         } catch (err) {
           console.error("[VideoCall] init error:", err);
@@ -284,8 +310,12 @@ const VideoCall = forwardRef(
 
       init();
 
+      navigator.mediaDevices.addEventListener("devicechange", async () => {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        camerasRef.current = devices.filter((d) => d.kind === "videoinput");
+      });
+
       return () => {
-        console.log("[VideoCall] leaving room", chatId);
         socket.emit("leave-call-room", { roomId: chatId });
         closeAllPeers();
       };
@@ -478,6 +508,7 @@ const VideoCall = forwardRef(
           t.stop();
         } catch {}
       });
+      currentDeviceIdRef.current = null;
       closeAllPeers();
       localStreamRef.current = null;
       if (localVideoRef.current) localVideoRef.current.srcObject = null;
@@ -514,26 +545,19 @@ const VideoCall = forwardRef(
 
     const switchCamera = async () => {
       if (switchingRef.current) return;
+
       switchingRef.current = true;
       setIsSwitching(true);
 
       try {
-        await navigator.mediaDevices
-          .getUserMedia({ video: true })
-          .then((s) => s.getTracks().forEach((t) => t.stop()));
-
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(
-          (d) => d.kind === "videoinput" && d.deviceId
-        );
+        const videoDevices = camerasRef.current;
 
         console.log(
           "[VideoCall] available cameras:",
-          videoDevices.map((d) => ({ label: d.label, deviceId: d.deviceId }))
-        );
-        console.log(
-          "[VideoCall] current deviceId:",
-          currentDeviceIdRef.current
+          videoDevices.map((d) => ({
+            label: d.label,
+            deviceId: d.deviceId,
+          }))
         );
 
         if (videoDevices.length < 2) {
@@ -544,11 +568,14 @@ const VideoCall = forwardRef(
         const currentIndex = videoDevices.findIndex(
           (d) => d.deviceId === currentDeviceIdRef.current
         );
+
         console.log("[VideoCall] currentIndex:", currentIndex);
 
         const nextIndex =
           currentIndex === -1 ? 0 : (currentIndex + 1) % videoDevices.length;
+
         const nextDevice = videoDevices[nextIndex];
+
         console.log(
           "[VideoCall] switching to:",
           nextDevice.label,
@@ -561,6 +588,7 @@ const VideoCall = forwardRef(
         });
 
         const newVideoTrack = stream.getVideoTracks()[0];
+
         const oldStream = localStreamRef.current;
         const oldAudioTrack = oldStream?.getAudioTracks()[0];
 
@@ -576,24 +604,30 @@ const VideoCall = forwardRef(
         ]);
 
         currentDeviceIdRef.current = nextDevice.deviceId;
+
         localStreamRef.current = newStream;
 
-        if (localVideoRef.current) localVideoRef.current.srcObject = newStream;
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = newStream;
+        }
 
         peersRef.current.forEach(({ peer }) => {
           const sender = peer
             .getSenders()
             .find((s) => s.track?.kind === "video");
-          if (sender) sender.replaceTrack(newVideoTrack);
+
+          if (sender) {
+            sender.replaceTrack(newVideoTrack);
+          }
         });
 
         const newFacing =
-          newVideoTrack.getSettings()?.facingMode ??
-          (facingModeRef.current === "user" ? "environment" : "user");
+          facingModeRef.current === "user" ? "environment" : "user";
 
         facingModeRef.current = newFacing;
         setFacingMode(newFacing);
-        console.log("[VideoCall] camera switched, facingMode →", newFacing);
+
+        console.log("[VideoCall] camera switched");
       } catch (err) {
         console.error("[VideoCall] camera switch error:", err);
       } finally {
@@ -646,6 +680,7 @@ const VideoCall = forwardRef(
     const warnBtn =
       "flex items-center justify-center w-12 h-12 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 backdrop-blur-sm transition-all duration-200 active:scale-95";
 
+    const isFrontCamera = facingModeRef.current === "user";
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
         <div className={`flex-1 ${gridClass} gap-1 p-1 min-h-0`}>
@@ -684,7 +719,7 @@ const VideoCall = forwardRef(
             muted
             playsInline
             className={`w-full h-full object-contain transition-opacity duration-300 ${
-              facingMode === "user" ? "scale-x-[-1]" : ""
+              isFrontCamera ? "scale-x-[-1]" : ""
             } ${isVideoOff ? "opacity-0" : "opacity-100"}`}
           />
           {isVideoOff && (
