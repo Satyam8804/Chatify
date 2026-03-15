@@ -205,6 +205,8 @@ const VideoCall = forwardRef(
 
     useEffect(() => {
       if (!socket || !chatId) return;
+      console.log("[VideoCall] joining room", chatId);
+      socket.emit("join-call-room", { roomId: chatId });
 
       cleanedUpRef.current = false;
       closeAllPeers();
@@ -240,6 +242,7 @@ const VideoCall = forwardRef(
       if (!socket) return;
 
       const handleExistingParticipants = async ({ participants }) => {
+        console.log("[VideoCall] existing participants", participants);
         for (const { userId, name } of participants) {
           if (!userId || String(userId) === String(user?._id)) continue;
           await initiateOffer(userId, name);
@@ -247,6 +250,7 @@ const VideoCall = forwardRef(
       };
 
       const handleUserJoined = async ({ userId, name }) => {
+        console.log("[VideoCall] user joined", userId);
         if (!userId || String(userId) === String(user?._id)) return;
         if (getPeerEntry(userId)?.peer) return;
         if (pendingPeersRef.current.has(userId)) return; // guard
@@ -291,7 +295,7 @@ const VideoCall = forwardRef(
         socket.emit("webrtc-answer", {
           answer: peer.localDescription,
           to: from,
-          roomId: chatId, 
+          roomId: chatId,
         });
       };
 
@@ -347,7 +351,7 @@ const VideoCall = forwardRef(
         socket.off("ice-candidate", handleIce);
         socket.off("user-left-call", handleUserLeft);
       };
-    }, [socket, user?._id,chatId]);
+    }, [socket, user?._id, chatId]);
 
     const cleanupRef = useRef(null);
 
