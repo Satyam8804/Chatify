@@ -2,7 +2,7 @@ import { Loader } from "lucide-react";
 import ChatLayout from "../components/chat/ChatLayout";
 import { useAuth } from "../context/authContext";
 import { useEffect, useState } from "react";
-import chatifyLogo from "../assets/logo.png";
+import logo from "../assets/logo.png";
 
 const loadingMessages = [
   "Preparing your chats...",
@@ -15,13 +15,12 @@ const Chat = () => {
   const { user, loading } = useAuth();
   const [messageIndex, setMessageIndex] = useState(0);
 
-  console.log("Auth loading:", loading);
-  console.log("User:", user);
-
   useEffect(() => {
+    console.log("Auth loading:", loading);
+    console.log("User:", user);
     const interval = setInterval(() => {
       setMessageIndex((prev) => (prev + 1) % loadingMessages.length);
-    }, 1800);
+    }, 700);
 
     return () => clearInterval(interval);
   }, []);
@@ -31,7 +30,7 @@ const Chat = () => {
       <div className="h-screen flex flex-col items-center justify-center bg-white dark:bg-slate-900 transition-colors">
         {/* Logo */}
         <img
-          src={chatifyLogo}
+          src={logo}
           alt="Chatify"
           className="w-16 h-16 object-contain mb-4 drop-shadow-lg drop-shadow-emerald-500/40"
         />
