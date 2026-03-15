@@ -20,12 +20,10 @@ export const videoCallSocket = (io, socket) => {
     socket.emit("existing-participants", {
       participants: existingParticipants,
     });
-    socket
-      .to(roomId)
-      .emit("user-joined-call", {
-        userId: socket.userId,
-        name: socket.user?.fName,
-      });
+    socket.to(roomId).emit("user-joined-call", {
+      userId: socket.userId,
+      name: socket.user?.fName,
+    });
   });
   socket.on("leave-call-room", ({ roomId }) => {
     if (roomId) {
@@ -90,28 +88,39 @@ export const videoCallSocket = (io, socket) => {
     }
   });
 
-  socket.on("webrtc-offer", ({ offer, to, fromName }) => {
-    if (!offer || !to) return;
-    onlineUsers.get(to)?.forEach((socketId) => {
-      io.to(socketId).emit("webrtc-offer", {
-        offer,
-        from: socket.userId,
-        fromName,
-      });
+  socket.on("webrtc-offer", ({ offer, to, fromName, roomId }) => {
+    if (!offer || !to || !roomId) return;
+    const room = io.sockets.adapter.rooms.get(roomId);
+    if (!room) return;
+    room.forEach((socketId) => {
+      const s = io.sockets.sockets.get(socketId);
+      if (s?.userId === to) {
+        s.emit("webrtc-offer", { offer, from: socket.userId, fromName });
+      }
     });
   });
 
-  socket.on("webrtc-answer", ({ answer, to }) => {
-    if (!answer || !to) return;
-    onlineUsers.get(to)?.forEach((socketId) => {
-      io.to(socketId).emit("webrtc-answer", { answer, from: socket.userId });
+  socket.on("webrtc-answer", ({ answer, to, roomId }) => {
+    if (!answer || !to || !roomId) return;
+    const room = io.sockets.adapter.rooms.get(roomId);
+    if (!room) return;
+    room.forEach((socketId) => {
+      const s = io.sockets.sockets.get(socketId);
+      if (s?.userId === to) {
+        s.emit("webrtc-answer", { answer, from: socket.userId });
+      }
     });
   });
 
-  socket.on("ice-candidate", ({ candidate, to }) => {
-    if (!candidate || !to) return;
-    onlineUsers.get(to)?.forEach((socketId) => {
-      io.to(socketId).emit("ice-candidate", { candidate, from: socket.userId });
+  socket.on("ice-candidate", ({ candidate, to, roomId }) => {
+    if (!candidate || !to || !roomId) return;
+    const room = io.sockets.adapter.rooms.get(roomId);
+    if (!room) return;
+    room.forEach((socketId) => {
+      const s = io.sockets.sockets.get(socketId);
+      if (s?.userId === to) {
+        s.emit("ice-candidate", { candidate, from: socket.userId });
+      }
     });
   });
 

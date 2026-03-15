@@ -9,23 +9,23 @@ const ICE_SERVERS = {
     { urls: "stun:stun4.l.google.com:19302" },
     {
       urls: "turn:global.relay.metered.ca:80",
-      username: "import.meta.env.VITE_METERED_USERNAME",
-      credential: "import.meta.env.VITE_METERED_PASSWORD",
+      username: import.meta.env.VITE_METERED_USERNAME,
+      credential: import.meta.env.VITE_METERED_PASSWORD,
     },
     {
       urls: "turn:global.relay.metered.ca:80?transport=tcp",
-      username: "import.meta.env.VITE_METERED_USERNAME",
-      credential: "import.meta.env.VITE_METERED_PASSWORD",
+      username: import.meta.env.VITE_METERED_USERNAME,
+      credential: import.meta.env.VITE_METERED_PASSWORD,
     },
     {
       urls: "turn:global.relay.metered.ca:443",
-      username: "import.meta.env.VITE_METERED_USERNAME",
-      credential: "import.meta.env.VITE_METERED_PASSWORD",
+      username: import.meta.env.VITE_METERED_USERNAME,
+      credential: import.meta.env.VITE_METERED_PASSWORD,
     },
     {
       urls: "turns:global.relay.metered.ca:443?transport=tcp",
-      username: "import.meta.env.VITE_METERED_USERNAME",
-      credential: "import.meta.env.VITE_METERED_PASSWORD",
+      username: import.meta.env.VITE_METERED_USERNAME,
+      credential: import.meta.env.VITE_METERED_PASSWORD,
     },
   ],
   iceCandidatePoolSize: 10,
@@ -87,20 +87,6 @@ export const useWebRTC = () => {
     peersRef.current.clear();
   };
 
-  const replaceVideoTrack = (newTrack) => {
-    peersRef.current.forEach(({ peer }) => {
-      const sender = peer.getSenders().find((s) => s.track?.kind === "video");
-      if (sender && newTrack) sender.replaceTrack(newTrack);
-    });
-  };
-
-  const replaceAudioTrack = (newTrack) => {
-    peersRef.current.forEach(({ peer }) => {
-      const sender = peer.getSenders().find((s) => s.track?.kind === "audio");
-      if (sender && newTrack) sender.replaceTrack(newTrack);
-    });
-  };
-
   return {
     peersRef,
     getOrCreatePeer,
@@ -108,7 +94,5 @@ export const useWebRTC = () => {
     setPeerEntry,
     removePeer,
     closeAllPeers,
-    replaceVideoTrack,
-    replaceAudioTrack,
   };
 };

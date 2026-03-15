@@ -128,7 +128,11 @@ const VideoCall = forwardRef(
 
       peer.onicecandidate = (e) => {
         if (e.candidate) {
-          socket.emit("ice-candidate", { candidate: e.candidate, to: userId });
+          socket.emit("ice-candidate", {
+            candidate: e.candidate,
+            to: userId,
+            roomId: chatId,
+          });
         }
       };
 
@@ -190,6 +194,7 @@ const VideoCall = forwardRef(
           offer: peer.localDescription,
           to: userId,
           fromName: user?.fName,
+          roomId: chatId, // ✅ add
         });
       } catch (err) {
         console.warn("[VideoCall] initiateOffer error:", err);
@@ -286,6 +291,7 @@ const VideoCall = forwardRef(
         socket.emit("webrtc-answer", {
           answer: peer.localDescription,
           to: from,
+          roomId: chatId, 
         });
       };
 
@@ -341,7 +347,7 @@ const VideoCall = forwardRef(
         socket.off("ice-candidate", handleIce);
         socket.off("user-left-call", handleUserLeft);
       };
-    }, [socket, user?._id]);
+    }, [socket, user?._id,chatId]);
 
     const cleanupRef = useRef(null);
 
