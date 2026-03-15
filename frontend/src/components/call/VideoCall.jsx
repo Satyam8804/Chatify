@@ -359,7 +359,7 @@ const VideoCall = forwardRef(
               </div>
             ) : remoteStreams.length === 1 ? (
               <div
-                className="flex-1 min-w-0 min-h-0 cursor-pointer"
+                className="flex-1 w-full h-full min-w-0 min-h-0 cursor-pointer"
                 onClick={() => {
                   if (selectedRemoteIndex !== 0 || !swapped) {
                     setSelectedRemoteIndex(0);
