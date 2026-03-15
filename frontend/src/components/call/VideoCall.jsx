@@ -512,8 +512,19 @@ const VideoCall = forwardRef(
       setIsSwitching(true);
 
       try {
+        // Re-request permission first to ensure deviceIds are populated
+        await navigator.mediaDevices
+          .getUserMedia({ video: true, audio: false })
+          .then((s) => s.getTracks().forEach((t) => t.stop()));
+
         const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter((d) => d.kind === "videoinput");
+        const videoDevices = devices.filter(
+          (d) => d.kind === "videoinput" && d.deviceId
+        );
+        console.log(
+          "[VideoCall] video devices:",
+          videoDevices.map((d) => ({ label: d.label, deviceId: d.deviceId }))
+        );
 
         if (videoDevices.length < 2) {
           console.warn("[VideoCall] only one camera found");
@@ -522,12 +533,23 @@ const VideoCall = forwardRef(
 
         const currentTrack = localStreamRef.current?.getVideoTracks()[0];
         const currentDeviceId = currentTrack?.getSettings()?.deviceId;
+        console.log("[VideoCall] current deviceId:", currentDeviceId);
+
         const currentIndex = videoDevices.findIndex(
           (d) => d.deviceId === currentDeviceId
         );
-        const nextDevice =
-          videoDevices[(currentIndex + 1) % videoDevices.length];
-        console.log("[VideoCall] switching camera to", nextDevice.label);
+        console.log(
+          "[VideoCall] currentIndex:",
+          currentIndex,
+          "total:",
+          videoDevices.length
+        );
+
+        // If currentIndex is -1 (not found), default to switching to index 1
+        const nextIndex =
+          currentIndex === -1 ? 1 : (currentIndex + 1) % videoDevices.length;
+        const nextDevice = videoDevices[nextIndex];
+        console.log("[VideoCall] switching to:", nextDevice.label);
 
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { deviceId: { exact: nextDevice.deviceId } },
@@ -573,7 +595,6 @@ const VideoCall = forwardRef(
         setIsSwitching(false);
       }
     };
-
     const callChat = useMemo(() => {
       return chats?.find((c) => String(c._id) === String(chatId));
     }, [chats, chatId]);
