@@ -16,34 +16,42 @@ const Chat = () => {
   const [messageIndex, setMessageIndex] = useState(0);
   const [showLoader, setShowLoader] = useState(true);
 
-  // rotate loading messages
   useEffect(() => {
     const interval = setInterval(() => {
-      setMessageIndex((prev) => (prev + 1) % loadingMessages.length);
+      setMessageIndex((prev) => {
+        if (prev === loadingMessages.length - 1) {
+          clearInterval(interval);
+          setTimeout(() => setShowLoader(false), 800); // small delay before entering chat
+          return prev;
+        }
+        return prev + 1;
+      });
     }, 1500);
 
     return () => clearInterval(interval);
   }, []);
 
-  // minimum splash screen duration
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowLoader(false);
-    }, 700);
-
-    return () => clearTimeout(timer);
-  }, []);
-
   if (loading || showLoader) {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-white dark:bg-slate-900">
-        <img src={logo} alt="Chatify" className="w-16 h-16 mb-4" />
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-white dark:bg-slate-900 transition-colors">
+        {/* Logo */}
+        <img
+          src={logo}
+          alt="Chatify"
+          className="w-16 h-16 object-contain mb-4"
+        />
 
+        {/* App name */}
         <h1 className="text-2xl font-bold text-emerald-500 mb-4">Chatify</h1>
 
+        {/* Spinner */}
         <Loader className="w-10 h-10 animate-spin text-emerald-500 mb-4" />
 
-        <p className="text-gray-700 dark:text-slate-300 text-sm">
+        {/* Loading text */}
+        <p
+          key={messageIndex}
+          className="text-gray-700 dark:text-slate-300 text-sm transition-all duration-300"
+        >
           {loadingMessages[messageIndex]}
         </p>
       </div>
