@@ -4,6 +4,7 @@ import AvatarUpload from "./uploadAvatar";
 import Loader from "../utils/Loader";
 import { Mail, Lock, User, ArrowRight, ChevronLeft } from "lucide-react";
 import GoogleLoginButton from "./common/GoogleLoginButton.jsx";
+import logo from "../assets/logo.png";
 const AuthForm = ({ mode = "login", onSubmit, loading }) => {
   const isLogin = mode === "login";
   const [step, setStep] = useState(1);
@@ -43,6 +44,17 @@ const AuthForm = ({ mode = "login", onSubmit, loading }) => {
 
   return (
     <div className="w-full max-w-sm">
+      <div className="mb-6 md:hidden flex flex-col items-center">
+        <img
+          src={logo}
+          alt="Chatify"
+          className="w-14 h-14 object-contain mb-2 drop-shadow-lg drop-shadow-emerald-500/40"
+        />
+        <h1 className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+          Chatify
+        </h1>
+      </div>
+
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl dark:shadow-slate-900/50 border border-gray-100 dark:border-slate-700 p-8 transition-colors">
         {/* Header */}
         <div className="mb-8">
