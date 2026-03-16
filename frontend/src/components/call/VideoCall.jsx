@@ -17,7 +17,7 @@ import AddParticipant from "./AddParticipant";
 import LocalVideo from "./LocalVideo";
 
 const VideoCall = forwardRef(
-  ({ chatId, onEndCall, onConnected, chats }, ref) => {
+  ({ chatId, onEndCall, onConnected, chats, initiator }, ref) => {
     const { socket } = useSocket();
     const { user } = useAuth();
     const {
@@ -186,9 +186,20 @@ const VideoCall = forwardRef(
           );
           if (connection)
             connection.addEventListener("change", handleConnectionChange);
-          socket.emit("join-call-room", { roomId: chatId });
 
-          // ✅ add here
+          socket.emit("join-call-room", { roomId: chatId });
+          console.log("[VideoCall] joined room", chatId);
+
+          // ✅ caller notifies receivers AFTER joining room
+          if (initiator?.isInitiator && initiator?.receiverIds?.length) {
+            socket.emit("video-call-user", {
+              chatId,
+              receiverIds: initiator.receiverIds,
+              isGroup: !!initiator.isGroup,
+            });
+            console.log("[VideoCall] notified receivers after joining room");
+          }
+
           socket.on("reconnect", () => {
             console.log(
               "[VideoCall] socket reconnected, rejoining room",

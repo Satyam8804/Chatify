@@ -31,6 +31,7 @@ const ChatLayout = () => {
   const outgoingRingRef = useRef(new Audio(outgoingRingFile));
   const timerRef = useRef(null);
   const ringTimeoutRef = useRef(null);
+  const initiatorRef = useRef(null);
 
   // mirror refs for use inside socket handlers
   const isCallingRef = useRef(false);
@@ -75,6 +76,7 @@ const ChatLayout = () => {
     clearTimeout(ringTimeoutRef.current);
     ringTimeoutRef.current = null;
     stopTimer();
+    initiatorRef.current = null; // ✅ add
 
     setIsCalling(false);
     setCallTargetName("");
@@ -130,11 +132,7 @@ const ChatLayout = () => {
         ? chat.chatName || "Group Call"
         : otherUsers[0].fName || "User";
 
-      socket.emit("video-call-user", {
-        chatId: chat._id,
-        receiverIds,
-        isGroup,
-      });
+      initiatorRef.current = { isInitiator: true, receiverIds, isGroup };
 
       setCallChatId(chat._id);
       setIsGroupCall(isGroup);
@@ -266,6 +264,7 @@ const ChatLayout = () => {
               chats={chats}
               onEndCall={endCall}
               onConnected={startTimer}
+              initiator={initiatorRef.current}
             />
           </div>
         </div>
