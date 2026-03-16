@@ -72,25 +72,30 @@ const VideoCall = forwardRef(
       if (remoteStreams.length > 1 && swapped) setSwapped(false);
     }, [remoteStreams, selectedRemoteIndex, swapped]);
 
-    const { getLocalStream, toggleMute, toggleVideo, switchCamera } =
-      useCallMedia({
-        localVideoRef,
-        localVideoMainRef,
-        localStreamRef,
-        currentDeviceIdRef,
-        camerasRef,
-        cameraIndexRef,
-        facingModeRef,
-        isMutedRef,
-        isVideoOffRef,
-        switchingRef,
-        peersRef,
-        setIsMuted,
-        setIsVideoOff,
-        setFacingMode,
-        setIsSwitching,
-        facingMode,
-      });
+    const {
+      getLocalStream,
+      toggleMute,
+      toggleVideo,
+      switchCamera,
+      getVideoConstraints,
+    } = useCallMedia({
+      localVideoRef,
+      localVideoMainRef,
+      localStreamRef,
+      currentDeviceIdRef,
+      camerasRef,
+      cameraIndexRef,
+      facingModeRef,
+      isMutedRef,
+      isVideoOffRef,
+      switchingRef,
+      peersRef,
+      setIsMuted,
+      setIsVideoOff,
+      setFacingMode,
+      setIsSwitching,
+      facingMode,
+    });
 
     const {
       handleRemovePeer,
@@ -101,10 +106,8 @@ const VideoCall = forwardRef(
       socket,
       user,
       chatId,
-      peersRef,
       getOrCreatePeer,
       getPeerEntry,
-      setPeerEntry,
       removePeer,
       isMutedRef,
       isVideoOffRef,
@@ -141,6 +144,29 @@ const VideoCall = forwardRef(
         }
       };
 
+      const handleConnectionChange = () => {
+        if (peersRef.current.size === 0) return;
+        const track = localStreamRef.current?.getVideoTracks()[0];
+        if (!track) return;
+        const constraints = getVideoConstraints();
+        track
+          .applyConstraints({
+            width: constraints.width,
+            height: constraints.height,
+            frameRate: constraints.frameRate,
+          })
+          .catch(() => {});
+        console.log(
+          "[VideoCall] network changed, applied constraints:",
+          constraints
+        );
+      };
+
+      const connection =
+        navigator.connection ||
+        navigator.mozConnection ||
+        navigator.webkitConnection;
+
       const init = async () => {
         try {
           await getLocalStream();
@@ -156,6 +182,8 @@ const VideoCall = forwardRef(
             "devicechange",
             handleDeviceChange
           );
+          if (connection)
+            connection.addEventListener("change", handleConnectionChange);
           socket.emit("join-call-room", { roomId: chatId });
         } catch (err) {
           console.error("[VideoCall] init error:", err);
@@ -169,6 +197,8 @@ const VideoCall = forwardRef(
           "devicechange",
           handleDeviceChange
         );
+        if (connection)
+          connection.removeEventListener("change", handleConnectionChange);
         socket.emit("leave-call-room", { roomId: chatId });
         closeAllPeers();
       };
@@ -384,7 +414,7 @@ const VideoCall = forwardRef(
             )}
           </div>
 
-          {/* Local video in main — only shown when swapped */}
+          {/* Local video in main */}
           <div
             className={`absolute inset-0 p-1 ${swapped ? "flex" : "hidden"}`}
           >

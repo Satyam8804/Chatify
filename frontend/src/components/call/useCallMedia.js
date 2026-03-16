@@ -16,21 +16,64 @@ export const useCallMedia = ({
   setIsSwitching,
   facingMode,
 }) => {
+  const getVideoConstraints = (deviceId = null) => {
+    const connection =
+      navigator.connection ||
+      navigator.mozConnection ||
+      navigator.webkitConnection;
+
+    let width = { ideal: 1280 };
+    let height = { ideal: 720 };
+    let frameRate = { ideal: 30 };
+
+    if (connection) {
+      const { effectiveType, downlink } = connection;
+      if (
+        effectiveType === "slow-2g" ||
+        effectiveType === "2g" ||
+        downlink < 1
+      ) {
+        width = { ideal: 320 };
+        height = { ideal: 240 };
+        frameRate = { ideal: 15 };
+      } else if (effectiveType === "3g" || downlink < 5) {
+        width = { ideal: 640 };
+        height = { ideal: 480 };
+        frameRate = { ideal: 24 };
+      }
+    }
+
+    return deviceId
+      ? { deviceId: { exact: deviceId }, width, height, frameRate }
+      : { facingMode: facingModeRef.current, width, height, frameRate };
+  };
+
   const getLocalStream = async (forceNew = false) => {
     if (localStreamRef.current && !forceNew) return localStreamRef.current;
 
     if (forceNew && localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((t) => { try { t.stop(); } catch {} });
+      localStreamRef.current.getTracks().forEach((t) => {
+        try {
+          t.stop();
+        } catch {}
+      });
       localStreamRef.current = null;
     }
 
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: facingModeRef.current, width: { ideal: 1280 }, height: { ideal: 720 } },
+      video: getVideoConstraints(),
       audio: true,
     });
 
     const videoTrack = stream.getVideoTracks()[0];
     currentDeviceIdRef.current = videoTrack?.getSettings()?.deviceId ?? null;
+    console.log(
+      "[VideoCall] got local stream, deviceId:",
+      currentDeviceIdRef.current,
+      "settings:",
+      videoTrack?.getSettings()
+    );
+
     localStreamRef.current = stream;
 
     if (localVideoRef.current) {
@@ -48,7 +91,9 @@ export const useCallMedia = ({
   const toggleMute = () => {
     if (!localStreamRef.current) return;
     const tracks = localStreamRef.current.getAudioTracks();
-    tracks.forEach((t) => { t.enabled = !t.enabled; });
+    tracks.forEach((t) => {
+      t.enabled = !t.enabled;
+    });
     const muted = !tracks[0]?.enabled;
     isMutedRef.current = muted;
     setIsMuted(muted);
@@ -85,17 +130,24 @@ export const useCallMedia = ({
 
       const oldStream = localStreamRef.current;
       const oldAudioTrack = oldStream?.getAudioTracks()?.[0];
-      oldStream?.getVideoTracks().forEach((t) => { try { t.stop(); } catch {} });
+      oldStream?.getVideoTracks().forEach((t) => {
+        try {
+          t.stop();
+        } catch {}
+      });
 
       const newVideoStream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: nextCamera.deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: getVideoConstraints(nextCamera.deviceId),
         audio: false,
       });
 
       const newVideoTrack = newVideoStream.getVideoTracks()[0];
-      if (!newVideoTrack) throw new Error("No video track from requested camera");
+      if (!newVideoTrack)
+        throw new Error("No video track from requested camera");
 
-      newVideoStream.getTracks().forEach((t) => { if (t !== newVideoTrack) t.stop(); });
+      newVideoStream.getTracks().forEach((t) => {
+        if (t !== newVideoTrack) t.stop();
+      });
 
       const composedStream = new MediaStream([
         newVideoTrack,
@@ -105,19 +157,33 @@ export const useCallMedia = ({
       localStreamRef.current = composedStream;
       currentDeviceIdRef.current = nextCamera.deviceId;
 
-      const newFacing = newVideoTrack.getSettings()?.facingMode || (facingMode === "user" ? "environment" : "user");
+      const newFacing =
+        newVideoTrack.getSettings()?.facingMode ||
+        (facingMode === "user" ? "environment" : "user");
       facingModeRef.current = newFacing;
       setFacingMode(newFacing);
 
-      if (localVideoRef.current) { localVideoRef.current.srcObject = composedStream; localVideoRef.current.play().catch(() => {}); }
-      if (localVideoMainRef.current) { localVideoMainRef.current.srcObject = composedStream; localVideoMainRef.current.play().catch(() => {}); }
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = composedStream;
+        localVideoRef.current.play().catch(() => {});
+      }
+      if (localVideoMainRef.current) {
+        localVideoMainRef.current.srcObject = composedStream;
+        localVideoMainRef.current.play().catch(() => {});
+      }
 
       peersRef.current.forEach(({ peer }) => {
         if (!peer || peer.connectionState === "closed") return;
         try {
-          const oldVideoSender = peer.getSenders().find((s) => s.track?.kind === "video");
+          const oldVideoSender = peer
+            .getSenders()
+            .find((s) => s.track?.kind === "video");
           if (oldVideoSender) {
-            oldVideoSender.replaceTrack(newVideoTrack).catch((err) => console.warn("[VideoCall] replaceTrack failed:", err));
+            oldVideoSender
+              .replaceTrack(newVideoTrack)
+              .catch((err) =>
+                console.warn("[VideoCall] replaceTrack failed:", err)
+              );
           } else {
             peer.addTrack(newVideoTrack, composedStream);
           }
@@ -128,12 +194,13 @@ export const useCallMedia = ({
 
       if (isMutedRef.current) {
         peersRef.current.forEach(({ peer }) => {
-          const sender = peer.getSenders().find((s) => s.track?.kind === "audio");
+          const sender = peer
+            .getSenders()
+            .find((s) => s.track?.kind === "audio");
           if (sender?.track) sender.track.enabled = false;
         });
       }
       if (isVideoOffRef.current) newVideoTrack.enabled = false;
-
     } catch (err) {
       console.error("[VideoCall] camera switch error:", err);
     } finally {
@@ -142,5 +209,11 @@ export const useCallMedia = ({
     }
   };
 
-  return { getLocalStream, toggleMute, toggleVideo, switchCamera };
+  return {
+    getLocalStream,
+    toggleMute,
+    toggleVideo,
+    switchCamera,
+    getVideoConstraints,
+  };
 };
