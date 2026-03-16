@@ -144,23 +144,25 @@ const VideoCall = forwardRef(
         }
       };
 
-      const handleConnectionChange = () => {
-        if (peersRef.current.size === 0) return;
-        const track = localStreamRef.current?.getVideoTracks()[0];
-        if (!track) return;
-        const constraints = getVideoConstraints();
-        track
-          .applyConstraints({
-            width: constraints.width,
-            height: constraints.height,
-            frameRate: constraints.frameRate,
-          })
-          .catch(() => {});
-        console.log(
-          "[VideoCall] network changed, applied constraints:",
-          constraints
-        );
-      };
+      const handleConnectionChange = (() => {
+        let timeout;
+        return () => {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => {
+            if (peersRef.current.size === 0) return;
+            const track = localStreamRef.current?.getVideoTracks()[0];
+            if (!track) return;
+            const constraints = getVideoConstraints();
+            track
+              .applyConstraints({
+                width: constraints.width,
+                height: constraints.height,
+                frameRate: constraints.frameRate,
+              })
+              .catch(() => {});
+          }, 2000); // ✅ debounce 2 seconds — ignores immediate fire
+        };
+      })();
 
       const connection =
         navigator.connection ||
@@ -208,6 +210,10 @@ const VideoCall = forwardRef(
       if (!socket) return;
 
       const handleExistingParticipants = async ({ participants }) => {
+        console.log(
+          "[VideoCall] existing-participants received:",
+          participants
+        );
         for (const { userId, name } of participants) {
           if (!userId || String(userId) === String(user?._id)) continue;
           const entry = getPeerEntry(userId);
@@ -229,6 +235,7 @@ const VideoCall = forwardRef(
       };
 
       const handleOffer = async ({ offer, from, fromName }) => {
+        console.log("[VideoCall] received offer from:", from);
         const stream = await getLocalStream();
         const peer = createPeerConnection(from, fromName);
         if (!peer) return;
@@ -260,6 +267,7 @@ const VideoCall = forwardRef(
       };
 
       const handleAnswer = async ({ answer, from }) => {
+        console.log("[VideoCall] received answer from:", from);
         const entry = getPeerEntry(from);
         if (!entry?.peer) return;
         try {
@@ -310,7 +318,7 @@ const VideoCall = forwardRef(
         socket.off("ice-candidate", handleIce);
         socket.off("user-left-call", handleUserLeft);
       };
-    }, [socket, user?._id, chatId]);
+    }, [socket, user?._id]);
 
     const cleanupRef = useRef(null);
     const cleanup = () => {

@@ -97,14 +97,18 @@ export const useCallPeers = ({
   };
 
   const initiateOffer = async (userId, userName, getLocalStream) => {
+    console.log("[VideoCall] initiating offer to:", userId);
     const peer = createPeerConnection(userId, userName);
     if (!peer) return;
     const stream = await getLocalStream();
     const entry = getPeerEntry(userId);
     if (!entry || peer.signalingState !== "stable") return;
+
+    entry.makingOffer = true; // ✅ moved BEFORE try block and addTracksIfNeeded
+
     addTracksIfNeeded(peer, stream);
+
     try {
-      entry.makingOffer = true;
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
       socket.emit("webrtc-offer", {
