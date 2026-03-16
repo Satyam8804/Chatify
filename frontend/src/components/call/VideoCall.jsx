@@ -289,11 +289,19 @@ const VideoCall = forwardRef(
 
       const handleAnswer = async ({ answer, from }) => {
         console.log("[VideoCall] received answer from:", from);
+
         const entry = getPeerEntry(from);
         if (!entry?.peer) return;
+
+        // reset makingOffer safely
+        if (entry?.makingOffer) {
+          setPeerEntry(from, { ...entry, makingOffer: false });
+        }
+
         try {
-          if (!entry.peer.currentRemoteDescription)
+          if (!entry.peer.currentRemoteDescription) {
             await entry.peer.setRemoteDescription(answer);
+          }
         } catch (err) {
           console.warn("[VideoCall] failed to apply answer from", from, err);
         }

@@ -37,7 +37,7 @@ export const useCallPeers = ({
     const existing = getPeerEntry(userId);
     if (existing?.peer) return existing.peer;
 
-    const polite = Number(user._id) > Number(userId);
+    const polite = user._id.localeCompare(userId) > 0;
     const peer = getOrCreatePeer(userId, polite);
     if (!peer) return null;
 
