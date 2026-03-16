@@ -9,32 +9,26 @@ const loadingMessages = [
   "Connecting securely...",
   "Syncing conversations...",
   "Almost ready...",
+  "Still working...",
 ];
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
   const [messageIndex, setMessageIndex] = useState(0);
-  const [messagesFinished, setMessagesFinished] = useState(false);
 
   useEffect(() => {
+    if (!loading) return;
+
     const interval = setInterval(() => {
-      setMessageIndex((prev) => {
-        if (prev === loadingMessages.length - 1) {
-          clearInterval(interval);
-
-          // small delay so last message is visible
-          setTimeout(() => setMessagesFinished(true), 800);
-
-          return prev;
-        }
-        return prev + 1;
-      });
+      setMessageIndex((prev) =>
+        prev === loadingMessages.length - 1 ? prev : prev + 1
+      );
     }, 800);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [loading]);
 
-  if (loading || !messagesFinished) {
+  if (loading) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-white dark:bg-slate-900">
         <img
@@ -47,10 +41,7 @@ const ProtectedRoute = ({ children }) => {
 
         <Loader className="w-10 h-10 animate-spin text-emerald-500 mb-4" />
 
-        <p
-          key={messageIndex}
-          className="text-gray-700 dark:text-slate-300 text-sm transition-all duration-300"
-        >
+        <p className="text-gray-700 dark:text-slate-300 text-sm transition-all duration-300">
           {loadingMessages[messageIndex]}
         </p>
       </div>

@@ -5,7 +5,7 @@ import Loader from "../utils/Loader.jsx";
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
 
-  if (loading) return <Loader />;
+  if (loading) return null;
   if (isAuthenticated) return <Navigate to="/chat" replace />; 
 
   return children; 
