@@ -7,26 +7,7 @@ const ICE_SERVERS = {
     { urls: "stun:stun2.l.google.com:19302" },
     { urls: "stun:stun3.l.google.com:19302" },
     { urls: "stun:stun4.l.google.com:19302" },
-    {
-      urls: "turn:global.relay.metered.ca:80",
-      username: import.meta.env.VITE_METERED_USERNAME,
-      credential: import.meta.env.VITE_METERED_PASSWORD,
-    },
-    {
-      urls: "turn:global.relay.metered.ca:80?transport=tcp",
-      username: import.meta.env.VITE_METERED_USERNAME,
-      credential: import.meta.env.VITE_METERED_PASSWORD,
-    },
-    {
-      urls: "turn:global.relay.metered.ca:443",
-      username: import.meta.env.VITE_METERED_USERNAME,
-      credential: import.meta.env.VITE_METERED_PASSWORD,
-    },
-    {
-      urls: "turns:global.relay.metered.ca:443?transport=tcp",
-      username: import.meta.env.VITE_METERED_USERNAME,
-      credential: import.meta.env.VITE_METERED_PASSWORD,
-    },
+
   ],
   iceCandidatePoolSize: 10,
   iceTransportPolicy: "all",
