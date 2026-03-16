@@ -187,6 +187,15 @@ const VideoCall = forwardRef(
           if (connection)
             connection.addEventListener("change", handleConnectionChange);
           socket.emit("join-call-room", { roomId: chatId });
+
+          // ✅ add here
+          socket.on("reconnect", () => {
+            console.log(
+              "[VideoCall] socket reconnected, rejoining room",
+              chatId
+            );
+            socket.emit("join-call-room", { roomId: chatId });
+          });
         } catch (err) {
           console.error("[VideoCall] init error:", err);
         }
@@ -195,6 +204,7 @@ const VideoCall = forwardRef(
       init();
 
       return () => {
+        socket.off("reconnect"); // ✅ add here
         navigator.mediaDevices.removeEventListener(
           "devicechange",
           handleDeviceChange
