@@ -312,7 +312,11 @@ const MessageBubble = ({
 };
 
 const CallBubble = ({ message, isOwn, onStartCall }) => {
-  const { callType, status, duration } = message.callData || {};
+  if (!message || message.messageType !== "call") return null; // ✅ FIX
+
+  const callData = message.callData || {};
+  const { callType, status, duration = 0 } = callData;
+
   const isIncoming = !isOwn;
 
   const formatDuration = (sec) => {
@@ -322,7 +326,6 @@ const CallBubble = ({ message, isOwn, onStartCall }) => {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
-  // 🎯 color logic
   let colorClass = "text-gray-400";
 
   if (status === "missed" && isIncoming) {
@@ -341,10 +344,7 @@ const CallBubble = ({ message, isOwn, onStartCall }) => {
         }`}
     >
       {/* ICON */}
-      <div
-        className={`flex items-center justify-center w-8 h-8 rounded-full
-          bg-white dark:bg-slate-600`}
-      >
+      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-600">
         {callType === "video" ? (
           <Video size={16} className={colorClass} />
         ) : (
@@ -381,15 +381,19 @@ const CallBubble = ({ message, isOwn, onStartCall }) => {
         )}
       </div>
 
+      {/* CALL BUTTON */}
       <button
         onClick={(e) => {
           e.stopPropagation();
+
+          if (!message.chat) return; 
+
           const chatObj =
             typeof message.chat === "string"
-              ? { _id: message.chat } 
+              ? { _id: message.chat }
               : message.chat;
 
-          onStartCall?.(chatObj,callType); // ✅ CORRECT
+          onStartCall?.(chatObj, callType);
         }}
         className="ml-1 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600 transition"
       >
