@@ -35,6 +35,8 @@ const CallLog = ({ log, currentUserId, onCall }) => {
   const isVideo = log.callType === "video";
   const isGroupCall = log.isGroupCall || false;
 
+  // ✅ outgoing: other person is in participants
+  // ✅ incoming: other person IS the sender
   const otherUser = isGroupCall
     ? null
     : isOutgoing
@@ -181,7 +183,6 @@ const CallsTab = ({
     if (node) observerRef.current.observe(node);
   };
 
-  // ✅ fix 6: optimized with early return
   const groupedLogs = useMemo(() => {
     if (!callLogs.length) return { today: [], yesterday: [], earlier: [] };
     const groups = { today: [], yesterday: [], earlier: [] };
@@ -224,7 +225,6 @@ const CallsTab = ({
     );
   }
 
-  // ✅ fix 2: find the last non-empty section key for pagination trigger
   const lastNonEmptySection = [...sections]
     .reverse()
     .find(({ key }) => groupedLogs[key].length > 0)?.key;
@@ -245,18 +245,16 @@ const CallsTab = ({
 
             <div className="space-y-0.5 px-2">
               {logs.map((log, index) => {
-                // ✅ fix 2: trigger on last item of last non-empty section
                 const isLastItem =
                   key === lastNonEmptySection && index === logs.length - 1;
-
                 return (
                   <div
                     ref={isLastItem ? lastCallRef : null}
-                    key={`${log._id}-${log.createdAt}`} // ✅ fix 3: safer key
+                    key={`${log._id}-${log.createdAt}`}
                   >
                     <CallLog
                       log={log}
-                      currentUserId={user?._id}
+                      currentUserId={user?._id?.toString()} // ✅ force string
                       onCall={handleCall}
                     />
                   </div>
