@@ -95,6 +95,8 @@ const Sidebar = ({
       c.status === "missed" &&
       (!lastSeenCallTime || new Date(c.createdAt) > lastSeenCallTime)
   ).length;
+
+
   const handleTabChange = (tab) => {
     setActiveTab(tab);
 
@@ -151,12 +153,6 @@ const Sidebar = ({
   }, [socket, chats]);
 
   useEffect(() => {
-    if (activeTab !== "calls" && callLogs.length > 0) {
-      setSeenCalls(false);
-    }
-  }, [callLogs, activeTab]);
-
-  useEffect(() => {
     if (!socket) return;
 
     const handleMessage = (newMessage) => {
@@ -197,6 +193,7 @@ const Sidebar = ({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
 
   const directChats = chats.filter((chat) => !chat.isGroupChat);
   const groupChats = chats.filter((chat) => chat.isGroupChat);
