@@ -59,6 +59,8 @@ const Sidebar = ({
       const res = await api.get(
         `/messages/calls/logs?page=${pageNumber}&limit=${LIMIT}`
       );
+
+      console.log("call logs :",res)
       const { logs: newLogs = [], hasMore: moreAvailable = false } =
         res?.data || {};
       setHasMore(moreAvailable);

@@ -37,8 +37,10 @@ const CallLog = ({ log, currentUserId, onCall }) => {
 
   const otherUser = isGroupCall
     ? null
-    : log.participants?.find((u) => String(u._id) !== String(currentUserId)) ||
-      null;
+    : isOutgoing
+    ? log.participants?.find((u) => String(u._id) !== String(currentUserId)) ||
+      null
+    : log.sender || null;
 
   const displayName = isGroupCall
     ? log.chat?.chatName || "Group Call"
@@ -130,10 +132,9 @@ const CallLog = ({ log, currentUserId, onCall }) => {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (!otherUser) return; // ✅ fix 5: null guard
+                if (!otherUser) return;
                 onCall(otherUser);
               }}
-              // ✅ fix 4: always visible on mobile, hover-only on desktop
               className="opacity-100 md:opacity-0 md:group-hover:opacity-100 cursor-pointer transition-all duration-200 w-7 h-7 flex items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25 dark:bg-emerald-500/20 dark:hover:bg-emerald-500/30"
             >
               {isVideo ? <Video size={13} /> : <Phone size={13} />}
