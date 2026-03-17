@@ -55,6 +55,14 @@ export const fetchMessageOfChat = async (req, res) => {
     const messages = await Message.find({ chat: chatId })
       .populate("sender", "fName lName email avatar")
       .populate({
+        path: "chat", // ✅ ADD THIS
+        select: "users isGroupChat chatName", // ✅ IMPORTANT
+        populate: {
+          path: "users",
+          select: "fName avatar email",
+        },
+      })
+      .populate({
         path: "replyTo",
         populate: { path: "sender", select: "fName avatar" },
       })
@@ -166,14 +174,13 @@ export const sendCallMessage = async (req, res) => {
       lastMessage: message._id,
       updatedAt: new Date(),
     });
-    
+
     req.io.to(chatId).emit("receive-message", message);
 
     req.io.to(chatId).emit("message-notification", {
       chatId,
       message,
     });
-
 
     const notified = new Set();
 

@@ -388,12 +388,7 @@ const CallBubble = ({ message, isOwn, onStartCall }) => {
 
           if (!message.chat) return; 
 
-          const chatObj =
-            typeof message.chat === "string"
-              ? { _id: message.chat }
-              : message.chat;
-
-          console.log(chatObj,callType)  
+          const chatObj = message.chat;
 
           onStartCall?.(chatObj, callType);
         }}
