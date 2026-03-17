@@ -129,7 +129,7 @@ const MessageBubble = ({
 
       {/* Message Bubble */}
       <div
-        className={`relative max-w-[65%] px-2 py-1 text-sm shadow break-words overflow-hidden
+        className={`relative max-w-[70%] px-2 py-1 text-sm shadow break-words
           ${
             isOwn
               ? "bg-emerald-100 dark:bg-emerald-900 text-black dark:text-emerald-50 rounded-tl-sm rounded-bl-sm rounded-br-sm"
@@ -242,7 +242,6 @@ const MessageBubble = ({
         />
       </div>
 
-      {/* Reply Button - received messages (right of bubble) */}
       {!isOwn && (
         <button
           onClick={() => onReply(message)}
@@ -282,21 +281,21 @@ const CallBubble = ({ message, isOwn }) => {
 
   return (
     <div
-      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm
-    ${
-      isOwn
-        ? "bg-emerald-200 dark:bg-emerald-800"
-        : "bg-gray-100 dark:bg-slate-700"
-    }`}
+      className={`flex items-center gap-3 px-3 py-2 rounded-lg w-fit min-w-[180px]
+      ${
+        isOwn
+          ? "bg-emerald-200 dark:bg-emerald-800"
+          : "bg-gray-100 dark:bg-slate-700"
+      }`}
     >
       {/* ICON */}
       <div
-        className={`p-1.5 rounded-full
-      ${
-        status === "missed"
-          ? "bg-red-100 text-red-500"
-          : "bg-emerald-100 text-emerald-600"
-      }`}
+        className={`flex items-center justify-center w-8 h-8 rounded-full
+        ${
+          status === "missed"
+            ? "bg-red-100 text-red-500"
+            : "bg-emerald-100 text-emerald-600"
+        }`}
       >
         {getIcon()}
       </div>
@@ -304,16 +303,15 @@ const CallBubble = ({ message, isOwn }) => {
       {/* TEXT */}
       <div className="flex flex-col">
         <div className="flex items-center gap-1">
-          {/* 🔽 Direction Icon */}
-          {isOwn ? (
-            <ArrowUpRight size={12} className="text-gray-400" />
+          {/* Direction */}
+          {isIncoming ? (
+            <ArrowDownLeft size={14} className="text-gray-400" />
           ) : (
-            <ArrowDownLeft size={12} className="text-gray-400" />
+            <ArrowUpRight size={14} className="text-gray-400" />
           )}
 
-          {/* Text */}
           <span
-            className={`font-medium ${
+            className={`font-medium text-sm ${
               status === "missed" ? "text-red-500" : ""
             }`}
           >
