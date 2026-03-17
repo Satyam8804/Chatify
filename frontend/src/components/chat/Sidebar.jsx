@@ -8,7 +8,7 @@ import NewGroupChatModal from "./NewGroupChatModal";
 import { logger } from "../../utils/logger";
 import { MoreVertical, MessageSquare, Phone } from "lucide-react";
 import Menus from "../Menus";
-import Loader from "../../utils/Loader";
+
 import Profile from "../profile/Profile";
 import ChatifyLogo from "../../assets/logo.png";
 import ThemeModal from "../common/ThemeModal";

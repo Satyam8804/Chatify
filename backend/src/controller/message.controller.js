@@ -166,15 +166,14 @@ export const sendCallMessage = async (req, res) => {
       lastMessage: message._id,
       updatedAt: new Date(),
     });
+    
+    req.io.to(chatId).emit("receive-message", message);
 
-    message.chat.users.forEach((userId) => {
-      if (userId.toString() !== req.user._id.toString()) {
-        req.io.to(userId.toString()).emit("message-notification", {
-          chatId,
-          message,
-        });
-      }
+    req.io.to(chatId).emit("message-notification", {
+      chatId,
+      message,
     });
+
 
     const notified = new Set();
 
@@ -190,7 +189,6 @@ export const sendCallMessage = async (req, res) => {
     // sender
     emitToUser(req.user._id);
 
-    
     message.participants?.forEach((p) => emitToUser(p._id));
 
     res.status(201).json(message);

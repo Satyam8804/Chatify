@@ -129,7 +129,7 @@ const MessageBubble = ({
 
       {/* Message Bubble */}
       <div
-        className={`relative max-w-[70%] px-2 py-1 text-sm shadow break-words
+        className={`relative max-w-[%] px-2 py-1 text-sm shadow break-words
           ${
             isOwn
               ? "bg-emerald-100 dark:bg-emerald-900 text-black dark:text-emerald-50 rounded-tl-sm rounded-bl-sm rounded-br-sm"
@@ -176,8 +176,32 @@ const MessageBubble = ({
                 {message.replyTo.sender?.fName}
               </p>
               <p className="text-gray-500 dark:text-slate-400 truncate text-[11px]">
-                {message.replyTo.content ||
-                  (message.replyTo.media?.length > 0 ? "📎 Media" : "")}
+                {message.replyTo.messageType === "call" ? (
+                  <div className="flex items-center gap-1">
+                    {message.replyTo.callData?.callType === "video" ? (
+                      <Video
+                        size={12}
+                        className="text-gray-500 dark:text-slate-400"
+                      />
+                    ) : (
+                      <PhoneCall
+                        size={12}
+                        className="text-gray-500 dark:text-slate-400"
+                      />
+                    )}
+
+                    <span>
+                      {message.replyTo.callData?.status === "missed"
+                        ? "Missed call"
+                        : message.replyTo.callData?.callType === "video"
+                        ? "Video call"
+                        : "Voice call"}
+                    </span>
+                  </div>
+                ) : (
+                  message.replyTo.content ||
+                  (message.replyTo.media?.length > 0 ? "📎 Media" : "")
+                )}
               </p>
             </div>
           </div>
@@ -282,20 +306,20 @@ const CallBubble = ({ message, isOwn }) => {
   return (
     <div
       className={`flex items-center gap-3 px-3 py-2 rounded-lg w-fit min-w-[180px]
-      ${
-        isOwn
-          ? "bg-emerald-200 dark:bg-emerald-800"
-          : "bg-gray-100 dark:bg-slate-700"
-      }`}
+        ${
+          isOwn
+            ? "bg-emerald-200 dark:bg-emerald-800"
+            : "bg-gray-100 dark:bg-slate-700"
+        }`}
     >
       {/* ICON */}
       <div
         className={`flex items-center justify-center w-8 h-8 rounded-full
-        ${
-          status === "missed"
-            ? "bg-red-100 text-red-500"
-            : "bg-emerald-100 text-emerald-600"
-        }`}
+          ${
+            status === "missed"
+              ? "bg-slate-200 text-slate-600 dark:bg-slate-600 dark:text-slate-200"
+              : "bg-white text-slate-700 dark:bg-slate-600 dark:text-slate-200"
+          }`}
       >
         {getIcon()}
       </div>
@@ -305,16 +329,19 @@ const CallBubble = ({ message, isOwn }) => {
         <div className="flex items-center gap-1">
           {/* Direction */}
           {isIncoming ? (
-            <ArrowDownLeft size={14} className="text-gray-400" />
+            <ArrowDownLeft
+              size={14}
+              className="text-gray-400 dark:text-slate-400"
+            />
           ) : (
-            <ArrowUpRight size={14} className="text-gray-400" />
+            <ArrowUpRight
+              size={14}
+              className="text-gray-400 dark:text-slate-400"
+            />
           )}
 
-          <span
-            className={`font-medium text-sm ${
-              status === "missed" ? "text-red-500" : ""
-            }`}
-          >
+          {/* Text */}
+          <span className="font-medium text-sm text-gray-800 dark:text-slate-200">
             {getText()}
           </span>
         </div>

@@ -5,7 +5,7 @@ import { Send, Plus, X, Image, Music, Video, FileText } from "lucide-react";
 import { useAuth } from "../../context/authContext";
 import { logger } from "../../utils/logger";
 import sentSound from "../../assets/sound/sent.mp3";
-
+import { PhoneCall } from "lucide-react";
 const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
   const [message, setMessage] = useState("");
   const [showMenu, setShowMenu] = useState(false);
@@ -253,8 +253,26 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
               <p className="text-xs text-emerald-500 font-medium truncate">
                 {replyTo.sender?.fName}
               </p>
-              <p className="text-gray-600 dark:text-slate-300 truncate text-xs">
-                {replyTo.content || "📎 Media"}
+              <p className="text-gray-600 dark:text-slate-300 truncate text-xs flex items-center gap-1">
+                {replyTo.messageType === "call" ? (
+                  <>
+                    {replyTo.callData?.callType === "video" ? (
+                      <Video size={12} />
+                    ) : (
+                      <PhoneCall size={12} />
+                    )}
+
+                    <span>
+                      {replyTo.callData?.status === "missed"
+                        ? "Missed call"
+                        : replyTo.callData?.callType === "video"
+                        ? "Video call"
+                        : "Voice call"}
+                    </span>
+                  </>
+                ) : (
+                  replyTo.content || "📎 Media"
+                )}
               </p>
             </div>
             <button

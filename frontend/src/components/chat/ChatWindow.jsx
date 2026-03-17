@@ -5,8 +5,10 @@ import ChatHeader from "./ChatHeader";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import { logger } from "../../utils/logger";
+
 import receiveSoundFile from "../../assets/sound/sent.mp3";
 import seenSoundFile from "../../assets/sound/seen.mp3";
+
 import { useAuth } from "../../context/authContext";
 
 const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
@@ -52,7 +54,9 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
     socket.emit("message-seen", { chatId: chat._id });
 
     const handleReceiveMessage = (message) => {
-      if (message.sender._id === user?._id) return; // ✅ safe access
+      const senderId = message.sender?._id || message.sender;
+
+      if (senderId === user?._id) return;
       setMessages((prev) => {
         if (prev.some((msg) => msg._id === message._id)) return prev;
         return [...prev, message];
@@ -64,18 +68,22 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
 
     const handleSeen = ({ chatId, userId }) => {
       if (chatId.toString() !== chat._id.toString()) return;
-      if (userId !== user?._id) {
-        // ✅ safe access
-        seenSoundRef.current.currentTime = 0;
-        seenSoundRef.current.play();
-      }
+
       setMessages((prev) =>
-        prev.map((msg) => ({
-          ...msg,
-          readBy: msg.readBy?.includes(userId)
-            ? msg.readBy
-            : [...(msg.readBy || []), userId],
-        }))
+        prev.map((msg) => {
+          const alreadySeen = msg.readBy?.includes(userId);
+
+          // ✅ play sound only once for your message
+          if (!alreadySeen && msg.sender?._id === user?._id) {
+            seenSoundRef.current.currentTime = 0;
+            seenSoundRef.current.play().catch(() => {});
+          }
+
+          return {
+            ...msg,
+            readBy: alreadySeen ? msg.readBy : [...(msg.readBy || []), userId],
+          };
+        })
       );
     };
 
