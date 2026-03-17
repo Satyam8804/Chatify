@@ -215,7 +215,7 @@ const CallsTab = ({
 
           {/* Loader (center) */}
           <div className="absolute">
-            <Loader size={28} />
+            <Loader className="w-10 h-10 animate-spin text-emerald-500 mb-4" />
           </div>
 
           {/* Background circle */}
