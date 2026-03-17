@@ -258,15 +258,11 @@ export const searchUsers = async (req, res) => {
       return res.status(400).json({ message: "Query is required" });
     }
 
-    const q = query.trim();
+    const email = query.trim().toLowerCase();
 
     const users = await User.find({
       _id: { $ne: req.user._id },
-      $or: [
-        { fName: { $regex: q, $options: "i" } },
-        { lName: { $regex: q, $options: "i" } },
-        { email: { $regex: q, $options: "i" } },
-      ],
+      email: email, // ✅ exact match only
     }).select("-password");
 
     res.json({ users });
