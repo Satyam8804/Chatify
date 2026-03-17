@@ -393,6 +393,8 @@ const CallBubble = ({ message, isOwn, onStartCall }) => {
               ? { _id: message.chat }
               : message.chat;
 
+          console.log(chatObj,callType)  
+
           onStartCall?.(chatObj, callType);
         }}
         className="ml-1 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600 transition"
