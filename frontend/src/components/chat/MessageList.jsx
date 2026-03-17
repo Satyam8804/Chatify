@@ -331,6 +331,7 @@ const CallBubble = ({ message, isOwn, onStartCall }) => {
     colorClass = "text-green-500";
   }
 
+
   return (
     <div
       className={`flex items-center gap-3 px-3 py-2 rounded-lg w-fit min-w-[180px]
@@ -381,17 +382,23 @@ const CallBubble = ({ message, isOwn, onStartCall }) => {
         )}
       </div>
 
-      {/* 🔥 CALL BACK BUTTON */}
       <button
-        onClick={() =>
+        onClick={(e) => {
+          e.stopPropagation();
+
+          const chatId =
+            typeof message.chat === "string" ? message.chat : message.chat?._id;
+
+          console.log("CALL CLICKED", { callType, chatId }); // 🔍 debug
+
           onStartCall?.({
-            type: callType,
-            chatId: message.chat?._id || message.chat,
-          })
-        }
-        className="ml-2 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600"
+            type:callType,
+            chatId,
+          });
+        }}
+        className="ml-1 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600 transition"
       >
-        {callType === "video" ? <Video size={14} /> : <PhoneCall size={14} />}
+        {callType === "video" ? <Video size={12} /> : <PhoneCall size={12} />}
       </button>
     </div>
   );
