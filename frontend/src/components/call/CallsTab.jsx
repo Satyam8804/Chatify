@@ -195,11 +195,16 @@ const CallsTab = ({
 
   if (loading && callLogs.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3">
-        <Loader className="w-8 h-8 text-emerald-500" />
-        <p className="text-gray-500 dark:text-slate-400 text-sm">
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
+        <Loader className="w-8 h-8 text-emerald-500 animate-spin" />
+
+        <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">
           Loading calls...
         </p>
+
+        <span className="text-xs text-gray-400 dark:text-slate-500">
+          Please wait a moment
+        </span>
       </div>
     );
   }
