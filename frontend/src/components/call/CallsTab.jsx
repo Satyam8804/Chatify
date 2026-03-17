@@ -35,8 +35,6 @@ const CallLog = ({ log, currentUserId, onCall }) => {
   const isVideo = log.callType === "video";
   const isGroupCall = log.isGroupCall || false;
 
-  // ✅ outgoing: other person is in participants
-  // ✅ incoming: other person IS the sender
   const otherUser = isGroupCall
     ? null
     : isOutgoing
@@ -197,11 +195,9 @@ const CallsTab = ({
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
         <Loader className="w-8 h-8 text-emerald-500 animate-spin" />
-
         <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">
           Loading calls...
         </p>
-
         <span className="text-xs text-gray-400 dark:text-slate-500">
           Please wait a moment
         </span>
@@ -212,17 +208,28 @@ const CallsTab = ({
   if (callLogs.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
-        <div className="relative">
-          <div className="absolute inset-0 rounded-full bg-emerald-500/20 blur-xl animate-pulse" />
-          <div className="relative w-16 h-16 rounded-full flex items-center justify-center bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700">
-            <Phone size={24} className="text-emerald-500" />
+        {/* Loader / Icon Container */}
+        <div className="relative flex items-center justify-center">
+          {/* Glow */}
+          <div className="absolute w-20 h-20 rounded-full bg-emerald-500/20 blur-xl animate-pulse" />
+
+          {/* Loader (center) */}
+          <div className="absolute">
+            <Loader size={28} />
+          </div>
+
+          {/* Background circle */}
+          <div className="w-16 h-16 rounded-full flex items-center justify-center bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm">
+            <Phone size={20} className="text-emerald-500 opacity-40" />
           </div>
         </div>
+
+        {/* Text */}
         <div>
           <p className="text-sm font-semibold text-gray-800 dark:text-slate-200">
             No recent calls
           </p>
-          <p className="text-xs text-gray-500 dark:text-slate-500 mt-1">
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
             Your call history will appear here
           </p>
         </div>
