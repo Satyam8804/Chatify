@@ -178,12 +178,13 @@ const MessageBubble = ({
                 {message.replyTo.sender?.fName}
               </p>
               <div className="text-gray-500 dark:text-slate-400 truncate text-[11px] flex items-center gap-2">
-                {message.replyTo.messageType === "call" ? (
-                  <>
-                    {(() => {
-                      const status = message.replyTo.callData?.status;
-                      const type = message.replyTo.callData?.callType;
-                      const duration = message.replyTo.callData?.duration || 0;
+                {message.replyTo.messageType === "call"
+                  ? (() => {
+                      const {
+                        status,
+                        callType: type,
+                        duration = 0,
+                      } = message.replyTo.callData || {};
 
                       const isIncoming =
                         message.replyTo.sender?._id !== message.sender?._id;
@@ -218,24 +219,6 @@ const MessageBubble = ({
                               : "Call declined"}
                           </span>
 
-                          {/* 🔥 CALL BACK BUTTON */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation(); // prevent reply scroll
-                              onStartCall?.({
-                                type, // video / voice
-                                chatId: message.chat?._id || message.chat,
-                              });
-                            }}
-                            className="ml-1 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600 transition"
-                          >
-                            {type === "video" ? (
-                              <Video size={12} />
-                            ) : (
-                              <PhoneCall size={12} />
-                            )}
-                          </button>
-
                           {/* DURATION */}
                           {duration > 0 && (
                             <span className="ml-1 text-[10px] text-gray-400">
@@ -245,19 +228,20 @@ const MessageBubble = ({
                           )}
                         </>
                       );
-                    })()}
-                  </>
-                ) : (
-                  message.replyTo.content ||
-                  (message.replyTo.media?.length > 0 ? "📎 Media" : "")
-                )}
+                    })()
+                  : message.replyTo.content ||
+                    (message.replyTo.media?.length > 0 ? "📎 Media" : "")}
               </div>
             </div>
           </div>
         )}
 
         {message.messageType === "call" && (
-          <CallBubble message={message} isOwn={isOwn} />
+          <CallBubble
+            message={message}
+            isOwn={isOwn}
+            onStartCall={onStartCall}
+          />
         )}
 
         {/* TEXT MESSAGE */}
@@ -327,23 +311,9 @@ const MessageBubble = ({
   );
 };
 
-const CallBubble = ({ message, isOwn }) => {
+const CallBubble = ({ message, isOwn, onStartCall }) => {
   const { callType, status, duration } = message.callData || {};
   const isIncoming = !isOwn;
-
-  const getIcon = () => {
-    if (status === "missed") return <PhoneMissed size={16} />;
-    if (callType === "video") return <Video size={16} />;
-    return <PhoneCall size={16} />;
-  };
-
-  const getText = () => {
-    if (status === "missed" && isIncoming) return "Missed call";
-    if (status === "missed" && !isIncoming) return "Call not answered";
-    if (status === "rejected") return "Call declined";
-    if (status === "completed") return "Call ended";
-    return callType === "video" ? "Video call" : "Voice call";
-  };
 
   const formatDuration = (sec) => {
     if (!sec) return "";
@@ -351,6 +321,15 @@ const CallBubble = ({ message, isOwn }) => {
     const s = sec % 60;
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
+
+  // 🎯 color logic
+  let colorClass = "text-gray-400";
+
+  if (status === "missed" && isIncoming) {
+    colorClass = "text-red-500";
+  } else if (status === "completed") {
+    colorClass = "text-green-500";
+  }
 
   return (
     <div
@@ -364,34 +343,34 @@ const CallBubble = ({ message, isOwn }) => {
       {/* ICON */}
       <div
         className={`flex items-center justify-center w-8 h-8 rounded-full
-          ${
-            status === "missed"
-              ? "bg-slate-200 text-slate-600 dark:bg-slate-600 dark:text-slate-200"
-              : "bg-white text-slate-700 dark:bg-slate-600 dark:text-slate-200"
-          }`}
+          bg-white dark:bg-slate-600`}
       >
-        {getIcon()}
+        {callType === "video" ? (
+          <Video size={16} className={colorClass} />
+        ) : (
+          <PhoneCall size={16} className={colorClass} />
+        )}
       </div>
 
       {/* TEXT */}
       <div className="flex flex-col">
         <div className="flex items-center gap-1">
-          {/* Direction */}
           {isIncoming ? (
-            <ArrowDownLeft
-              size={14}
-              className="text-gray-400 dark:text-slate-400"
-            />
+            <ArrowDownLeft size={14} className="text-gray-400" />
           ) : (
-            <ArrowUpRight
-              size={14}
-              className="text-gray-400 dark:text-slate-400"
-            />
+            <ArrowUpRight size={14} className="text-gray-400" />
           )}
 
-          {/* Text */}
-          <span className="font-medium text-sm text-gray-800 dark:text-slate-200">
-            {getText()}
+          <span className="text-sm text-gray-800 dark:text-slate-200">
+            {status === "missed"
+              ? isIncoming
+                ? "Missed call"
+                : "Call not answered"
+              : status === "completed"
+              ? callType === "video"
+                ? "Video call"
+                : "Voice call"
+              : "Call declined"}
           </span>
         </div>
 
@@ -401,6 +380,19 @@ const CallBubble = ({ message, isOwn }) => {
           </span>
         )}
       </div>
+
+      {/* 🔥 CALL BACK BUTTON */}
+      <button
+        onClick={() =>
+          onStartCall?.({
+            type: callType,
+            chatId: message.chat?._id || message.chat,
+          })
+        }
+        className="ml-2 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600"
+      >
+        {callType === "video" ? <Video size={14} /> : <PhoneCall size={14} />}
+      </button>
     </div>
   );
 };
