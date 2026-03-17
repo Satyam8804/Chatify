@@ -2,7 +2,6 @@ import { v2 as cloudinary } from "cloudinary";
 import Message from "../models/message.model.js";
 import Chat from "../models/chat.model.js";
 
-
 export const getPublicIdFromUrl = (url) => {
   const parts = url.split("/upload/");
   if (!parts[1]) return null;
@@ -49,7 +48,6 @@ export const sendMessage = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 export const fetchMessageOfChat = async (req, res) => {
   try {
     const { chatId } = req.params;
@@ -95,10 +93,8 @@ export const clearChat = async (req, res) => {
   try {
     const { chatId } = req.params;
 
-    
     const messages = await Message.find({ chat: chatId });
 
-    
     for (const message of messages) {
       if (message.media?.length > 0) {
         for (const m of message.media) {
@@ -142,7 +138,6 @@ export const sendCallMessage = async (req, res) => {
       });
     }
 
-    
     const finalParticipants = participants.length
       ? participants
       : receiverId
@@ -172,8 +167,6 @@ export const sendCallMessage = async (req, res) => {
       updatedAt: new Date(),
     });
 
-    req.io.to(chatId).emit("receive-message", message);
-
     message.chat.users.forEach((userId) => {
       if (userId.toString() !== req.user._id.toString()) {
         req.io.to(userId.toString()).emit("message-notification", {
@@ -182,6 +175,23 @@ export const sendCallMessage = async (req, res) => {
         });
       }
     });
+
+    const notified = new Set();
+
+    const emitToUser = (id) => {
+      const userId = id.toString();
+
+      if (!notified.has(userId)) {
+        notified.add(userId);
+        req.io.to(userId).emit("call-log-saved", message);
+      }
+    };
+
+    // sender
+    emitToUser(req.user._id);
+
+    
+    message.participants?.forEach((p) => emitToUser(p._id));
 
     res.status(201).json(message);
   } catch (error) {

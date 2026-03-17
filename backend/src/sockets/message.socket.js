@@ -8,16 +8,12 @@ export default function messageSocket(io, socket) {
 
     if (!chatId) return;
 
-
-    // emit to active chat room
-    socket.to(chatId).emit("receive-message", message);
+    io.to(chatId).emit("receive-message", message);
 
     // send notification to users
     users.forEach((userId) => {
       const receiverId = userId.toString();
-
       if (receiverId !== socket.userId.toString()) {
-
         io.to(receiverId).emit("message-notification", {
           chatId,
           message,

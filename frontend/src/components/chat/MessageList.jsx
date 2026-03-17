@@ -9,6 +9,14 @@ import { getAvatarColor } from "../../utils/getAvatarColor";
 import { FaFilePdf } from "react-icons/fa";
 import AudioPlayer from "./AudioPlayer";
 import ImagePreview from "./ImagePreview";
+import {
+  Phone,
+  PhoneCall,
+  PhoneMissed,
+  Video,
+  ArrowDownLeft,
+  ArrowUpRight,
+} from "lucide-react";
 
 const MessageList = ({ messages, onReply }) => {
   const { user } = useAuth();
@@ -175,8 +183,12 @@ const MessageBubble = ({
           </div>
         )}
 
+        {message.messageType === "call" && (
+          <CallBubble message={message} isOwn={isOwn} />
+        )}
+
         {/* TEXT MESSAGE */}
-        {message.content && (
+        {message.messageType !== "call" && message.content && (
           <div className="flex gap-2 items-end">
             <span className="whitespace-pre-wrap break-all text-[13px] leading-relaxed">
               {message.content}
@@ -195,15 +207,16 @@ const MessageBubble = ({
         )}
 
         {/* MEDIA MESSAGE */}
-        {message.media.map((m, i) => (
-          <MediaRenderer
-            key={i}
-            media={m}
-            uploading={message.uploading}
-            setPreviewImage={setPreviewImage}
-            isOwn={isOwn}
-          />
-        ))}
+        {message.messageType !== "call" &&
+          message.media.map((m, i) => (
+            <MediaRenderer
+              key={i}
+              media={m}
+              uploading={message.uploading}
+              setPreviewImage={setPreviewImage}
+              isOwn={isOwn}
+            />
+          ))}
 
         {/* Time + Tick */}
         <div className="flex justify-end items-center gap-1 mt-1">
@@ -238,6 +251,82 @@ const MessageBubble = ({
           <Reply size={14} />
         </button>
       )}
+    </div>
+  );
+};
+
+const CallBubble = ({ message, isOwn }) => {
+  const { callType, status, duration } = message.callData || {};
+  const isIncoming = !isOwn;
+
+  const getIcon = () => {
+    if (status === "missed") return <PhoneMissed size={16} />;
+    if (callType === "video") return <Video size={16} />;
+    return <PhoneCall size={16} />;
+  };
+
+  const getText = () => {
+    if (status === "missed" && isIncoming) return "Missed call";
+    if (status === "missed" && !isIncoming) return "Call not answered";
+    if (status === "rejected") return "Call declined";
+    if (status === "completed") return "Call ended";
+    return callType === "video" ? "Video call" : "Voice call";
+  };
+
+  const formatDuration = (sec) => {
+    if (!sec) return "";
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
+
+  return (
+    <div
+      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm
+    ${
+      isOwn
+        ? "bg-emerald-200 dark:bg-emerald-800"
+        : "bg-gray-100 dark:bg-slate-700"
+    }`}
+    >
+      {/* ICON */}
+      <div
+        className={`p-1.5 rounded-full
+      ${
+        status === "missed"
+          ? "bg-red-100 text-red-500"
+          : "bg-emerald-100 text-emerald-600"
+      }`}
+      >
+        {getIcon()}
+      </div>
+
+      {/* TEXT */}
+      <div className="flex flex-col">
+        <div className="flex items-center gap-1">
+          {/* 🔽 Direction Icon */}
+          {isOwn ? (
+            <ArrowUpRight size={12} className="text-gray-400" />
+          ) : (
+            <ArrowDownLeft size={12} className="text-gray-400" />
+          )}
+
+          {/* Text */}
+          <span
+            className={`font-medium ${
+              status === "missed" ? "text-red-500" : ""
+            }`}
+          >
+            {getText()}
+          </span>
+        </div>
+
+        {duration > 0 && (
+          <span className="text-xs text-gray-500 dark:text-slate-400">
+            {formatDuration(duration)}
+          </span>
+        )}
+      </div>
     </div>
   );
 };

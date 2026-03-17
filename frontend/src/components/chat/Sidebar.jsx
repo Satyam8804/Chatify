@@ -35,7 +35,7 @@ const Sidebar = ({
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [seenCalls, setSeenCalls] = useState(false);
+  const [lastSeenCallTime, setLastSeenCallTime] = useState(null);
 
   const menuRef = useRef(null);
   const joinedChatsRef = useRef(new Set());
@@ -50,20 +50,27 @@ const Sidebar = ({
     }
   };
 
-  const fetchCalls = async (pageNumber = 1) => {
-    if (loading || (pageNumber !== 1 && !hasMore)) return;
+  const fetchCalls = async (pageNumber = 1, force = false) => {
+    if (!force && (loading || (pageNumber !== 1 && !hasMore))) return;
+
     setLoading(true);
+
     try {
       const res = await api.get(
         `/messages/calls/logs?page=${pageNumber}&limit=${LIMIT}`
       );
+
       const { logs: newLogs = [], hasMore: moreAvailable = false } =
         res?.data || {};
+
       setHasMore(moreAvailable);
+
       setCallLogs((prev) => {
         if (pageNumber === 1) return newLogs;
+
         const existingIds = new Set(prev.map((c) => c._id));
         const filtered = newLogs.filter((c) => !existingIds.has(c._id));
+
         return [...prev, ...filtered];
       });
     } catch (err) {
@@ -75,18 +82,25 @@ const Sidebar = ({
 
   const fetchNextPage = () => {
     if (loading || !hasMore) return;
-    const next = page + 1;
-    setPage(next);
-    fetchCalls(next);
+
+    setPage((prev) => {
+      const next = prev + 1;
+      fetchCalls(next);
+      return next;
+    });
   };
 
-  const missedCount = seenCalls
-    ? 0
-    : callLogs.filter((c) => c.status === "missed").length;
-
+  const missedCount = callLogs.filter(
+    (c) =>
+      c.status === "missed" &&
+      (!lastSeenCallTime || new Date(c.createdAt) > lastSeenCallTime)
+  ).length;
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    if (tab === "calls") setSeenCalls(true);
+
+    if (tab === "calls") {
+      setLastSeenCallTime(new Date());
+    }
   };
 
   const updateChatLatestMessage = (newMessage) => {
@@ -116,9 +130,11 @@ const Sidebar = ({
   }, [user?._id]);
 
   useEffect(() => {
-    setPage(1);
-    fetchCalls(1);
-  }, []);
+    if (activeTab === "calls") {
+      setPage(1);
+      fetchCalls(1, true);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     joinedChatsRef.current = new Set();
@@ -145,10 +161,11 @@ const Sidebar = ({
 
     const handleMessage = (newMessage) => {
       updateChatLatestMessage(newMessage);
-      if (newMessage.messageType === "call") {
-        setPage(1);
-        fetchCalls(1);
-      }
+    };
+
+    const handleCallLog = () => {
+      setPage(1);
+      fetchCalls(1, true); // ✅ FORCE refresh
     };
 
     const handleNewChat = (newChat) => {
@@ -161,13 +178,13 @@ const Sidebar = ({
       joinedChatsRef.current.add(newChat._id);
     };
 
-    socket.on("message-received", handleMessage);
     socket.on("receive-message", handleMessage);
+    socket.on("call-log-saved", handleCallLog);
     socket.on("new-chat-created", handleNewChat);
 
     return () => {
-      socket.off("message-received", handleMessage);
       socket.off("receive-message", handleMessage);
+      socket.off("call-log-saved", handleCallLog);
       socket.off("new-chat-created", handleNewChat);
     };
   }, [socket]);
