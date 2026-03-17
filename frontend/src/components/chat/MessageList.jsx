@@ -18,7 +18,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 
-const MessageList = ({ messages, onReply }) => {
+const MessageList = ({ messages, onReply, onStartCall }) => {
   const { user } = useAuth();
   const bottomRef = useRef(null);
   const { typingUser } = useSocket();
@@ -62,6 +62,7 @@ const MessageList = ({ messages, onReply }) => {
           onReply={onReply}
           messageRefs={messageRefs}
           onReplyClick={handleReplyClick}
+          onStartCall={onStartCall}
         />
       ))}
       {previewImage && (
@@ -85,6 +86,7 @@ const MessageBubble = ({
   onReply,
   onReplyClick,
   messageRefs,
+  onStartCall,
 }) => {
   const userColor = !isOwn
     ? getAvatarColor(message.sender?._id || message.sender?.fName)
@@ -175,34 +177,81 @@ const MessageBubble = ({
               <p className="text-emerald-500 font-medium text-[10px] truncate">
                 {message.replyTo.sender?.fName}
               </p>
-              <p className="text-gray-500 dark:text-slate-400 truncate text-[11px]">
+              <div className="text-gray-500 dark:text-slate-400 truncate text-[11px] flex items-center gap-2">
                 {message.replyTo.messageType === "call" ? (
-                  <div className="flex items-center gap-1">
-                    {message.replyTo.callData?.callType === "video" ? (
-                      <Video
-                        size={12}
-                        className="text-gray-500 dark:text-slate-400"
-                      />
-                    ) : (
-                      <PhoneCall
-                        size={12}
-                        className="text-gray-500 dark:text-slate-400"
-                      />
-                    )}
+                  <>
+                    {(() => {
+                      const status = message.replyTo.callData?.status;
+                      const type = message.replyTo.callData?.callType;
+                      const duration = message.replyTo.callData?.duration || 0;
 
-                    <span>
-                      {message.replyTo.callData?.status === "missed"
-                        ? "Missed call"
-                        : message.replyTo.callData?.callType === "video"
-                        ? "Video call"
-                        : "Voice call"}
-                    </span>
-                  </div>
+                      const isIncoming =
+                        message.replyTo.sender?._id !== message.sender?._id;
+
+                      let colorClass = "text-gray-400";
+
+                      if (status === "missed" && isIncoming) {
+                        colorClass = "text-red-500";
+                      } else if (status === "completed") {
+                        colorClass = "text-green-500";
+                      }
+
+                      return (
+                        <>
+                          {/* ICON */}
+                          {type === "video" ? (
+                            <Video size={12} className={colorClass} />
+                          ) : (
+                            <PhoneCall size={12} className={colorClass} />
+                          )}
+
+                          {/* TEXT */}
+                          <span>
+                            {status === "missed"
+                              ? isIncoming
+                                ? "Missed call"
+                                : "Call not answered"
+                              : status === "completed"
+                              ? type === "video"
+                                ? "Video call"
+                                : "Voice call"
+                              : "Call declined"}
+                          </span>
+
+                          {/* 🔥 CALL BACK BUTTON */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation(); // prevent reply scroll
+                              onStartCall?.({
+                                type, // video / voice
+                                chatId: message.chat?._id || message.chat,
+                              });
+                            }}
+                            className="ml-1 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600 transition"
+                          >
+                            {type === "video" ? (
+                              <Video size={12} />
+                            ) : (
+                              <PhoneCall size={12} />
+                            )}
+                          </button>
+
+                          {/* DURATION */}
+                          {duration > 0 && (
+                            <span className="ml-1 text-[10px] text-gray-400">
+                              • {Math.floor(duration / 60)}:
+                              {(duration % 60).toString().padStart(2, "0")}
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </>
                 ) : (
                   message.replyTo.content ||
                   (message.replyTo.media?.length > 0 ? "📎 Media" : "")
                 )}
-              </p>
+              </div>
             </div>
           </div>
         )}

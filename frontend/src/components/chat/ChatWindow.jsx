@@ -109,7 +109,11 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
       />
 
       <div className="flex-1 overflow-hidden bg-slate-50 dark:bg-slate-950">
-        <MessageList messages={messages} onReply={setReplyTo} />
+        <MessageList
+          messages={messages}
+          onReply={setReplyTo}
+          onStartCall={startCall}
+        />
       </div>
 
       <MessageInput
