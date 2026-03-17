@@ -384,15 +384,12 @@ const CallBubble = ({ message, isOwn, onStartCall }) => {
       <button
         onClick={(e) => {
           e.stopPropagation();
-
-          const type = message.replyTo.callData?.callType;
-
           const chatObj =
             typeof message.chat === "string"
-              ? { _id: message.chat } // fallback (rare case)
+              ? { _id: message.chat } 
               : message.chat;
 
-          onStartCall?.(chatObj, type); // ✅ CORRECT
+          onStartCall?.(chatObj,callType); // ✅ CORRECT
         }}
         className="ml-1 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600 transition"
       >
