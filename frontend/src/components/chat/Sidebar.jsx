@@ -35,11 +35,11 @@ const Sidebar = ({
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
-
-  // ✅ track if user has seen the calls tab
   const [seenCalls, setSeenCalls] = useState(false);
 
   const menuRef = useRef(null);
+  const joinedChatsRef = useRef(new Set());
+  const LIMIT = 20;
 
   const fetchAllChats = async () => {
     try {
@@ -50,8 +50,6 @@ const Sidebar = ({
     }
   };
 
-  const LIMIT = 20;
-
   const fetchCalls = async (pageNumber = 1) => {
     if (loading || (pageNumber !== 1 && !hasMore)) return;
     setLoading(true);
@@ -59,8 +57,6 @@ const Sidebar = ({
       const res = await api.get(
         `/messages/calls/logs?page=${pageNumber}&limit=${LIMIT}`
       );
-
-      
       const { logs: newLogs = [], hasMore: moreAvailable = false } =
         res?.data || {};
       setHasMore(moreAvailable);
@@ -84,21 +80,9 @@ const Sidebar = ({
     fetchCalls(next);
   };
 
-  useEffect(() => {
-    setPage(1);
-    fetchCalls(1);
-  }, []);
-
-  useEffect(() => {
-    if (activeTab !== "calls" && callLogs.length > 0) {
-      setSeenCalls(false);
-    }
-  }, [callLogs, activeTab]);
-
   const missedCount = seenCalls
     ? 0
     : callLogs.filter((c) => c.status === "missed").length;
-
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
@@ -132,10 +116,60 @@ const Sidebar = ({
   }, [user?._id]);
 
   useEffect(() => {
+    setPage(1);
+    fetchCalls(1);
+  }, []);
+
+  useEffect(() => {
+    joinedChatsRef.current = new Set();
+  }, [socket]);
+
+  useEffect(() => {
+    if (!socket || !chats.length) return;
+    chats.forEach((chat) => {
+      if (!joinedChatsRef.current.has(chat._id)) {
+        socket.emit("join-chat", chat._id);
+        joinedChatsRef.current.add(chat._id);
+      }
+    });
+  }, [socket, chats]);
+
+  useEffect(() => {
+    if (activeTab !== "calls" && callLogs.length > 0) {
+      setSeenCalls(false);
+    }
+  }, [callLogs, activeTab]);
+
+  useEffect(() => {
     if (!socket) return;
-    const handleMessage = (newMessage) => updateChatLatestMessage(newMessage);
+
+    const handleMessage = (newMessage) => {
+      updateChatLatestMessage(newMessage);
+      if (newMessage.messageType === "call") {
+        setPage(1);
+        fetchCalls(1);
+      }
+    };
+
+    const handleNewChat = (newChat) => {
+      setChats((prev) => {
+        const exists = prev.find((c) => c._id === newChat._id);
+        if (exists) return prev;
+        return [newChat, ...prev];
+      });
+      socket.emit("join-chat", newChat._id);
+      joinedChatsRef.current.add(newChat._id);
+    };
+
     socket.on("message-received", handleMessage);
-    return () => socket.off("message-received", handleMessage);
+    socket.on("receive-message", handleMessage);
+    socket.on("new-chat-created", handleNewChat);
+
+    return () => {
+      socket.off("message-received", handleMessage);
+      socket.off("receive-message", handleMessage);
+      socket.off("new-chat-created", handleNewChat);
+    };
   }, [socket]);
 
   useEffect(() => {
@@ -152,7 +186,6 @@ const Sidebar = ({
 
   return (
     <div className="relative h-full flex flex-col bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-700 transition-colors">
-      {/* Header */}
       <div className="flex justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-slate-700">
         <div className="flex items-center gap-2">
           <img src={ChatifyLogo} alt="" className="h-12" />
@@ -168,7 +201,6 @@ const Sidebar = ({
         </button>
       </div>
 
-      {/* Tab Content */}
       <div className="flex-1 flex flex-col min-h-0">
         {activeTab === "chats" ? (
           <div className="flex-1 flex flex-col px-3 gap-4 min-h-0">
@@ -206,10 +238,9 @@ const Sidebar = ({
         )}
       </div>
 
-      {/* Bottom Tabs */}
       <div className="border-t border-gray-200 dark:border-slate-700 flex shrink-0">
         <button
-          onClick={() => handleTabChange("chats")} // ✅
+          onClick={() => handleTabChange("chats")}
           className={`flex-1 flex flex-col cursor-pointer items-center justify-center py-2 text-[11px] font-medium transition-colors ${
             activeTab === "chats"
               ? "text-emerald-500"
@@ -224,7 +255,7 @@ const Sidebar = ({
         </button>
 
         <button
-          onClick={() => handleTabChange("calls")} // ✅
+          onClick={() => handleTabChange("calls")}
           className={`relative flex-1 flex flex-col cursor-pointer items-center justify-center py-2 text-[11px] font-medium transition-colors ${
             activeTab === "calls"
               ? "text-emerald-500"
@@ -233,7 +264,6 @@ const Sidebar = ({
         >
           <div className="relative">
             <Phone size={18} />
-            {/* ✅ badge on icon, not below it */}
             {missedCount > 0 && (
               <span className="absolute -top-1.5 -right-2.5 text-[9px] bg-rose-500 text-white min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center">
                 {missedCount}
@@ -247,7 +277,6 @@ const Sidebar = ({
         </button>
       </div>
 
-      {/* Modals */}
       <div className="z-50">
         {showDirectModal && (
           <NewDirectChatModal

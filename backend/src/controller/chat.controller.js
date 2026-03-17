@@ -10,18 +10,14 @@ export const accessChat = async (req, res) => {
 
     const chat = await Chat.findOne({
       isGroupChat: false,
-      users: {
-        $all: [req.user._id, userId],
-      },
+      users: { $all: [req.user._id, userId] },
     })
       .populate("users", "-password")
       .populate("lastMessage");
 
     if (chat) {
-      return res.json(chat);
+      return res.json(chat); // existing chat — no need to emit
     }
-
-    //create new chat
 
     const newChat = await Chat.create({
       isGroupChat: false,
@@ -32,6 +28,11 @@ export const accessChat = async (req, res) => {
       "users",
       "-password"
     );
+
+    // ✅ notify both users to join the new chat room
+    fullChat.users.forEach((u) => {
+      req.io.to(u._id.toString()).emit("new-chat-created", fullChat);
+    });
 
     res.status(201).json(fullChat);
   } catch (error) {
@@ -66,7 +67,6 @@ export const createGroupChat = async (req, res) => {
       });
     }
 
-    // Ensure users is array
     const parsedUsers = Array.isArray(users) ? users : JSON.parse(users);
 
     if (parsedUsers.length < 2) {
@@ -75,7 +75,6 @@ export const createGroupChat = async (req, res) => {
       });
     }
 
-    // Add creator and remove duplicates
     const allUsers = [...new Set([...parsedUsers, req.user._id.toString()])];
 
     const groupChat = await Chat.create({
@@ -85,10 +84,14 @@ export const createGroupChat = async (req, res) => {
       groupAdmin: req.user._id,
     });
 
-    // Populate chat before returning
     const fullChat = await Chat.findById(groupChat._id)
       .populate("users", "-password")
       .populate("groupAdmin", "-password");
+
+    // ✅ notify all group members to join the new chat room
+    fullChat.users.forEach((u) => {
+      req.io.to(u._id.toString()).emit("new-chat-created", fullChat);
+    });
 
     res.status(201).json(fullChat);
   } catch (error) {
