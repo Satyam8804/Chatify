@@ -2,7 +2,7 @@ import { v2 as cloudinary } from "cloudinary";
 import Message from "../models/message.model.js";
 import Chat from "../models/chat.model.js";
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
+
 export const getPublicIdFromUrl = (url) => {
   const parts = url.split("/upload/");
   if (!parts[1]) return null;
@@ -17,7 +17,6 @@ export const getResourceTypeFromUrl = (url) => {
   return "image";
 };
 
-// ─── Send Message ──────────────────────────────────────────────────────────────
 export const sendMessage = async (req, res) => {
   try {
     const { chatId, content, replyTo } = req.body;
@@ -51,7 +50,6 @@ export const sendMessage = async (req, res) => {
   }
 };
 
-// ─── Fetch Messages ────────────────────────────────────────────────────────────
 export const fetchMessageOfChat = async (req, res) => {
   try {
     const { chatId } = req.params;
@@ -70,7 +68,6 @@ export const fetchMessageOfChat = async (req, res) => {
   }
 };
 
-// ─── Mark Messages As Seen ────────────────────────────────────────────────────
 export const markMessagesAsSeen = async (req, res) => {
   try {
     const { chatId } = req.params;
@@ -94,15 +91,14 @@ export const markMessagesAsSeen = async (req, res) => {
   }
 };
 
-// ─── Clear Chat ────────────────────────────────────────────────────────────────
 export const clearChat = async (req, res) => {
   try {
     const { chatId } = req.params;
 
-    // 1️⃣ fetch all messages
+    
     const messages = await Message.find({ chat: chatId });
 
-    // 2️⃣ delete media from Cloudinary using URL-derived public_id
+    
     for (const message of messages) {
       if (message.media?.length > 0) {
         for (const m of message.media) {
@@ -124,6 +120,116 @@ export const clearChat = async (req, res) => {
     await Chat.findByIdAndUpdate(chatId, { lastMessage: null });
 
     res.json({ message: "Chat cleared successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const sendCallMessage = async (req, res) => {
+  try {
+    const {
+      chatId,
+      callType,
+      status,
+      duration = 0,
+      participants = [],
+      receiverId, // ✅ ADD: frontend sends this for 1-1 calls
+    } = req.body;
+
+    if (!chatId || !callType || !status) {
+      return res.status(400).json({
+        message: "chatId, callType and status are required",
+      });
+    }
+
+    
+    const finalParticipants = participants.length
+      ? participants
+      : receiverId
+      ? [receiverId]
+      : [];
+
+    const payload = {
+      sender: req.user._id,
+      chat: chatId,
+      messageType: "call",
+      participants: finalParticipants, // ✅ always populated now
+      callData: { callType, status, duration },
+      readBy: [req.user._id],
+    };
+
+    let message = await Message.create(payload);
+
+    message = await message.populate("sender", "fName lName email avatar");
+    message = await message.populate("participants", "fName lName avatar"); // ✅ ADD
+    message = await message.populate({
+      path: "chat",
+      select: "users isGroupChat chatName",
+    });
+
+    await Chat.findByIdAndUpdate(chatId, {
+      lastMessage: message._id,
+      updatedAt: new Date(),
+    });
+
+    req.io.to(chatId).emit("receive-message", message);
+
+    message.chat.users.forEach((userId) => {
+      if (userId.toString() !== req.user._id.toString()) {
+        req.io.to(userId.toString()).emit("message-notification", {
+          chatId,
+          message,
+        });
+      }
+    });
+
+    res.status(201).json(message);
+  } catch (error) {
+    console.error("CALL MESSAGE ERROR 👉", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getCallLogs = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const query = {
+      messageType: "call",
+      $or: [{ sender: userId }, { participants: userId }], // ✅ cleaner, no $in needed
+    };
+
+    const [logs, total] = await Promise.all([
+      Message.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate("sender", "fName lName avatar")
+        .populate("participants", "fName lName avatar")
+        .populate("chat", "chatName isGroupChat"),
+
+      Message.countDocuments(query),
+    ]);
+
+    // ✅ flatten callData + derive isGroupCall from chat
+    const formattedLogs = logs.map((log) => ({
+      ...log.toObject(),
+      callType: log.callData?.callType,
+      status: log.callData?.status,
+      duration: log.callData?.duration,
+      isGroupCall: log.chat?.isGroupChat || false,
+    }));
+
+    res.json({
+      logs: formattedLogs,
+      hasMore: skip + logs.length < total,
+      page,
+      total,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

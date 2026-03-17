@@ -7,6 +7,7 @@ import EmptyChatState from "./EmptyChatState";
 import VideoCall from "../call/VideoCall.jsx";
 import outgoingRingFile from "../../assets/sound/outgoing-ring.mp3";
 import IncomingCallModal from "../common/IncomingCallModal.jsx";
+import api from "../../api/axios.js";
 
 const formatDuration = (secs) => {
   const m = String(Math.floor(secs / 60)).padStart(2, "0");
@@ -31,14 +32,22 @@ const ChatLayout = () => {
   const outgoingRingRef = useRef(new Audio(outgoingRingFile));
   const timerRef = useRef(null);
   const ringTimeoutRef = useRef(null);
-  const initiatorRef = useRef(null);
 
-  // mirror refs for use inside socket handlers
+  const callTypeRef = useRef("video");
+  const callSavedRef = useRef(false);
+
   const isCallingRef = useRef(false);
   const callChatIdRef = useRef(null);
   const isGroupCallRef = useRef(false);
-  const receiverIdRef = useRef(null); // ✅ tracks 1-to-1 receiver
+  const receiverIdRef = useRef(null);
 
+  // ✅ refs to avoid stale closures in endCall
+  const callDurationRef = useRef(0);
+  const callConnectedRef = useRef(false);
+
+  const [initiator, setInitiator] = useState(null);
+
+  // sync refs
   useEffect(() => {
     isCallingRef.current = isCalling;
   }, [isCalling]);
@@ -48,127 +57,188 @@ const ChatLayout = () => {
   useEffect(() => {
     isGroupCallRef.current = isGroupCall;
   }, [isGroupCall]);
+
   useEffect(() => {
     outgoingRingRef.current.loop = true;
   }, []);
 
+  // ✅ TIMER — keeps refs in sync alongside state
   const startTimer = useCallback(() => {
     if (timerRef.current) return;
+    callConnectedRef.current = true;
     setCallConnected(true);
-    timerRef.current = setInterval(() => setCallDuration((p) => p + 1), 1000);
+    timerRef.current = setInterval(() => {
+      setCallDuration((p) => {
+        callDurationRef.current = p + 1;
+        return p + 1;
+      });
+    }, 1000);
   }, []);
 
-  const stopTimer = () => {
+  const stopTimer = useCallback(() => {
     clearInterval(timerRef.current);
     timerRef.current = null;
+    callDurationRef.current = 0;
+    callConnectedRef.current = false;
     setCallDuration(0);
     setCallConnected(false);
-  };
+  }, []);
 
-  const stopOutgoingRing = () => {
-    outgoingRingRef.current.pause();
-    outgoingRingRef.current.currentTime = 0;
-  };
+  // ✅ PARTICIPANTS — only for group calls
+  const getParticipants = useCallback(() => {
+    if (!isGroupCallRef.current) return [];
+    const chat = chats.find(
+      (c) => String(c._id) === String(callChatIdRef.current)
+    );
+    return chat?.users?.map((u) => u._id) || [];
+  }, [chats]);
+
+  const playRing = useCallback(() => {
+    const audio = outgoingRingRef.current;
+    if (!audio) return;
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+  }, []);
+
+  const stopRing = useCallback(() => {
+    const audio = outgoingRingRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+  }, []);
 
   const resetCall = useCallback(() => {
-    videoCallRef.current?.cleanup();
-    stopOutgoingRing();
+    callSavedRef.current = false;
+    videoCallRef.current?.cleanup?.();
+    stopRing();
     clearTimeout(ringTimeoutRef.current);
     ringTimeoutRef.current = null;
     stopTimer();
-    initiatorRef.current = null; // ✅ add
-
     setIsCalling(false);
     setCallTargetName("");
     setCallChatId(null);
     setIsGroupCall(false);
-
+    setInitiator(null);
     isCallingRef.current = false;
     callChatIdRef.current = null;
     isGroupCallRef.current = false;
     receiverIdRef.current = null;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, [stopTimer, stopRing]);
 
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-  }, []);
-
+  // ✅ SOCKET EVENTS
   useEffect(() => {
     if (!socket) return;
 
-    const onCallAccepted = () => {
-      stopOutgoingRing();
+    const onAccepted = () => {
+      stopRing();
       clearTimeout(ringTimeoutRef.current);
-      ringTimeoutRef.current = null;
-      document.documentElement.requestFullscreen().catch(() => {});
-      startTimer();
     };
 
-    const onCallRejected = () => resetCall();
+    const onRejected = async () => {
+      if (!callChatIdRef.current) return;
+      if (!callSavedRef.current) {
+        callSavedRef.current = true;
+        await api.post("/messages/call", {
+          chatId: callChatIdRef.current,
+          callType: callTypeRef.current,
+          status: "rejected",
+          duration: 0,
+          participants: getParticipants(),
+          receiverId: receiverIdRef.current, // ✅
+        });
+      }
+      resetCall();
+    };
 
-    const onCallEnded = () => {
+    const onBusy = () => {
+      stopRing();
+      alert("User is busy on another call");
+      resetCall();
+    };
+
+    const onEnded = () => {
       if (!isGroupCallRef.current) resetCall();
     };
 
-    socket.on("call-accepted", onCallAccepted);
-    socket.on("call-rejected", onCallRejected);
-    socket.on("call-ended", onCallEnded);
+    socket.on("call-accepted", onAccepted);
+    socket.on("call-rejected", onRejected);
+    socket.on("user-busy", onBusy);
+    socket.on("call-ended", onEnded);
 
     return () => {
-      socket.off("call-accepted", onCallAccepted);
-      socket.off("call-rejected", onCallRejected);
-      socket.off("call-ended", onCallEnded);
+      socket.off("call-accepted", onAccepted);
+      socket.off("call-rejected", onRejected);
+      socket.off("user-busy", onBusy);
+      socket.off("call-ended", onEnded);
     };
-  }, [socket, resetCall, startTimer]);
+  }, [socket, resetCall, getParticipants]);
 
+  // ✅ START CALL
   const startCall = useCallback(
-    (chat) => {
+    (chat, type = "video") => {
       if (isCallingRef.current || !socket || !chat?._id) return;
 
+      callTypeRef.current = type;
+
       const isGroup = !!chat.isGroupChat;
-      const otherUsers = chat.users?.filter((u) => u._id !== user._id) || [];
-      if (!otherUsers.length) return;
+      const others = chat.users?.filter((u) => u._id !== user._id) || [];
+      if (!others.length) return;
 
-      const receiverIds = otherUsers.map((u) => u._id);
-      const chatName = isGroup
-        ? chat.chatName || "Group Call"
-        : otherUsers[0].fName || "User";
+      const receiverIds = others.map((u) => u._id);
 
-      initiatorRef.current = { isInitiator: true, receiverIds, isGroup };
-
+      setInitiator({ isInitiator: true, receiverIds, isGroup });
       setCallChatId(chat._id);
       setIsGroupCall(isGroup);
-      setCallTargetName(chatName);
+      setCallTargetName(others[0].fName || "User");
       setIsCalling(true);
-      setCallConnected(false);
 
       callChatIdRef.current = chat._id;
       isCallingRef.current = true;
       isGroupCallRef.current = isGroup;
 
       if (!isGroup) {
-        receiverIdRef.current = receiverIds[0]; // ✅ store for endCall
-        outgoingRingRef.current.currentTime = 0;
-        outgoingRingRef.current.play();
-        ringTimeoutRef.current = setTimeout(() => {
+        receiverIdRef.current = receiverIds[0];
+
+        socket.emit("call-user", { to: receiverIds[0], chatId: chat._id });
+        playRing();
+
+        ringTimeoutRef.current = setTimeout(async () => {
           socket.emit("call-ended", { to: receiverIds[0] });
+
+          if (!callSavedRef.current) {
+            callSavedRef.current = true;
+            await api.post("/messages/call", {
+              chatId: chat._id,
+              callType: callTypeRef.current,
+              status: "missed",
+              duration: 0,
+              participants: [],
+              receiverId: receiverIds[0], // ✅ use local var, ref may be cleared
+            });
+          }
           resetCall();
         }, 30000);
       }
     },
-    [socket, user, resetCall]
+    [socket, user, getParticipants, resetCall, playRing]
   );
 
+  // ✅ ACCEPT
   const acceptCall = useCallback(
     (callerId, callerName, chatId, isGroup) => {
       setCallChatId(chatId);
-      setCallTargetName(callerName || "User");
-      setIsGroupCall(!!isGroup);
+      setCallTargetName(callerName);
+      setIsGroupCall(isGroup);
       setIsCalling(true);
 
       callChatIdRef.current = chatId;
       isCallingRef.current = true;
-      isGroupCallRef.current = !!isGroup;
+      isGroupCallRef.current = isGroup;
 
-      // ✅ removed socket.emit("join-call-room") — VideoCall handles it on mount
+      setInitiator({ isInitiator: false });
 
       if (!isGroup) {
         receiverIdRef.current = callerId;
@@ -178,16 +248,32 @@ const ChatLayout = () => {
     [socket]
   );
 
-  const endCall = useCallback(() => {
+  // ✅ END CALL — uses refs, no stale closures
+  const endCall = useCallback(async () => {
+    if (!callChatIdRef.current) return;
+
     if (socket) {
       if (isGroupCallRef.current) {
         socket.emit("leave-call-room", { roomId: callChatIdRef.current });
-      } else if (receiverIdRef.current) {
+      } else {
         socket.emit("call-ended", { to: receiverIdRef.current });
       }
     }
-    resetCall(); // ✅ resetCall handles cleanup
-  }, [socket, resetCall]);
+
+    if (!callSavedRef.current) {
+      callSavedRef.current = true;
+      await api.post("/messages/call", {
+        chatId: callChatIdRef.current,
+        callType: callTypeRef.current,
+        status: callConnectedRef.current ? "completed" : "missed", // ✅ ref not state
+        duration: callDurationRef.current, // ✅ ref not state
+        participants: getParticipants(),
+        receiverId: receiverIdRef.current, // ✅
+      });
+    }
+
+    resetCall();
+  }, [socket, getParticipants, resetCall]); // ✅ no callConnected/callDuration in deps
 
   return (
     <div className="h-screen w-full flex bg-gray-100 dark:bg-slate-950 transition-colors">
@@ -201,6 +287,7 @@ const ChatLayout = () => {
           setSelectedChat={setSelectedChat}
           setChats={setChats}
           chats={chats}
+          onStartCall={startCall}
         />
       </div>
 
@@ -221,7 +308,6 @@ const ChatLayout = () => {
         )}
       </div>
 
-      {/* ✅ hide incoming call modal if already in a call */}
       <IncomingCallModal
         isCalling={isCalling}
         onAccept={(callerId, callerName, chatId, isGroup) =>
@@ -234,7 +320,6 @@ const ChatLayout = () => {
           className="fixed inset-0 z-[100] bg-slate-950 flex flex-col"
           style={{ height: "100dvh" }}
         >
-          {/* Header */}
           <div className="flex items-center justify-between px-5 py-3 bg-slate-900 border-b border-white/5 shrink-0">
             <div className="flex items-center gap-2.5">
               <span
@@ -249,14 +334,13 @@ const ChatLayout = () => {
               </span>
             </div>
             <button
-              onClick={endCall}
+              onClick={() => endCall()}
               className="text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg transition-colors"
             >
               End Call
             </button>
           </div>
 
-          {/* VideoCall fills remaining height */}
           <div className="flex-1 min-h-0 w-full">
             <VideoCall
               ref={videoCallRef}
@@ -264,7 +348,7 @@ const ChatLayout = () => {
               chats={chats}
               onEndCall={endCall}
               onConnected={startTimer}
-              initiator={initiatorRef.current}
+              initiator={initiator}
             />
           </div>
         </div>

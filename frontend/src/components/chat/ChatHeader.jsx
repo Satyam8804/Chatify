@@ -94,7 +94,7 @@ const ChatHeader = ({
 
         {startCall && (
           <button
-            onClick={() => startCall(chat)} // ✅ disabled handles the guard
+            onClick={() => startCall(chat,"video")} // ✅ disabled handles the guard
             disabled={isCalling}
             title={isCalling ? "Call already in progress" : "Start video call"}
             className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors ${

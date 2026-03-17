@@ -1,5 +1,6 @@
+import "dotenv/config";
+
 import express from "express";
-import dotenv from "dotenv";
 import cors from "cors";
 import http from "http";
 import cookieParser from "cookie-parser";
@@ -14,7 +15,6 @@ import path from "path";
 
 const __dirname = path.resolve();
 
-dotenv.config();
 connectDB();
 
 const app = express();
@@ -28,15 +28,11 @@ app.use(
 
 app.use(express.json());
 app.use(cookieParser());
-app.use(passport.initialize()); // ✅ initialize passport (no sessions — we use JWT)
+app.use(passport.initialize());
 
 app.get("/", (req, res) => {
   res.send("Chatify API running");
 });
-
-app.use("/api/users", userRoute);
-app.use("/api/chats", chatRoutes);
-app.use("/api/messages", messageRoutes);
 
 const server = http.createServer(app);
 
@@ -49,6 +45,16 @@ const io = new Server(server, {
   pingInterval: 10000,
   pingTimeout: 5000,
 });
+app.set("io", io);
+
+app.use((req, res, next) => {
+  req.io = req.app.get("io");
+  next();
+});
+
+app.use("/api/users", userRoute);
+app.use("/api/chats", chatRoutes);
+app.use("/api/messages", messageRoutes);
 
 io.engine.on("connection_error", (err) => {
   console.log("Engine error:", err.message);

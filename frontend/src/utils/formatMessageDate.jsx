@@ -45,3 +45,4 @@ export const formatLastSeen = (dateString) => {
     year: "numeric",
   });
 };
+
