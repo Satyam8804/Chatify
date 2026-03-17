@@ -331,7 +331,6 @@ const CallBubble = ({ message, isOwn, onStartCall }) => {
     colorClass = "text-green-500";
   }
 
-
   return (
     <div
       className={`flex items-center gap-3 px-3 py-2 rounded-lg w-fit min-w-[180px]
@@ -386,15 +385,14 @@ const CallBubble = ({ message, isOwn, onStartCall }) => {
         onClick={(e) => {
           e.stopPropagation();
 
-          const chatId =
-            typeof message.chat === "string" ? message.chat : message.chat?._id;
+          const type = message.replyTo.callData?.callType;
 
-          console.log("CALL CLICKED", { callType, chatId }); // 🔍 debug
+          const chatObj =
+            typeof message.chat === "string"
+              ? { _id: message.chat } // fallback (rare case)
+              : message.chat;
 
-          onStartCall?.({
-            type:callType,
-            chatId,
-          });
+          onStartCall?.(chatObj, type); // ✅ CORRECT
         }}
         className="ml-1 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600 transition"
       >
