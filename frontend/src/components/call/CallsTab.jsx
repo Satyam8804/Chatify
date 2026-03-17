@@ -213,11 +213,6 @@ const CallsTab = ({
           {/* Glow */}
           <div className="absolute w-20 h-20 rounded-full bg-emerald-500/20 blur-xl animate-pulse" />
 
-          {/* Loader (center) */}
-          <div className="absolute">
-            <Loader className="w-10 h-10 animate-spin text-emerald-500 mb-4" />
-          </div>
-
           {/* Background circle */}
           <div className="w-16 h-16 rounded-full flex items-center justify-center bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm">
             <Phone size={20} className="text-emerald-500 opacity-40" />
