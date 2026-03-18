@@ -96,7 +96,6 @@ const Sidebar = ({
       (!lastSeenCallTime || new Date(c.createdAt) > lastSeenCallTime)
   ).length;
 
-
   const handleTabChange = (tab) => {
     setActiveTab(tab);
 
@@ -159,9 +158,13 @@ const Sidebar = ({
       updateChatLatestMessage(newMessage);
     };
 
-    const handleCallLog = () => {
+    const handleCallLog = (message) => {
       setPage(1);
-      fetchCalls(1, true); // ✅ FORCE refresh
+      fetchCalls(1, true);
+
+      if (message) {
+        updateChatLatestMessage(message); 
+      }
     };
 
     const handleNewChat = (newChat) => {
@@ -193,7 +196,6 @@ const Sidebar = ({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
 
   const directChats = chats.filter((chat) => !chat.isGroupChat);
   const groupChats = chats.filter((chat) => chat.isGroupChat);

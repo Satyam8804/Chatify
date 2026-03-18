@@ -6,6 +6,7 @@ import { useAuth } from "../../context/authContext";
 import { logger } from "../../utils/logger";
 import sentSound from "../../assets/sound/sent.mp3";
 import { PhoneCall } from "lucide-react";
+
 const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
   const [message, setMessage] = useState("");
   const [showMenu, setShowMenu] = useState(false);
@@ -14,21 +15,21 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
   const soundRef = useRef(new Audio(sentSound));
   const fileInputRef = useRef(null);
   const menuRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
   const { socket } = useSocket();
   const { user } = useAuth();
 
-  // ─── Send Message ──────────────────────────────────────────────────────────
   const sendMessage = async () => {
     if (!message.trim() && selectedFiles.length === 0) return;
 
-    const currentReplyTo = replyTo; // ✅ snapshot before clearing
+    const currentReplyTo = replyTo;
+    const currentFiles = selectedFiles;
     setMessage("");
     setSelectedFiles([]);
     setReplyTo(null);
 
     try {
-      // ── Text message ────────────────────────────────────────────────────────
       if (message.trim()) {
         const res = await api.post("/messages", {
           chatId,
@@ -42,53 +43,51 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
         soundRef.current.play();
       }
 
-      // ── Media messages ──────────────────────────────────────────────────────
-      for (const { file, preview } of selectedFiles) {
-        // ✅ unique tempId per file
-        const tempId = `temp-${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2)}`;
+      await Promise.all(
+        currentFiles.map(async ({ file, preview }) => {
+          const tempId = `temp-${Date.now()}-${Math.random()
+            .toString(36)
+            .slice(2)}`;
 
-        const tempMessage = {
-          _id: tempId,
-          sender: { _id: user._id },
-          chat: chatId,
-          media: [{ url: preview, name: file.name, type: file.type }],
-          uploading: true,
-          createdAt: new Date(),
-          replyTo: currentReplyTo || null,
-        };
-
-        onMessageSent(tempMessage); // ✅ show preview immediately
-
-        try {
-          const formData = new FormData();
-          formData.append("files", file);
-          formData.append("chatId", chatId);
-          if (currentReplyTo?._id)
-            formData.append("replyTo", currentReplyTo._id);
-
-          const res = await api.post("/messages/media", formData, {
-            headers: { "Content-Type": "multipart/form-data" },
+          onMessageSent({
+            _id: tempId,
+            sender: { _id: user._id },
+            chat: chatId,
+            media: [{ url: preview, name: file.name, type: file.type }],
+            uploading: true,
+            createdAt: new Date(),
+            replyTo: currentReplyTo || null,
           });
 
-          const newMessage = res.data;
-          onMessageSent({ ...newMessage, replaceId: tempId }); // ✅ replace temp
-          socket.emit("new-message", newMessage);
-          soundRef.current.currentTime = 0;
-          soundRef.current.play();
-        } catch (err) {
-          logger("Media upload error:", err);
-          // ✅ remove failed temp message
-          onMessageSent({ replaceId: tempId, failed: true });
-        }
-      }
+          try {
+            const formData = new FormData();
+            formData.append("files", file);
+            formData.append("chatId", chatId);
+            if (currentReplyTo?._id)
+              formData.append("replyTo", currentReplyTo._id);
+
+            const res = await api.post("/messages/media", formData, {
+              headers: { "Content-Type": "multipart/form-data" },
+            });
+
+            URL.revokeObjectURL(preview);
+            const newMessage = res.data;
+            onMessageSent({ ...newMessage, replaceId: tempId });
+            socket.emit("new-message", newMessage);
+            soundRef.current.currentTime = 0;
+            soundRef.current.play();
+          } catch (err) {
+            logger("Media upload error:", err);
+            URL.revokeObjectURL(preview);
+            onMessageSent({ replaceId: tempId, failed: true });
+          }
+        })
+      );
     } catch (err) {
       logger("Send message error:", err.message);
     }
   };
 
-  // ─── File Upload ───────────────────────────────────────────────────────────
   const handleFileUpload = (e) => {
     const files = Array.from(e.target.files);
     const previews = files.map((file) => ({
@@ -97,15 +96,25 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
     }));
     setSelectedFiles((prev) => [...prev, ...previews]);
     setShowMenu(false);
-    e.target.value = ""; // ✅ reset so same file can be re-selected
+    e.target.value = "";
   };
 
-  // ─── Typing ────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      selectedFiles.forEach(({ preview }) => URL.revokeObjectURL(preview));
+    };
+  }, [selectedFiles]);
+
   const handleTyping = (e) => {
-    setMessage(e.target.value);
-    socket.emit("typing", { chatId, user });
-    clearTimeout(window.typingTimeout);
-    window.typingTimeout = setTimeout(() => {
+    const val = e.target.value;
+    setMessage(val);
+    if (val.trim()) {
+      socket.emit("typing", { chatId, user });
+    } else {
+      socket.emit("stop-typing", { chatId });
+    }
+    clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
       socket.emit("stop-typing", { chatId });
     }, 1000);
   };
@@ -117,7 +126,6 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
     }
   };
 
-  // ─── Click Outside ─────────────────────────────────────────────────────────
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target))
@@ -168,11 +176,13 @@ const MessageInput = ({ chatId, onMessageSent, setReplyTo, replyTo }) => {
                   {item.file.name}
                 </span>
                 <button
-                  onClick={() =>
+                  onClick={() => {
+                    const removed = selectedFiles[index];
+                    URL.revokeObjectURL(removed.preview);
                     setSelectedFiles((prev) =>
                       prev.filter((_, i) => i !== index)
-                    )
-                  }
+                    );
+                  }}
                   className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-500 text-white rounded-full flex items-center justify-center cursor-pointer"
                 >
                   <X size={10} />

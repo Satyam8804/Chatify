@@ -62,7 +62,6 @@ const ChatLayout = () => {
     outgoingRingRef.current.loop = true;
   }, []);
 
-  // ✅ TIMER — keeps refs in sync alongside state
   const startTimer = useCallback(() => {
     if (timerRef.current) return;
     callConnectedRef.current = true;
@@ -84,7 +83,6 @@ const ChatLayout = () => {
     setCallConnected(false);
   }, []);
 
-  // ✅ PARTICIPANTS — only for group calls
   const getParticipants = useCallback(() => {
     if (!isGroupCallRef.current) return [];
     const chat = chats.find(
@@ -128,7 +126,6 @@ const ChatLayout = () => {
     }
   }, [stopTimer, stopRing]);
 
-  // ✅ SOCKET EVENTS
   useEffect(() => {
     if (!socket) return;
 
@@ -139,6 +136,8 @@ const ChatLayout = () => {
 
     const onRejected = async () => {
       if (!callChatIdRef.current) return;
+      stopRing();
+      clearTimeout(ringTimeoutRef.current); 
       if (!callSavedRef.current) {
         callSavedRef.current = true;
         await api.post("/messages/call", {
@@ -147,10 +146,10 @@ const ChatLayout = () => {
           status: "rejected",
           duration: 0,
           participants: getParticipants(),
-          receiverId: receiverIdRef.current, // ✅
+          receiverId: receiverIdRef.current,
         });
       }
-      resetCall();
+      resetCall(); 
     };
 
     const onBusy = () => {
@@ -176,7 +175,6 @@ const ChatLayout = () => {
     };
   }, [socket, resetCall, getParticipants]);
 
-  // ✅ START CALL
   const startCall = useCallback(
     (chat, type = "video") => {
       if (isCallingRef.current || !socket || !chat?._id) return;
@@ -226,7 +224,6 @@ const ChatLayout = () => {
     [socket, user, getParticipants, resetCall, playRing]
   );
 
-  // ✅ ACCEPT
   const acceptCall = useCallback(
     (callerId, callerName, chatId, isGroup) => {
       setCallChatId(chatId);
@@ -248,7 +245,6 @@ const ChatLayout = () => {
     [socket]
   );
 
-  // ✅ END CALL — uses refs, no stale closures
   const endCall = useCallback(async () => {
     if (!callChatIdRef.current) return;
 
@@ -260,20 +256,21 @@ const ChatLayout = () => {
       }
     }
 
-    if (!callSavedRef.current) {
+    // ✅ only initiator saves the log
+    if (!callSavedRef.current && initiator?.isInitiator) {
       callSavedRef.current = true;
       await api.post("/messages/call", {
         chatId: callChatIdRef.current,
         callType: callTypeRef.current,
-        status: callConnectedRef.current ? "completed" : "missed", // ✅ ref not state
-        duration: callDurationRef.current, // ✅ ref not state
+        status: callConnectedRef.current ? "completed" : "missed",
+        duration: callDurationRef.current,
         participants: getParticipants(),
-        receiverId: receiverIdRef.current, // ✅
+        receiverId: receiverIdRef.current,
       });
     }
 
     resetCall();
-  }, [socket, getParticipants, resetCall]); // ✅ no callConnected/callDuration in deps
+  }, [socket, getParticipants, resetCall, initiator]);
 
   return (
     <div className="h-screen w-full flex bg-gray-100 dark:bg-slate-950 transition-colors">

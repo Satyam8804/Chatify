@@ -40,14 +40,14 @@ const CallLog = ({ log, currentUserId, onCall }) => {
   const otherUser = isGroupCall
     ? null
     : isOutgoing
-    ? log.participants?.find((u) => String(u._id) !== String(currentUserId)) ||
-      null
-    : log.sender || null;
+    ? log.participants?.[0] || null // 1-to-1: only one receiver in participants
+    : log.sender || null; // 1-to-1: you're the receiver, other is sender
 
   const displayName = isGroupCall
     ? log.chat?.chatName || "Group Call"
     : `${otherUser?.fName || "Unknown"} ${otherUser?.lName || ""}`.trim();
 
+    
   const DirectionIcon = isMissed
     ? PhoneMissed
     : isOutgoing

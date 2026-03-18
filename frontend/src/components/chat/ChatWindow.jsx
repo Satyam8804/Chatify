@@ -6,8 +6,8 @@ import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import { logger } from "../../utils/logger";
 
-import receiveSoundFile from "../../assets/sound/sent.mp3";
-import seenSoundFile from "../../assets/sound/seen.mp3";
+import receiveSoundFile from "../../assets/sound/seen.mp3";
+import seenSoundFile from "../../assets/sound/sent.mp3";
 
 import { useAuth } from "../../context/authContext";
 
@@ -55,15 +55,21 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
 
     const handleReceiveMessage = (message) => {
       const senderId = message.sender?._id || message.sender;
+      const isOwnMessage = String(senderId) === String(user?._id); // ✅ safe compare
 
-      if (senderId === user?._id) return;
+  
+      if (isOwnMessage && message.messageType !== "call") return;
+
       setMessages((prev) => {
         if (prev.some((msg) => msg._id === message._id)) return prev;
         return [...prev, message];
       });
-      socket.emit("message-seen", { chatId: chat._id });
-      receiveSoundRef.current.currentTime = 0;
-      receiveSoundRef.current.play();
+
+      if (!isOwnMessage) {
+        socket.emit("message-seen", { chatId: chat._id });
+        receiveSoundRef.current.currentTime = 0;
+        receiveSoundRef.current.play().catch(() => {});
+      }
     };
 
     const handleSeen = ({ chatId, userId }) => {
