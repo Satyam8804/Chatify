@@ -15,6 +15,7 @@ export const useCallMedia = ({
   setFacingMode,
   setIsSwitching,
   facingMode,
+  callType,
 }) => {
   const getVideoConstraints = (deviceId = null) => {
     const connection =
@@ -60,29 +61,31 @@ export const useCallMedia = ({
       localStreamRef.current = null;
     }
 
+    const isAudio = callType === "audio";
+
+    console.log("CallType :", callType);
+
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: getVideoConstraints(),
       audio: true,
+      video: isAudio ? false : getVideoConstraints(),
     });
 
-    const videoTrack = stream.getVideoTracks()[0];
-    currentDeviceIdRef.current = videoTrack?.getSettings()?.deviceId ?? null;
-    console.log(
-      "[VideoCall] got local stream, deviceId:",
-      currentDeviceIdRef.current,
-      "settings:",
-      videoTrack?.getSettings()
-    );
+    if (!isAudio) {
+      const videoTrack = stream.getVideoTracks()[0];
+      currentDeviceIdRef.current = videoTrack?.getSettings()?.deviceId ?? null;
+    }
 
     localStreamRef.current = stream;
 
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = stream;
-      localVideoRef.current.play().catch(() => {});
-    }
-    if (localVideoMainRef.current) {
-      localVideoMainRef.current.srcObject = stream;
-      localVideoMainRef.current.play().catch(() => {});
+    if (!isAudio) {
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.play().catch(() => {});
+      }
+      if (localVideoMainRef.current) {
+        localVideoMainRef.current.srcObject = stream;
+        localVideoMainRef.current.play().catch(() => {});
+      }
     }
 
     return stream;
@@ -104,6 +107,7 @@ export const useCallMedia = ({
   };
 
   const toggleVideo = () => {
+    if (callType === "audio") return;
     if (!localStreamRef.current) return;
     const track = localStreamRef.current.getVideoTracks()[0];
     if (!track) return;
@@ -117,6 +121,7 @@ export const useCallMedia = ({
   };
 
   const switchCamera = async () => {
+    if (callType === "audio") return;
     if (switchingRef.current) return;
     switchingRef.current = true;
     setIsSwitching(true);

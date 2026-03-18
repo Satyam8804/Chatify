@@ -5,17 +5,22 @@ import { formatLastSeen } from "../../utils/formatMessageDate";
 import Avatar from "../common/Avatar";
 import { getAvatarColor } from "../../utils/getAvatarColor";
 import { getInitials } from "../../utils/getInitials";
-import { ArrowLeft, Video } from "lucide-react";
+import { ArrowLeft, Video, Phone } from "lucide-react";
 import ChatInfo from "./ChatInfo";
 
 const ChatHeader = ({
-  chat, setSelectedChat, messages, onClearChat, startCall, isCalling,
+  chat,
+  setSelectedChat,
+  messages,
+  onClearChat,
+  startCall,
+  isCalling,
 }) => {
-  const { user }      = useAuth();
+  const { user } = useAuth();
   const { onlineUser } = useSocket();
   const [showInfo, setShowInfo] = useState(false);
 
-  const userId  = user?._id;
+  const userId = user?._id;
   const isGroup = chat?.isGroupChat;
 
   let friend = null;
@@ -27,7 +32,7 @@ const ChatHeader = ({
   }
 
   const friendObj = typeof friend === "object" ? friend : null;
-  const isOnline  = onlineUser?.has(friendObj?._id?.toString());
+  const isOnline = onlineUser?.has(friendObj?._id?.toString());
 
   return (
     <>
@@ -56,7 +61,11 @@ const ChatHeader = ({
                     style={{ backgroundColor: u?.avatar ? "transparent" : bg }}
                   >
                     {u?.avatar ? (
-                      <img src={u.avatar} alt={u.fName} className="w-full h-full object-cover" />
+                      <img
+                        src={u.avatar}
+                        alt={u.fName}
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
                       getInitials(u?.fName, u?.lName)
                     )}
@@ -77,11 +86,20 @@ const ChatHeader = ({
 
             {isGroup ? (
               <span className="text-[10px] text-gray-500 dark:text-slate-400 truncate">
-                {chat?.users.slice(0, 4).map((u) => u?.fName).join(", ")}
+                {chat?.users
+                  .slice(0, 4)
+                  .map((u) => u?.fName)
+                  .join(", ")}
                 {chat?.users.length > 4 && `, +${chat.users.length - 4}`}
               </span>
             ) : (
-              <p className={`text-xs ${isOnline ? "text-emerald-500" : "text-gray-400 dark:text-slate-500"}`}>
+              <p
+                className={`text-xs ${
+                  isOnline
+                    ? "text-emerald-500"
+                    : "text-gray-400 dark:text-slate-500"
+                }`}
+              >
                 {isOnline
                   ? "Online"
                   : friendObj?.lastSeen
@@ -92,20 +110,41 @@ const ChatHeader = ({
           </div>
         </div>
 
-        {startCall && (
-          <button
-            onClick={() => startCall(chat,"video")} // ✅ disabled handles the guard
-            disabled={isCalling}
-            title={isCalling ? "Call already in progress" : "Start video call"}
-            className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors ${
-              isCalling
-                ? "text-gray-400 cursor-not-allowed opacity-50"
-                : "text-slate-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-emerald-500 dark:hover:text-emerald-400"
-            }`}
-          >
-            <Video size={20} />
-          </button>
-        )}
+        <div className="flex justify-center items-center border-2 dark:border-gray-800 border-gray-100  rounded-3xl gap-4 px-1 py-0.5">
+          {startCall && (
+            <button
+              onClick={() => startCall(chat, "video")} // ✅ disabled handles the guard
+              disabled={isCalling}
+              title={
+                isCalling ? "Call already in progress" : "Start video call"
+              }
+              className={`flex items-center cursor-pointer justify-center w-9 h-9 rounded-full transition-colors ${
+                isCalling
+                  ? "text-gray-400 cursor-not-allowed opacity-50"
+                  : "text-slate-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-emerald-500 dark:hover:text-emerald-400"
+              }`}
+            >
+              <Video size={20} />
+            </button>
+          )}
+
+          {startCall && (
+            <button
+              onClick={() => startCall(chat, "audio")} 
+              disabled={isCalling}
+              title={
+                isCalling ? "Call already in progress" : "Start Audio call"
+              }
+              className={`flex items-center cursor-pointer justify-center w-9 h-9 rounded-full transition-colors ${
+                isCalling
+                  ? "text-gray-400 cursor-not-allowed opacity-50"
+                  : "text-slate-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-emerald-500 dark:hover:text-emerald-400"
+              }`}
+            >
+              <Phone size={20} />
+            </button>
+          )}
+        </div>
       </div>
 
       {showInfo && (

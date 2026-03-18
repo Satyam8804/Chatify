@@ -44,11 +44,6 @@ export const videoCallSocket = (io, socket) => {
 
     socket.join(roomId);
 
-    console.log(
-      `[Server] existing participants for ${socket.userId}:`,
-      existingParticipants
-    );
-
     socket.emit("existing-participants", {
       participants: existingParticipants,
     });
@@ -60,12 +55,11 @@ export const videoCallSocket = (io, socket) => {
 
   socket.on("leave-call-room", ({ roomId }) => {
     if (!roomId) return;
-    console.log(`[Server] ${socket.userId} leaving room ${roomId}`);
     socket.leave(roomId);
     socket.to(roomId).emit("user-left-call", { userId: socket.userId });
   });
 
-  socket.on("video-call-user", ({ chatId, receiverIds, isGroup }) => {
+  socket.on("video-call-user", ({ chatId, receiverIds, isGroup, callType }) => {
     if (!receiverIds?.length) return;
     receiverIds.forEach((userId) => {
       onlineUsers.get(userId)?.forEach((socketId) => {
@@ -74,6 +68,7 @@ export const videoCallSocket = (io, socket) => {
           callerName: socket.user?.fName,
           chatId,
           isGroup: !!isGroup,
+          callType,
         });
       });
     });
@@ -122,9 +117,7 @@ export const videoCallSocket = (io, socket) => {
 
   socket.on("webrtc-offer", ({ offer, to, fromName, roomId }) => {
     if (!offer || !to) return;
-    console.log(
-      `[Server] webrtc-offer from ${socket.userId} to ${to} roomId ${roomId}`
-    );
+
     routeToUser(io, to, roomId, "webrtc-offer", {
       offer,
       from: socket.userId,
@@ -134,9 +127,6 @@ export const videoCallSocket = (io, socket) => {
 
   socket.on("webrtc-answer", ({ answer, to, roomId }) => {
     if (!answer || !to) return;
-    console.log(
-      `[Server] webrtc-answer from ${socket.userId} to ${to} roomId ${roomId}`
-    );
     routeToUser(io, to, roomId, "webrtc-answer", {
       answer,
       from: socket.userId,
@@ -154,9 +144,6 @@ export const videoCallSocket = (io, socket) => {
   socket.on("disconnecting", () => {
     socket.rooms.forEach((roomId) => {
       if (roomId === socket.id || roomId === socket.userId?.toString()) return;
-      console.log(
-        `[Server] ${socket.userId} disconnecting from room ${roomId}`
-      );
       socket.to(roomId).emit("user-left-call", { userId: socket.userId });
     });
   });

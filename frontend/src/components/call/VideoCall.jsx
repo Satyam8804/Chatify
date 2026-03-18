@@ -6,6 +6,7 @@ import {
   useImperativeHandle,
   useMemo,
 } from "react";
+import {Phone} from 'lucide-react'
 import { useSocket } from "../../context/socketContext";
 import { useAuth } from "../../context/authContext";
 import { useWebRTC } from "../../hooks/RTCPeerConnection";
@@ -15,9 +16,15 @@ import RemoteVideo from "./RemoteVideo";
 import CallControls from "./CallControls";
 import AddParticipant from "./AddParticipant";
 import LocalVideo from "./LocalVideo";
+import { logger } from "../../utils/logger";
 
 const VideoCall = forwardRef(
-  ({ chatId, onEndCall, onConnected, chats, initiator }, ref) => {
+  (
+    { chatId, onEndCall, onConnected, chats, initiator, callType = "video" },
+    ref
+  ) => {
+
+
     const { socket } = useSocket();
     const { user } = useAuth();
     const {
@@ -53,6 +60,7 @@ const VideoCall = forwardRef(
     const [selectedRemoteIndex, setSelectedRemoteIndex] = useState(0);
 
     const canSwap = remoteStreams.length === 1;
+
 
     useEffect(() => {
       facingModeRef.current = facingMode;
@@ -95,6 +103,7 @@ const VideoCall = forwardRef(
       setFacingMode,
       setIsSwitching,
       facingMode,
+      callType
     });
 
     const {
@@ -140,7 +149,7 @@ const VideoCall = forwardRef(
           );
           cameraIndexRef.current = idx === -1 ? 0 : idx;
         } catch (err) {
-          console.warn("[VideoCall] handleDeviceChange error:", err);
+          logger("[VideoCall] handleDeviceChange error:", err);
         }
       };
 
@@ -188,7 +197,7 @@ const VideoCall = forwardRef(
             connection.addEventListener("change", handleConnectionChange);
 
           socket.emit("join-call-room", { roomId: chatId });
-          console.log("[VideoCall] joined room", chatId);
+        
 
           // ✅ caller notifies receivers AFTER joining room
           if (initiator?.isInitiator && initiator?.receiverIds?.length) {
@@ -196,19 +205,15 @@ const VideoCall = forwardRef(
               chatId,
               receiverIds: initiator.receiverIds,
               isGroup: !!initiator.isGroup,
+              callType,
             });
-            console.log("[VideoCall] notified receivers after joining room");
           }
 
           socket.on("reconnect", () => {
-            console.log(
-              "[VideoCall] socket reconnected, rejoining room",
-              chatId
-            );
             socket.emit("join-call-room", { roomId: chatId });
           });
         } catch (err) {
-          console.error("[VideoCall] init error:", err);
+          logger("[VideoCall] init error:", err);
         }
       };
 
@@ -231,10 +236,7 @@ const VideoCall = forwardRef(
       if (!socket) return;
 
       const handleExistingParticipants = async ({ participants }) => {
-        console.log(
-          "[VideoCall] existing-participants received:",
-          participants
-        );
+
         for (const { userId, name } of participants) {
           if (!userId || String(userId) === String(user?._id)) continue;
           const entry = getPeerEntry(userId);
@@ -256,7 +258,6 @@ const VideoCall = forwardRef(
       };
 
       const handleOffer = async ({ offer, from, fromName }) => {
-        console.log("[VideoCall] received offer from:", from);
         const stream = await getLocalStream();
         const peer = createPeerConnection(from, fromName);
         if (!peer) return;
@@ -288,7 +289,6 @@ const VideoCall = forwardRef(
       };
 
       const handleAnswer = async ({ answer, from }) => {
-        console.log("[VideoCall] received answer from:", from);
 
         const entry = getPeerEntry(from);
         if (!entry?.peer) return;
@@ -303,7 +303,7 @@ const VideoCall = forwardRef(
             await entry.peer.setRemoteDescription(answer);
           }
         } catch (err) {
-          console.warn("[VideoCall] failed to apply answer from", from, err);
+          logger("[VideoCall] failed to apply answer from", from, err);
         }
       };
 
@@ -484,35 +484,47 @@ const VideoCall = forwardRef(
         </div>
 
         {/* PiP */}
-        <div
-          onClick={() => canSwap && setSwapped((p) => !p)}
-          className={`absolute top-14 right-3 z-20 w-24 h-32 sm:w-32 sm:h-44 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-900 transition-transform ${
-            canSwap ? "cursor-pointer active:scale-95" : ""
-          }`}
-        >
-          <div className={`absolute inset-0 ${swapped ? "hidden" : "block"}`}>
-            <LocalVideo
-              videoRef={localVideoRef}
-              isFrontCamera={isFrontCamera}
-              isVideoOff={isVideoOff}
-            />
-          </div>
-
-          {swapped && remoteStreams[selectedRemoteIndex] && (
-            <div className="absolute inset-0">
-              <RemoteVideo
-                stream={remoteStreams[selectedRemoteIndex].stream}
-                name={remoteStreams[selectedRemoteIndex].name}
+        {callType == "video" && (
+          <div
+            onClick={() => canSwap && setSwapped((p) => !p)}
+            className={`absolute top-14 right-3 z-20 w-24 h-32 sm:w-32 sm:h-44 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-900 transition-transform ${
+              canSwap ? "cursor-pointer active:scale-95" : ""
+            }`}
+          >
+            <div className={`absolute inset-0 ${swapped ? "hidden" : "block"}`}>
+              <LocalVideo
+                videoRef={localVideoRef}
+                isFrontCamera={isFrontCamera}
+                isVideoOff={isVideoOff}
               />
             </div>
-          )}
 
-          {!swapped && (
-            <span className="absolute bottom-1.5 left-0 right-0 text-center text-[9px] text-white/35 font-medium z-10">
-              You
-            </span>
-          )}
-        </div>
+            {swapped && remoteStreams[selectedRemoteIndex] && (
+              <div className="absolute inset-0">
+                <RemoteVideo
+                  stream={remoteStreams[selectedRemoteIndex].stream}
+                  name={remoteStreams[selectedRemoteIndex].name}
+                />
+              </div>
+            )}
+
+            {!swapped && (
+              <span className="absolute bottom-1.5 left-0 right-0 text-center text-[9px] text-white/35 font-medium z-10">
+                You
+              </span>
+            )}
+          </div>
+        )}
+
+        {remoteStreams.length === 1 && callType === "audio" ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-4">
+            <div className="w-24 h-24 rounded-full bg-slate-800 flex items-center justify-center text-4xl">
+              <Phone size={40} className="text-emerald-400" />
+            </div>
+            <p className="text-white font-medium">{remoteStreams[0].name}</p>
+            <p className="text-emerald-400 text-sm animate-pulse">Connected</p>
+          </div>
+        ) : null}
 
         <CallControls
           isMuted={isMuted}

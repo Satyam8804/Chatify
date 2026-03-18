@@ -25,6 +25,7 @@ const ChatLayout = () => {
   const [isGroupCall, setIsGroupCall] = useState(false);
   const [chats, setChats] = useState([]);
   const [initiator, setInitiator] = useState(null);
+  const [callType, setCallType] = useState("video");
 
   const { socket } = useSocket();
   const { user } = useAuth();
@@ -43,6 +44,8 @@ const ChatLayout = () => {
   const callDurationRef = useRef(0);
   const callConnectedRef = useRef(false);
   const initiatorRef = useRef(null);
+
+
 
   useEffect(() => {
     isCallingRef.current = isCalling;
@@ -112,6 +115,7 @@ const ChatLayout = () => {
     setCallChatId(null);
     setIsGroupCall(false);
     setInitiator(null);
+    setCallType("video");
     isCallingRef.current = false;
     callChatIdRef.current = null;
     isGroupCallRef.current = false;
@@ -206,10 +210,10 @@ const ChatLayout = () => {
       setIsGroupCall(isGroup);
       setCallTargetName(others[0].fName || "User");
       setIsCalling(true);
+      setCallType(type);
 
       if (!isGroup) {
         receiverIdRef.current = receiverIds[0];
-        socket.emit("call-user", { to: receiverIds[0], chatId: chat._id });
         playRing();
 
         ringTimeoutRef.current = setTimeout(async () => {
@@ -223,13 +227,14 @@ const ChatLayout = () => {
   );
 
   const acceptCall = useCallback(
-    (callerId, callerName, chatId, isGroup) => {
+    (callerId, callerName, chatId, isGroup, callType) => {
       callSavedRef.current = false;
+      callTypeRef.current = callType || "video";
       callChatIdRef.current = chatId;
       isCallingRef.current = true;
       isGroupCallRef.current = isGroup;
       initiatorRef.current = { isInitiator: false };
-
+      setCallType(callType || "video");
       setCallChatId(chatId);
       setCallTargetName(callerName);
       setIsGroupCall(isGroup);
@@ -298,8 +303,8 @@ const ChatLayout = () => {
 
       <IncomingCallModal
         isCalling={isCalling}
-        onAccept={(callerId, callerName, chatId, isGroup) =>
-          acceptCall(callerId, callerName, chatId, isGroup)
+        onAccept={(callerId, callerName, chatId, isGroup, callType) =>
+          acceptCall(callerId, callerName, chatId, isGroup, callType)
         }
       />
 
@@ -337,6 +342,7 @@ const ChatLayout = () => {
               onEndCall={endCall}
               onConnected={startTimer}
               initiator={initiator}
+              callType={callType}
             />
           </div>
         </div>

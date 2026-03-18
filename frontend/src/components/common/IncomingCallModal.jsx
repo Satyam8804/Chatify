@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useSocket } from "../../context/socketContext";
 import incomingRingFile from "../../assets/sound/incoming-ring.mp3";
-
+import { Phone, Video, Users, PhoneOff } from "lucide-react";
 const IncomingCallModal = ({ onAccept, isCalling }) => {
   const { socket, incomingCall, setIncomingCall } = useSocket();
 
@@ -33,17 +33,15 @@ const IncomingCallModal = ({ onAccept, isCalling }) => {
     return () => stopRing();
   }, [incomingCall]);
 
-  // call-ended already handled in SocketContext — no need for duplicate listener here
-
-  // ✅ hide if no incoming call or already in a call
   if (!incomingCall || isCalling) return null;
 
-  const { from, callerName, chatId, isGroup } = incomingCall;
+  const { from, callerName, chatId, isGroup, callType } = incomingCall;
+
 
   const handleAccept = () => {
     stopRing();
     setIncomingCall(null);
-    onAccept?.(from, callerName || "Someone", chatId, isGroup);
+    onAccept?.(from, callerName || "Someone", chatId, isGroup, callType);
   };
 
   const handleReject = () => {
@@ -58,26 +56,41 @@ const IncomingCallModal = ({ onAccept, isCalling }) => {
         <div className="relative w-20 h-20 mx-auto mb-5">
           <span className="absolute inset-0 rounded-full bg-emerald-400/20 animate-ping" />
           <div className="relative w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
-            <span className="text-3xl">📹</span>
+            {isGroup ? (
+              <Users size={32} className="text-emerald-500" />
+            ) : callType === "audio" ? (
+              <Phone size={32} className="text-emerald-500" />
+            ) : (
+              <Video size={32} className="text-emerald-500" />
+            )}
           </div>
         </div>
+
         <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-          {isGroup ? "Incoming Group Call" : "Incoming Video Call"}
+          {isGroup
+            ? "Incoming Group Call"
+            : callType === "audio"
+            ? "Incoming Voice Call"
+            : "Incoming Video Call"}
         </h3>
+
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 mb-6">
           {callerName || "Someone"} is calling…
         </p>
+
         <div className="flex gap-3">
           <button
             onClick={handleReject}
-            className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-700 dark:text-slate-300 hover:text-red-600 font-medium text-sm transition-colors"
+            className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-700 dark:text-slate-300 hover:text-red-600 font-medium text-sm transition-colors flex items-center justify-center gap-2"
           >
+            <PhoneOff size={15} />
             Decline
           </button>
           <button
             onClick={handleAccept}
-            className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-medium text-sm transition-colors shadow-lg shadow-emerald-500/25"
+            className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-medium text-sm transition-colors shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2"
           >
+            {callType === "audio" ? <Phone size={15} /> : <Video size={15} />}
             Accept
           </button>
         </div>
