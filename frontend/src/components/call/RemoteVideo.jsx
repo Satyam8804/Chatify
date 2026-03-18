@@ -1,6 +1,6 @@
 import { useRef, useEffect } from "react";
 
-const RemoteVideo = ({ stream, name }) => {
+const RemoteVideo = ({ stream }) => {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -17,11 +17,6 @@ const RemoteVideo = ({ stream, name }) => {
         playsInline
         className="w-full h-full object-contain transform-gpu"
       />
-      {name && (
-        <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">
-          {name}
-        </span>
-      )}
     </div>
   );
 };

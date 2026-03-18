@@ -106,7 +106,7 @@ const VideoCall = forwardRef(
         setSelectedRemoteIndex(0);
       if (remoteStreams.length === 0 && swapped) setSwapped(false);
       if (remoteStreams.length > 1 && swapped) setSwapped(false);
-    }, [remoteStreams, selectedRemoteIndex, swapped]);
+    }, [remoteStreams.length, selectedRemoteIndex]);
 
     const {
       getLocalStream,
@@ -452,7 +452,6 @@ const VideoCall = forwardRef(
                     videoRef={localVideoRef}
                     isFrontCamera={isFrontCamera}
                     isVideoOff={isVideoOff}
-                    name="You"
                   />
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950/60">
                     <div className="w-10 h-10 rounded-full border-2 border-sky-500/20 border-t-sky-400 animate-spin" />
@@ -466,10 +465,10 @@ const VideoCall = forwardRef(
                   className="relative w-full h-full cursor-pointer"
                   onClick={() => canSwap && setSwapped(true)}
                 >
-                  <RemoteVideo
-                    stream={remoteStreams[0].stream}
-                    name={remoteStreams[0].name}
-                  />
+                  <RemoteVideo stream={remoteStreams[0].stream} />
+                  <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">
+                    {remoteStreams[0].name}
+                  </span>
                   {remoteStreams[0].isMuted && (
                     <span className="absolute bottom-3 right-3 z-10 bg-black/70 backdrop-blur-md p-1.5 rounded-full border border-white/10">
                       <MicOff size={14} className="text-white" />
@@ -499,7 +498,10 @@ const VideoCall = forwardRef(
                           : ""
                       }`}
                     >
-                      <RemoteVideo stream={stream} name={name} />
+                      <RemoteVideo stream={stream} />
+                      <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">
+                        {name}
+                      </span>
                       {isMuted && (
                         <span className="absolute bottom-2 right-2 z-10 bg-black/70 backdrop-blur-md p-1.5 rounded-full border border-white/10">
                           <MicOff size={12} className="text-white" />
@@ -516,8 +518,10 @@ const VideoCall = forwardRef(
                 videoRef={localVideoMainRef}
                 isFrontCamera={isFrontCamera}
                 isVideoOff={isVideoOff}
-                name="You"
               />
+              <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">
+                You
+              </span>
               {isMuted && (
                 <span className="absolute bottom-3 right-3 z-10 bg-black/70 backdrop-blur-md p-1.5 rounded-full border border-white/10">
                   <MicOff size={14} className="text-white" />
@@ -554,7 +558,6 @@ const VideoCall = forwardRef(
               remoteStreams[selectedRemoteIndex] && (
                 <RemoteVideo
                   stream={remoteStreams[selectedRemoteIndex].stream}
-                  name={remoteStreams[selectedRemoteIndex].name}
                 />
               )
             ) : (
