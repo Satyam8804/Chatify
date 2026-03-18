@@ -2,7 +2,7 @@ import { useRef, useEffect } from "react";
 
 const RemoteVideo = ({ stream, name }) => {
   const ref = useRef(null);
-
+  
   useEffect(() => {
     if (!ref.current || !stream) return;
     if (ref.current.srcObject !== stream) ref.current.srcObject = stream;

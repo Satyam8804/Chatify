@@ -38,7 +38,11 @@ export const videoCallSocket = (io, socket) => {
       room.forEach((socketId) => {
         const s = io.sockets.sockets.get(socketId);
         if (s?.userId)
-          existingParticipants.push({ userId: s.userId, name: s.user?.fName });
+          existingParticipants.push({
+            userId: s.userId,
+            name: s.user?.fName,
+            avatar: s.user?.avatar, // ✅ ADD
+          });
       });
     }
 
@@ -50,6 +54,7 @@ export const videoCallSocket = (io, socket) => {
     socket.to(roomId).emit("user-joined-call", {
       userId: socket.userId,
       name: socket.user?.fName,
+      avatar: socket.user?.avatar,
     });
   });
 
@@ -66,6 +71,7 @@ export const videoCallSocket = (io, socket) => {
         io.to(socketId).emit("incoming-call", {
           from: socket.userId,
           callerName: socket.user?.fName,
+          callerAvatar: socket.user?.avatar,
           chatId,
           isGroup: !!isGroup,
           callType,
@@ -81,6 +87,7 @@ export const videoCallSocket = (io, socket) => {
         io.to(socketId).emit("incoming-call", {
           from: socket.userId,
           callerName: socket.user?.fName,
+          callerAvatar: socket.user?.avatar,
           chatId,
           isGroup: true,
         });
@@ -115,6 +122,15 @@ export const videoCallSocket = (io, socket) => {
     }
   });
 
+  socket.on("mute-state", ({ chatId, isMuted }) => {
+    if (!chatId) return;
+
+    socket.to(chatId).emit("user-muted", {
+      userId: socket.userId,
+      isMuted,
+    });
+  });
+
   socket.on("webrtc-offer", ({ offer, to, fromName, roomId }) => {
     if (!offer || !to) return;
 
@@ -122,6 +138,7 @@ export const videoCallSocket = (io, socket) => {
       offer,
       from: socket.userId,
       fromName,
+      fromAvatar: socket.user?.avatar,
     });
   });
 

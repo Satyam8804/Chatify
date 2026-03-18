@@ -1,6 +1,7 @@
 import { getInitials } from "../../utils/getInitials";
 import { getAvatarColor } from "../../utils/getAvatarColor";
 
+
 const Avatar = ({
   user,
   users = [],
@@ -8,19 +9,23 @@ const Avatar = ({
   size = 40,
   isOnline = false,
   IsInside = false,
+  isSpeaking = false, // ✅ NEW
 }) => {
   const color = getAvatarColor(user?._id || user?.fName);
 
   return (
     <div
-      className="relative inline-block"
+      className={`relative inline-block transition-all duration-200 ${
+        isSpeaking ? "ring-4 ring-emerald-400 animate-pulse" : ""
+      }`}
       style={{ width: size, height: size }}
     >
-      {/* Group Avatar */}
+      {/* Avatar Content */}
       {isGroup ? (
         <div className="grid grid-cols-2 grid-rows-2 w-full h-full rounded-full overflow-hidden">
           {users.slice(0, 4).map((u) => {
             const bg = getAvatarColor(u?._id || u?.fName);
+
             return (
               <div
                 key={u._id}
@@ -31,10 +36,10 @@ const Avatar = ({
                   <img
                     src={u.avatar}
                     alt={u.fName}
-                    className="w-full h-full object-cover" // ✅ fill the cell
+                    className="w-full h-full object-cover"
                   />
                 ) : (
-                  <span>{getInitials(u?.fName, u?.lName)}</span> // ✅ initials fallback
+                  <span>{getInitials(u?.fName, u?.lName)}</span>
                 )}
               </div>
             );
@@ -44,20 +49,20 @@ const Avatar = ({
         <img
           src={user.avatar}
           alt={user.fName}
-          className="rounded-full object-cover w-full h-full"
+          className="w-full h-full rounded-full object-cover"
         />
       ) : (
         <div
-          className={`w-full h-full ${
-            IsInside ? "text-[12px]" : ""
-          } rounded-full flex items-center justify-center text-white font-semibold`}
+          className={`w-full h-full rounded-full flex items-center justify-center text-white font-semibold ${
+            IsInside ? "text-[12px]" : "text-sm"
+          }`}
           style={{ backgroundColor: color }}
         >
           {getInitials(user?.fName, user?.lName)}
         </div>
       )}
 
-      {/* Online indicator */}
+      {/* Online Indicator */}
       {!IsInside && !isGroup && (
         <span
           className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-1 border-white ${

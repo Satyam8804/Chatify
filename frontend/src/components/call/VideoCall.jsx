@@ -6,7 +6,7 @@ import {
   useImperativeHandle,
   useMemo,
 } from "react";
-import {Phone} from 'lucide-react'
+
 import { useSocket } from "../../context/socketContext";
 import { useAuth } from "../../context/authContext";
 import { useWebRTC } from "../../hooks/RTCPeerConnection";
@@ -17,14 +17,14 @@ import CallControls from "./CallControls";
 import AddParticipant from "./AddParticipant";
 import LocalVideo from "./LocalVideo";
 import { logger } from "../../utils/logger";
+import Avatar from "../common/Avatar";
+import { MicOff } from "lucide-react";
 
 const VideoCall = forwardRef(
   (
     { chatId, onEndCall, onConnected, chats, initiator, callType = "video" },
     ref
   ) => {
-
-
     const { socket } = useSocket();
     const { user } = useAuth();
     const {
@@ -48,6 +48,7 @@ const VideoCall = forwardRef(
     const currentDeviceIdRef = useRef(null);
     const camerasRef = useRef([]);
     const cameraIndexRef = useRef(0);
+    const cleanupRef = useRef(null);
 
     const [remoteStreams, setRemoteStreams] = useState([]);
     const [isMuted, setIsMuted] = useState(false);
@@ -58,13 +59,28 @@ const VideoCall = forwardRef(
     const [isSwitching, setIsSwitching] = useState(false);
     const [swapped, setSwapped] = useState(false);
     const [selectedRemoteIndex, setSelectedRemoteIndex] = useState(0);
+    const [activeSpeakerId, setActiveSpeakerId] = useState(null);
 
     const canSwap = remoteStreams.length === 1;
-
 
     useEffect(() => {
       facingModeRef.current = facingMode;
     }, [facingMode]);
+
+    useEffect(() => {
+      if (!remoteStreams.length) {
+        setActiveSpeakerId(null); // ✅ reset if no users
+        return;
+      }
+
+      const speakingUser = remoteStreams.find((u) => u.isSpeaking);
+
+      if (speakingUser) {
+        setActiveSpeakerId(speakingUser.userId);
+      } else {
+        setActiveSpeakerId(null); // ✅ IMPORTANT FIX
+      }
+    }, [remoteStreams]);
 
     useEffect(() => {
       if (swapped && localVideoMainRef.current && localStreamRef.current) {
@@ -103,7 +119,9 @@ const VideoCall = forwardRef(
       setFacingMode,
       setIsSwitching,
       facingMode,
-      callType
+      callType,
+      socket,
+      chatId,
     });
 
     const {
@@ -197,7 +215,6 @@ const VideoCall = forwardRef(
             connection.addEventListener("change", handleConnectionChange);
 
           socket.emit("join-call-room", { roomId: chatId });
-        
 
           // ✅ caller notifies receivers AFTER joining room
           if (initiator?.isInitiator && initiator?.receiverIds?.length) {
@@ -236,7 +253,6 @@ const VideoCall = forwardRef(
       if (!socket) return;
 
       const handleExistingParticipants = async ({ participants }) => {
-
         for (const { userId, name } of participants) {
           if (!userId || String(userId) === String(user?._id)) continue;
           const entry = getPeerEntry(userId);
@@ -255,6 +271,12 @@ const VideoCall = forwardRef(
         } finally {
           pendingPeersRef.current.delete(userId);
         }
+      };
+
+      const handleUserMuted = ({ userId, isMuted }) => {
+        setRemoteStreams((prev) =>
+          prev.map((u) => (u.userId === userId ? { ...u, isMuted } : u))
+        );
       };
 
       const handleOffer = async ({ offer, from, fromName }) => {
@@ -289,7 +311,6 @@ const VideoCall = forwardRef(
       };
 
       const handleAnswer = async ({ answer, from }) => {
-
         const entry = getPeerEntry(from);
         if (!entry?.peer) return;
 
@@ -338,6 +359,7 @@ const VideoCall = forwardRef(
       socket.on("webrtc-answer", handleAnswer);
       socket.on("ice-candidate", handleIce);
       socket.on("user-left-call", handleUserLeft);
+      socket.on("user-muted", handleUserMuted);
 
       return () => {
         socket.off("existing-participants", handleExistingParticipants);
@@ -346,10 +368,10 @@ const VideoCall = forwardRef(
         socket.off("webrtc-answer", handleAnswer);
         socket.off("ice-candidate", handleIce);
         socket.off("user-left-call", handleUserLeft);
+        socket.off("user-muted", handleUserMuted);
       };
     }, [socket, user?._id]);
 
-    const cleanupRef = useRef(null);
     const cleanup = () => {
       if (cleanedUpRef.current) return;
       cleanedUpRef.current = true;
@@ -416,57 +438,82 @@ const VideoCall = forwardRef(
 
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
-        <div className="flex-1 relative min-h-0 overflow-hidden">
-          {/* Remote streams */}
-          <div
-            className={`absolute inset-0 flex gap-1 p-1 ${
-              swapped ? "hidden" : ""
-            }`}
-          >
-            {remoteStreams.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-4">
-                <div className="w-12 h-12 rounded-full border-2 border-sky-500/20 border-t-sky-400 animate-spin" />
-                <p className="text-sm font-medium text-slate-500 tracking-wide">
-                  Connecting…
-                </p>
-              </div>
-            ) : remoteStreams.length === 1 ? (
-              <div
-                className="flex-1 w-full h-full min-w-0 min-h-0 cursor-pointer"
-                onClick={() => canSwap && setSwapped(true)}
-              >
-                <RemoteVideo
-                  stream={remoteStreams[0].stream}
-                  name={remoteStreams[0].name}
-                />
-              </div>
-            ) : (
-              <div className={`w-full h-full ${gridClass} gap-1`}>
-                {remoteStreams.map(({ userId, stream, name }) => (
-                  <div key={userId} className="relative min-w-0 min-h-0">
-                    <RemoteVideo stream={stream} name={name} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        {callType === "video" && (
+          <div className="flex-1 relative min-h-0 overflow-hidden">
+            {/* Remote streams */}
+            <div
+              className={`absolute inset-0 flex gap-1 p-1 ${
+                swapped ? "hidden" : ""
+              }`}
+            >
+              {remoteStreams.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-4">
+                  <div className="w-12 h-12 rounded-full border-2 border-sky-500/20 border-t-sky-400 animate-spin" />
+                  <p className="text-sm font-medium text-slate-500 tracking-wide">
+                    Connecting…
+                  </p>
+                </div>
+              ) : remoteStreams.length === 1 ? (
+                <div
+                  className="flex-1 w-full h-full min-w-0 min-h-0 cursor-pointer"
+                  onClick={() => canSwap && setSwapped(true)}
+                >
+                  <div className="relative w-full h-full">
+                    <RemoteVideo
+                      stream={remoteStreams[0].stream}
+                      name={remoteStreams[0].name}
+                    />
 
-          {/* Local video in main */}
-          <div
-            className={`absolute inset-0 p-1 ${swapped ? "flex" : "hidden"}`}
-          >
-            <div className="relative flex-1 min-w-0 min-h-0 border border-white/5 rounded-2xl overflow-hidden">
-              <LocalVideo
-                videoRef={localVideoMainRef}
-                isFrontCamera={isFrontCamera}
-                isVideoOff={isVideoOff}
-              />
-              <span className="absolute bottom-2 left-3 text-[10px] text-white/50 font-medium z-10">
-                You
-              </span>
+                    {remoteStreams[0]?.isMuted && (
+                      <span className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md p-1.5 rounded-full shadow">
+                        <MicOff size={16} className="text-white" />
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className={`w-full h-full ${gridClass} gap-1`}>
+                  {remoteStreams.map(({ userId, stream, name, isMuted }) => (
+                    <div key={userId} className="relative min-w-0 min-h-0">
+                      <RemoteVideo stream={stream} name={name} />
+
+                      {/* 🔇 Mute indicator */}
+                      {isMuted && (
+                        <span className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md p-1.5 rounded-full shadow">
+                          <MicOff size={14} className="text-white" />
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Local video */}
+            <div
+              className={`absolute inset-0 p-1 ${swapped ? "flex" : "hidden"}`}
+            >
+              <div className="relative flex-1 min-w-0 min-h-0 border border-white/5 rounded-2xl overflow-hidden">
+                <div className="relative">
+                  <LocalVideo
+                    videoRef={localVideoRef}
+                    isFrontCamera={isFrontCamera}
+                    isVideoOff={isVideoOff}
+                  />
+
+                  {isMuted && (
+                    <span className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md p-1.5 rounded-full shadow">
+                      <MicOff size={12} className="text-white" />
+                    </span>
+                  )}
+                </div>
+                <span className="absolute bottom-2 left-3 text-[10px] text-white/50 font-medium z-10">
+                  You
+                </span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Top bar */}
         <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pt-4 pb-8 bg-gradient-to-b from-slate-950/70 to-transparent">
@@ -516,15 +563,72 @@ const VideoCall = forwardRef(
           </div>
         )}
 
-        {remoteStreams.length === 1 && callType === "audio" ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-4">
-            <div className="w-24 h-24 rounded-full bg-slate-800 flex items-center justify-center text-4xl">
-              <Phone size={40} className="text-emerald-400" />
+        {callType === "audio" && (
+          <div className="flex-1 flex flex-col items-center justify-center px-6">
+            <h2 className="text-lg font-semibold text-white mb-6">
+              {remoteStreams.length === 0
+                ? "Calling..."
+                : `${remoteStreams.length + 1} participants`}
+            </h2>
+
+            <div className="flex flex-wrap justify-center gap-6 max-w-md">
+              {/* You */}
+              <div
+                className={`flex flex-col items-center gap-2 transition-all ${
+                  activeSpeakerId === user?._id ? "scale-110" : ""
+                }`}
+              >
+                <div className="relative">
+                  <Avatar
+                    user={{ fName: "You" }}
+                    size={80}
+                    isSpeaking={false}
+                  />
+
+                  {/* 🔇 Mute (YOU) */}
+                  {isMuted && (
+                    <span className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md p-1.5 rounded-full shadow">
+                      <MicOff size={12} className="text-white" />
+                    </span>
+                  )}
+                </div>
+
+                <span className="text-xs text-slate-400">You</span>
+              </div>
+
+              {/* Others */}
+              {remoteStreams.map((u) => (
+                <div
+                  key={u.userId}
+                  className={`flex flex-col items-center gap-2 transition-all ${
+                    activeSpeakerId === u.userId ? "scale-110" : "opacity-80"
+                  }`}
+                >
+                  <div className="relative">
+                    <Avatar
+                      user={{ fName: u.name, avatar: u.avatar }}
+                      size={80}
+                      isSpeaking={u.isSpeaking}
+                    />
+
+                    {/* 🔇 Mute (OTHERS) */}
+                    {u.isMuted && (
+                      <span className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md p-1.5 rounded-full shadow">
+                        <MicOff size={12} className="text-white" />
+                      </span>
+                    )}
+                  </div>
+
+                  <span className="text-xs text-slate-400">{u.name}</span>
+                </div>
+              ))}
             </div>
-            <p className="text-white font-medium">{remoteStreams[0].name}</p>
-            <p className="text-emerald-400 text-sm animate-pulse">Connected</p>
+
+            <p className="text-sm mt-6 text-slate-400">
+              {remoteStreams.length === 0 ? "Ringing..." : "Connected"}
+            </p>
           </div>
-        ) : null}
+        )}
 
         <CallControls
           isMuted={isMuted}

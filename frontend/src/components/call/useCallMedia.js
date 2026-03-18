@@ -1,3 +1,4 @@
+
 export const useCallMedia = ({
   localVideoRef,
   localVideoMainRef,
@@ -16,6 +17,8 @@ export const useCallMedia = ({
   setIsSwitching,
   facingMode,
   callType,
+  socket,
+  chatId,
 }) => {
   const getVideoConstraints = (deviceId = null) => {
     const connection =
@@ -93,16 +96,28 @@ export const useCallMedia = ({
 
   const toggleMute = () => {
     if (!localStreamRef.current) return;
+
     const tracks = localStreamRef.current.getAudioTracks();
+
     tracks.forEach((t) => {
       t.enabled = !t.enabled;
     });
+
     const muted = !tracks[0]?.enabled;
+
     isMutedRef.current = muted;
     setIsMuted(muted);
+
+    // ✅ update peer senders
     peersRef.current.forEach(({ peer }) => {
       const sender = peer.getSenders().find((s) => s.track?.kind === "audio");
       if (sender?.track) sender.track.enabled = !muted;
+    });
+
+    // 🔥 REQUIRED (this is what you're missing)
+    socket.emit("mute-state", {
+      chatId,
+      isMuted: muted,
     });
   };
 
