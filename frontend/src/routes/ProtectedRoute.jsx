@@ -1,9 +1,8 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/authContext";
-
+import { Loader } from "lucide-react";
 import { useEffect, useState } from "react";
 import logo from "../assets/logo.png";
-import Loader from "../utils/Loader";
 
 const loadingMessages = [
   "Preparing your chats...",
@@ -18,16 +17,16 @@ const ProtectedRoute = ({ children }) => {
   const [messageIndex, setMessageIndex] = useState(0);
 
   useEffect(() => {
-    if (!loading) return;
+  if (!loading) return;
 
-    const interval = setInterval(() => {
-      setMessageIndex((prev) =>
-        prev === loadingMessages.length - 1 ? prev : prev + 1
-      );
-    }, 800);
+  const interval = setInterval(() => {
+    setMessageIndex((prev) =>
+      prev === loadingMessages.length - 1 ? prev : prev + 1
+    );
+  }, 800);
 
-    return () => clearInterval(interval);
-  }, [loading]);
+  return () => clearInterval(interval);
+}, [loading]);
 
   if (loading) {
     return (
@@ -39,7 +38,9 @@ const ProtectedRoute = ({ children }) => {
         />
 
         <h1 className="text-2xl font-bold text-emerald-500 mb-4">Chatify</h1>
-        <Loader className="text-emerald-500 w-10 h-10" />
+
+        <Loader className="w-10 h-10 animate-spin text-emerald-500 mb-4" />
+
         <p className="text-gray-700 dark:text-slate-300 text-sm transition-all duration-300">
           {loadingMessages[messageIndex]}
         </p>

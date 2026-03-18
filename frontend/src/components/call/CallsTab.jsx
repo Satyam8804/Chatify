@@ -8,7 +8,7 @@ import {
   PhoneOutgoing,
   Video,
 } from "lucide-react";
-import Loader from "../../utils/Loader";
+import { Loader } from "lucide-react";
 
 const getDayGroup = (dateString) => {
   const date = new Date(dateString);
@@ -208,7 +208,7 @@ const CallsTab = ({
             bg-white dark:bg-slate-800 
             border border-gray-200 dark:border-slate-700 shadow-md"
             >
-              <Loader className="text-emerald-500 w-4 h-4" />
+              <Loader className="w-10 h-10 animate-spin text-emerald-500 mb-4" />
             </div>
           </div>
 
@@ -273,7 +273,7 @@ const CallsTab = ({
       bg-gray-100 dark:bg-slate-800 
       border border-gray-200 dark:border-slate-700 shadow-sm"
           >
-            <Loader className="w-4 h-4 text-emerald-500" />
+            <Loader className="w-10 h-10 animate-spin text-emerald-500 mb-4" />
 
             <span className="text-xs font-medium text-gray-600 dark:text-slate-400">
               Loading more calls...
