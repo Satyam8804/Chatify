@@ -17,8 +17,9 @@ import CallControls from "./CallControls";
 import AddParticipant from "./AddParticipant";
 import LocalVideo from "./LocalVideo";
 import { logger } from "../../utils/logger";
-import Avatar from "../common/Avatar";
+
 import { MicOff } from "lucide-react";
+import ParticipantCard from "./ParticipantCard";
 
 const VideoCall = forwardRef(
   (
@@ -438,60 +439,70 @@ const VideoCall = forwardRef(
       setShowAddParticipant(false);
     };
 
-    const gridClass =
-      remoteStreams.length <= 1
-        ? "flex"
-        : remoteStreams.length <= 4
-        ? "grid grid-cols-2"
-        : "grid grid-cols-3";
-
     const isFrontCamera = facingMode === "user";
 
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
         {callType === "video" && (
           <div className="flex-1 relative min-h-0 overflow-hidden">
-            {/* Remote streams */}
-            <div
-              className={`absolute inset-0 flex gap-1 p-1 ${
-                swapped ? "hidden" : ""
-              }`}
-            >
+            <div className={`absolute inset-0 ${swapped ? "hidden" : "flex"}`}>
               {remoteStreams.length === 0 ? (
-                <div className="flex-1 flex flex-col items-center justify-center gap-4">
-                  <div className="w-12 h-12 rounded-full border-2 border-sky-500/20 border-t-sky-400 animate-spin" />
-                  <p className="text-sm font-medium text-slate-500 tracking-wide">
-                    Connecting…
-                  </p>
+                <div className="relative w-full h-full">
+                  <LocalVideo
+                    videoRef={localVideoRef}
+                    isFrontCamera={isFrontCamera}
+                    isVideoOff={isVideoOff}
+                    name="You"
+                  />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950/60">
+                    <div className="w-10 h-10 rounded-full border-2 border-sky-500/20 border-t-sky-400 animate-spin" />
+                    <p className="text-xs font-medium text-slate-400 tracking-wide">
+                      Connecting…
+                    </p>
+                  </div>
                 </div>
               ) : remoteStreams.length === 1 ? (
                 <div
-                  className="flex-1 w-full h-full min-w-0 min-h-0 cursor-pointer"
+                  className="relative w-full h-full cursor-pointer"
                   onClick={() => canSwap && setSwapped(true)}
                 >
-                  <div className="relative w-full h-full">
-                    <RemoteVideo
-                      stream={remoteStreams[0].stream}
-                      name={remoteStreams[0].name}
-                    />
-
-                    {remoteStreams[0]?.isMuted && (
-                      <span className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md p-1.5 rounded-full shadow">
-                        <MicOff size={16} className="text-white" />
-                      </span>
-                    )}
-                  </div>
+                  <RemoteVideo
+                    stream={remoteStreams[0].stream}
+                    name={remoteStreams[0].name}
+                  />
+                  {remoteStreams[0].isMuted && (
+                    <span className="absolute bottom-3 right-3 z-10 bg-black/70 backdrop-blur-md p-1.5 rounded-full border border-white/10">
+                      <MicOff size={14} className="text-white" />
+                    </span>
+                  )}
                 </div>
               ) : (
-                <div className={`w-full h-full ${gridClass} gap-1`}>
-                  {remoteStreams.map(({ userId, stream, name, isMuted }) => (
-                    <div key={userId} className="relative min-w-0 min-h-0">
+                <div
+                  className={`w-full h-full p-1 grid gap-1 ${
+                    remoteStreams.length === 2
+                      ? "grid-cols-2"
+                      : remoteStreams.length === 3
+                      ? "grid-cols-2 grid-rows-2"
+                      : remoteStreams.length === 4
+                      ? "grid-cols-2 grid-rows-2"
+                      : remoteStreams.length <= 6
+                      ? "grid-cols-3 grid-rows-2"
+                      : "grid-cols-3 grid-rows-3"
+                  }`}
+                >
+                  {remoteStreams.map(({ userId, stream, name, isMuted }, i) => (
+                    <div
+                      key={userId}
+                      className={`relative overflow-hidden rounded-xl ${
+                        remoteStreams.length === 3 && i === 0
+                          ? "col-span-2"
+                          : ""
+                      }`}
+                    >
                       <RemoteVideo stream={stream} name={name} />
-
-                      {/* 🔇 Mute indicator */}
                       {isMuted && (
-                        <span className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md p-1.5 rounded-full shadow">
-                          <MicOff size={14} className="text-white" />
+                        <span className="absolute bottom-2 right-2 z-10 bg-black/70 backdrop-blur-md p-1.5 rounded-full border border-white/10">
+                          <MicOff size={12} className="text-white" />
                         </span>
                       )}
                     </div>
@@ -500,33 +511,22 @@ const VideoCall = forwardRef(
               )}
             </div>
 
-            {/* Local video */}
-            <div
-              className={`absolute inset-0 p-1 ${swapped ? "flex" : "hidden"}`}
-            >
-              <div className="relative flex-1 min-w-0 min-h-0 border border-white/5 rounded-2xl overflow-hidden">
-                <div className="relative">
-                  <LocalVideo
-                    videoRef={localVideoRef}
-                    isFrontCamera={isFrontCamera}
-                    isVideoOff={isVideoOff}
-                  />
-
-                  {isMuted && (
-                    <span className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md p-1.5 rounded-full shadow">
-                      <MicOff size={12} className="text-white" />
-                    </span>
-                  )}
-                </div>
-                <span className="absolute bottom-2 left-3 text-[10px] text-white/50 font-medium z-10">
-                  You
+            <div className={`absolute inset-0 ${swapped ? "block" : "hidden"}`}>
+              <LocalVideo
+                videoRef={localVideoMainRef}
+                isFrontCamera={isFrontCamera}
+                isVideoOff={isVideoOff}
+                name="You"
+              />
+              {isMuted && (
+                <span className="absolute bottom-3 right-3 z-10 bg-black/70 backdrop-blur-md p-1.5 rounded-full border border-white/10">
+                  <MicOff size={14} className="text-white" />
                 </span>
-              </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* Top bar */}
         <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pt-4 pb-8 bg-gradient-to-b from-slate-950/70 to-transparent">
           <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -541,42 +541,50 @@ const VideoCall = forwardRef(
           </div>
         </div>
 
-        {/* PiP */}
-        {callType == "video" && (
+        {callType === "video" && (
           <div
             onClick={() => canSwap && setSwapped((p) => !p)}
-            className={`absolute top-14 right-3 z-20 w-24 h-32 sm:w-32 sm:h-44 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-900 transition-transform ${
-              canSwap ? "cursor-pointer active:scale-95" : ""
+            className={`absolute top-14 right-3 z-20 w-24 h-32 sm:w-28 sm:h-40 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-900 ${
+              canSwap
+                ? "cursor-pointer active:scale-95 transition-transform"
+                : ""
             }`}
           >
-            <div className={`absolute inset-0 ${swapped ? "hidden" : "block"}`}>
+            {swapped ? (
+              remoteStreams[selectedRemoteIndex] && (
+                <RemoteVideo
+                  stream={remoteStreams[selectedRemoteIndex].stream}
+                  name={remoteStreams[selectedRemoteIndex].name}
+                />
+              )
+            ) : (
               <LocalVideo
                 videoRef={localVideoRef}
                 isFrontCamera={isFrontCamera}
                 isVideoOff={isVideoOff}
               />
-            </div>
-
-            {swapped && remoteStreams[selectedRemoteIndex] && (
-              <div className="absolute inset-0">
-                <RemoteVideo
-                  stream={remoteStreams[selectedRemoteIndex].stream}
-                  name={remoteStreams[selectedRemoteIndex].name}
-                />
-              </div>
             )}
 
-            {!swapped && (
-              <span className="absolute bottom-1.5 left-0 right-0 text-center text-[9px] text-white/35 font-medium z-10">
-                You
-              </span>
-            )}
+            {swapped
+              ? remoteStreams[selectedRemoteIndex]?.isMuted && (
+                  <span className="absolute bottom-2 right-2 z-10 bg-black/70 backdrop-blur-md p-1 rounded-full border border-white/10">
+                    <MicOff size={10} className="text-white" />
+                  </span>
+                )
+              : isMuted && (
+                  <span className="absolute bottom-2 right-2 z-10 bg-black/70 backdrop-blur-md p-1 rounded-full border border-white/10">
+                    <MicOff size={10} className="text-white" />
+                  </span>
+                )}
+
+            <span className="absolute bottom-1.5 left-0 right-0 text-center text-[9px] text-white/30 font-medium z-10">
+              {swapped ? remoteStreams[selectedRemoteIndex]?.name : "You"}
+            </span>
           </div>
         )}
 
         {callType === "audio" && (
-          <div className="flex-1 flex flex-col items-center justify-center px-4">
-            {/* 🔊 Hidden audio players (FIX) */}
+          <div className="flex-1 flex flex-col items-center justify-center px-4 py-6">
             <div className="hidden">
               {remoteStreams.map((u) => (
                 <audio
@@ -594,71 +602,35 @@ const VideoCall = forwardRef(
               ))}
             </div>
 
-            {/* Header */}
-            <h2 className="text-lg font-semibold text-white mb-6">
-              {remoteStreams.length === 0
-                ? "Calling..."
-                : `${remoteStreams.length + 1} participants`}
-            </h2>
-
-            {/* Grid */}
             <div
-              className={`grid gap-8 place-items-center w-full max-w-md ${
-                remoteStreams.length + 1 <= 2
-                  ? "grid-cols-2"
+              className={`grid w-full gap-3 ${
+                remoteStreams.length === 0
+                  ? "grid-cols-1 max-w-[160px]"
+                  : remoteStreams.length + 1 <= 2
+                  ? "grid-cols-2 max-w-xs"
                   : remoteStreams.length + 1 <= 4
-                  ? "grid-cols-2"
-                  : "grid-cols-3"
+                  ? "grid-cols-2 max-w-sm"
+                  : "grid-cols-3 max-w-md"
               }`}
             >
-              {/* YOU */}
-              <div
-                className={`flex flex-col items-center transition-all duration-200 ${
-                  activeSpeakerId === user?._id ? "scale-110" : ""
-                }`}
-              >
-                <div className="relative">
-                  <Avatar user={{ fName: "You" }} size={90} />
-
-                  {isMuted && (
-                    <span className="absolute bottom-2 right-2 bg-black/80 p-1.5 rounded-full">
-                      <MicOff size={14} className="text-white" />
-                    </span>
-                  )}
-                </div>
-
-                <span className="text-xs text-slate-400 mt-2">You</span>
-              </div>
-
-              {/* OTHERS */}
+              <ParticipantCard
+                isSelf
+                isMuted={isMuted}
+                isSpeaking={activeSpeakerId === user?._id}
+              />
               {remoteStreams.map((u) => (
-                <div
+                <ParticipantCard
                   key={u.userId}
-                  className={`flex flex-col items-center transition-all duration-200 ${
-                    activeSpeakerId === u.userId ? "scale-110" : "opacity-80"
-                  }`}
-                >
-                  <div className="relative">
-                    <Avatar
-                      user={{ fName: u.name, avatar: u.avatar }}
-                      size={90}
-                    />
-
-                    {u.isMuted && (
-                      <span className="absolute bottom-2 right-2 bg-black/80 p-1.5 rounded-full">
-                        <MicOff size={14} className="text-white" />
-                      </span>
-                    )}
-                  </div>
-
-                  <span className="text-xs text-slate-400 mt-2">{u.name}</span>
-                </div>
+                  name={u.name}
+                  avatar={u.avatar}
+                  isMuted={u.isMuted}
+                  isSpeaking={activeSpeakerId === u.userId}
+                />
               ))}
             </div>
 
-            {/* Status */}
-            <p className="text-sm mt-8 text-slate-400">
-              {remoteStreams.length === 0 ? "Ringing..." : "Connected"}
+            <p className="text-xs mt-6 text-slate-500 tracking-wide">
+              {remoteStreams.length === 0 ? "Ringing…" : "Connected"}
             </p>
           </div>
         )}
@@ -668,6 +640,7 @@ const VideoCall = forwardRef(
           isVideoOff={isVideoOff}
           isSwitching={isSwitching}
           showAddParticipant={showAddParticipant}
+          callType={callType}
           onToggleMute={toggleMute}
           onToggleVideo={toggleVideo}
           onSwitchCamera={switchCamera}
