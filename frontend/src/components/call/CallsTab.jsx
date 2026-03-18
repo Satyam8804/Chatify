@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useAuth } from "../../context/authContext";
 import Avatar from "../common/Avatar";
 import {
@@ -30,8 +30,10 @@ const getDayGroup = (dateString) => {
 };
 
 const CallLog = ({ log, currentUserId, onCall }) => {
-  const isMissed = log.status === "missed";
+  const isMissed = log.status?.toLowerCase() === "missed";
+
   const isOutgoing = String(log.sender?._id) === String(currentUserId);
+
   const isVideo = log.callType === "video";
   const isGroupCall = log.isGroupCall || false;
 
@@ -78,6 +80,14 @@ const CallLog = ({ log, currentUserId, onCall }) => {
   };
 
   const duration = formatDuration(log.duration);
+
+  console.log({
+    logId: log._id,
+    senderId: log.sender?._id,
+    currentUserId,
+    isOutgoing,
+    participants: log.participants?.map((u) => u._id),
+  });
 
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800/40 transition-all duration-200 group cursor-pointer">
@@ -133,7 +143,7 @@ const CallLog = ({ log, currentUserId, onCall }) => {
               onClick={(e) => {
                 e.stopPropagation();
                 if (!otherUser) return;
-                onCall(otherUser);
+                onCall(otherUser, isVideo);
               }}
               className="opacity-100 md:opacity-0 md:group-hover:opacity-100 cursor-pointer transition-all duration-200 w-7 h-7 flex items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25 dark:bg-emerald-500/20 dark:hover:bg-emerald-500/30"
             >
@@ -163,13 +173,13 @@ const CallsTab = ({
   const { user } = useAuth();
   const observerRef = useRef();
 
-  const handleCall = (otherUser) => {
+  const handleCall = (otherUser, isVideo) => {
     const chat = chats?.find(
       (c) =>
         !c.isGroupChat &&
         c.users?.some((u) => String(u._id) === String(otherUser._id))
     );
-    if (chat) onStartCall(chat);
+    if (chat) onStartCall(chat, isVideo);
   };
 
   const lastCallRef = (node) => {
@@ -182,6 +192,10 @@ const CallsTab = ({
     });
     if (node) observerRef.current.observe(node);
   };
+
+  useEffect(() => {
+    return () => observerRef.current?.disconnect();
+  }, []);
 
   const groupedLogs = useMemo(() => {
     if (!callLogs.length) return { today: [], yesterday: [], earlier: [] };
@@ -269,13 +283,10 @@ const CallsTab = ({
                 const isLastItem =
                   key === lastNonEmptySection && index === logs.length - 1;
                 return (
-                  <div
-                    ref={isLastItem ? lastCallRef : null}
-                    key={`${log._id}-${log.createdAt}`}
-                  >
+                  <div ref={isLastItem ? lastCallRef : null} key={log._id}>
                     <CallLog
                       log={log}
-                      currentUserId={user?._id?.toString()} // ✅ force string
+                      currentUserId={user?._id?.toString()}
                       onCall={handleCall}
                     />
                   </div>
