@@ -334,7 +334,7 @@ const PasswordField = ({
         name="password"
         value={value}
         onChange={onChange}
-        className="w-full pl-10 pr-10 py-2 rounded border border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-700/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
+        className="w-full pl-10 pr-10 py-2 rounded border focus:outline-none border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-700/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
       />
 
       <button

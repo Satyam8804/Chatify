@@ -5,6 +5,7 @@ import cors from "cors";
 import http from "http";
 import cookieParser from "cookie-parser";
 import { Server } from "socket.io";
+import helmet from "helmet";
 import passport from "../src/utils/passport.js";
 import connectDB from "./configs/db.js";
 import userRoute from "./routes/userRoute.routes.js";
@@ -19,6 +20,21 @@ connectDB();
 
 const app = express();
 
+// ✅ trust proxy (IMPORTANT for HTTPS on Render)
+app.set("trust proxy", 1);
+
+// ✅ security headers
+app.use(helmet());
+
+// ✅ force HTTPS
+app.use((req, res, next) => {
+  if (req.headers["x-forwarded-proto"] !== "https") {
+    return res.redirect(`https://${req.headers.host}${req.url}`);
+  }
+  next();
+});
+
+// ✅ correct CORS
 app.use(
   cors({
     origin: process.env.CLIENT_URL || "http://localhost:5173",
@@ -42,9 +58,8 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
     credentials: true,
   },
-  pingInterval: 10000,
-  pingTimeout: 5000,
 });
+
 app.set("io", io);
 
 app.use((req, res, next) => {
@@ -55,10 +70,6 @@ app.use((req, res, next) => {
 app.use("/api/users", userRoute);
 app.use("/api/chats", chatRoutes);
 app.use("/api/messages", messageRoutes);
-
-io.engine.on("connection_error", (err) => {
-  console.log("Engine error:", err.message);
-});
 
 setupSocket(io);
 

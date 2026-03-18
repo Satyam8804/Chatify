@@ -173,10 +173,12 @@ const CallsTab = ({
   };
 
   const lastCallRef = (node) => {
-    if (loading) return;
+    if (loading || !hasMore) return;
     if (observerRef.current) observerRef.current.disconnect();
     observerRef.current = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && hasMore && !loading) fetchNextPage();
+      if (entries[0].isIntersecting) {
+        fetchNextPage();
+      }
     });
     if (node) observerRef.current.observe(node);
   };
@@ -193,40 +195,32 @@ const CallsTab = ({
 
   if (loading && callLogs.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
-        <Loader className="w-8 h-8 text-emerald-500 animate-spin" />
-        <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">
-          Loading calls...
-        </p>
-        <span className="text-xs text-gray-400 dark:text-slate-500">
-          Please wait a moment
-        </span>
-      </div>
-    );
-  }
+      <div className="flex-1 flex items-center justify-center px-6">
+        <div className="flex flex-col items-center gap-4 text-center">
+          {/* Glow + Loader */}
+          <div className="relative flex items-center justify-center">
+            {/* Glow */}
+            <div className="absolute w-20 h-20 rounded-full bg-emerald-500/20 blur-2xl animate-pulse" />
 
-  if (callLogs.length === 0) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
-        {/* Loader / Icon Container */}
-        <div className="relative flex items-center justify-center">
-          {/* Glow */}
-          <div className="absolute w-20 h-20 rounded-full bg-emerald-500/20 blur-xl animate-pulse" />
-
-          {/* Background circle */}
-          <div className="w-16 h-16 rounded-full flex items-center justify-center bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-sm">
-            <Phone size={20} className="text-emerald-500 opacity-40" />
+            {/* Spinner Container */}
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center 
+            bg-white dark:bg-slate-800 
+            border border-gray-200 dark:border-slate-700 shadow-md"
+            >
+              <Loader className="w-6 h-6 text-emerald-500 animate-spin" />
+            </div>
           </div>
-        </div>
 
-        {/* Text */}
-        <div>
-          <p className="text-sm font-semibold text-gray-800 dark:text-slate-200">
-            No recent calls
-          </p>
-          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-            Your call history will appear here
-          </p>
+          {/* Text */}
+          <div>
+            <p className="text-sm font-semibold text-gray-800 dark:text-slate-200">
+              Loading calls...
+            </p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+              Fetching your call history
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -273,8 +267,18 @@ const CallsTab = ({
       })}
 
       {loading && callLogs.length > 0 && (
-        <div className="flex items-center justify-center py-3">
-          <Loader className="w-5 h-5 text-emerald-500" />
+        <div className="flex items-center justify-center py-4">
+          <div
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full 
+      bg-gray-100 dark:bg-slate-800 
+      border border-gray-200 dark:border-slate-700 shadow-sm"
+          >
+            <Loader className="w-4 h-4 text-emerald-500 animate-spin" />
+
+            <span className="text-xs font-medium text-gray-600 dark:text-slate-400">
+              Loading more calls...
+            </span>
+          </div>
         </div>
       )}
     </div>
