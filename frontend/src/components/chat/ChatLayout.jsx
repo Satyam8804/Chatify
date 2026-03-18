@@ -45,8 +45,6 @@ const ChatLayout = () => {
   const callConnectedRef = useRef(false);
   const initiatorRef = useRef(null);
 
-
-
   useEffect(() => {
     isCallingRef.current = isCalling;
   }, [isCalling]);
@@ -59,6 +57,13 @@ const ChatLayout = () => {
 
   useEffect(() => {
     outgoingRingRef.current.loop = true;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      outgoingRingRef.current?.pause();
+      outgoingRingRef.current = null;
+    };
   }, []);
 
   const startTimer = useCallback(() => {

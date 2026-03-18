@@ -34,7 +34,8 @@ const CallLog = ({ log, currentUserId, onCall }) => {
 
   const isOutgoing = String(log.sender?._id) === String(currentUserId);
 
-  const isVideo = log.callType === "video";
+  const type = log.callType;
+
   const isGroupCall = log.isGroupCall || false;
 
   const otherUser = isGroupCall
@@ -47,7 +48,6 @@ const CallLog = ({ log, currentUserId, onCall }) => {
     ? log.chat?.chatName || "Group Call"
     : `${otherUser?.fName || "Unknown"} ${otherUser?.lName || ""}`.trim();
 
-    
   const DirectionIcon = isMissed
     ? PhoneMissed
     : isOutgoing
@@ -81,14 +81,6 @@ const CallLog = ({ log, currentUserId, onCall }) => {
 
   const duration = formatDuration(log.duration);
 
-  console.log({
-    logId: log._id,
-    senderId: log.sender?._id,
-    currentUserId,
-    isOutgoing,
-    participants: log.participants?.map((u) => u._id),
-  });
-
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800/40 transition-all duration-200 group cursor-pointer">
       <Avatar
@@ -103,7 +95,7 @@ const CallLog = ({ log, currentUserId, onCall }) => {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
             <DirectionIcon size={12} className={`shrink-0 ${directionColor}`} />
-            {isVideo ? (
+            {type === "video" ? (
               <Video
                 size={12}
                 className="text-gray-400 dark:text-slate-400 shrink-0"
@@ -143,11 +135,11 @@ const CallLog = ({ log, currentUserId, onCall }) => {
               onClick={(e) => {
                 e.stopPropagation();
                 if (!otherUser) return;
-                onCall(otherUser, isVideo);
+                onCall(otherUser, type);
               }}
               className="opacity-100 md:opacity-0 md:group-hover:opacity-100 cursor-pointer transition-all duration-200 w-7 h-7 flex items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25 dark:bg-emerald-500/20 dark:hover:bg-emerald-500/30"
             >
-              {isVideo ? <Video size={13} /> : <Phone size={13} />}
+              {type === "video" ? <Video size={13} /> : <Phone size={13} />}
             </button>
           )}
         </div>
@@ -173,13 +165,13 @@ const CallsTab = ({
   const { user } = useAuth();
   const observerRef = useRef();
 
-  const handleCall = (otherUser, isVideo) => {
+  const handleCall = (otherUser, callType = "video") => {
     const chat = chats?.find(
       (c) =>
         !c.isGroupChat &&
         c.users?.some((u) => String(u._id) === String(otherUser._id))
     );
-    if (chat) onStartCall(chat, isVideo);
+    if (chat) onStartCall(chat, callType);
   };
 
   const lastCallRef = (node) => {
