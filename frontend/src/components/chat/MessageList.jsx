@@ -312,6 +312,10 @@ const MessageBubble = ({
 };
 
 const CallBubble = ({ message, isOwn, onStartCall }) => {
+  console.log("CallBubble render", {
+    messageType: message.messageType,
+    callData: message.callData,
+  });
   if (!message || message.messageType !== "call") return null; // ✅ FIX
 
   const callData = message.callData || {};
@@ -386,7 +390,7 @@ const CallBubble = ({ message, isOwn, onStartCall }) => {
         onClick={(e) => {
           e.stopPropagation();
 
-          if (!message.chat) return; 
+          if (!message.chat) return;
 
           const chatObj = message.chat;
 

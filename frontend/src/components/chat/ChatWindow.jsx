@@ -54,10 +54,15 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
     socket.emit("message-seen", { chatId: chat._id });
 
     const handleReceiveMessage = (message) => {
+      console.log("receive-message fired", {
+        messageType: message.messageType,
+        callData: message.callData,
+        chatId: message.chat?._id || message.chat,
+        currentChatId: chat._id,
+      });
       const senderId = message.sender?._id || message.sender;
       const isOwnMessage = String(senderId) === String(user?._id); // ✅ safe compare
 
-  
       if (isOwnMessage && message.messageType !== "call") return;
 
       setMessages((prev) => {
