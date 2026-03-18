@@ -195,6 +195,9 @@ const ChatLayout = () => {
 
   const startCall = useCallback(
     (chat, type = "video") => {
+      const ctx = new AudioContext();
+      ctx.resume();
+      
       if (isCallingRef.current || !socket || !chat?._id) return;
 
       const isGroup = !!chat.isGroupChat;

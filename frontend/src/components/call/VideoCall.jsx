@@ -68,6 +68,17 @@ const VideoCall = forwardRef(
     }, [facingMode]);
 
     useEffect(() => {
+      const unlockAudio = () => {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        ctx.resume();
+      };
+
+      window.addEventListener("click", unlockAudio, { once: true });
+
+      return () => window.removeEventListener("click", unlockAudio);
+    }, []);
+
+    useEffect(() => {
       if (!remoteStreams.length) {
         setActiveSpeakerId(null); // ✅ reset if no users
         return;
@@ -564,67 +575,89 @@ const VideoCall = forwardRef(
         )}
 
         {callType === "audio" && (
-          <div className="flex-1 flex flex-col items-center justify-center px-6">
+          <div className="flex-1 flex flex-col items-center justify-center px-4">
+            {/* 🔊 Hidden audio players (FIX) */}
+            <div className="hidden">
+              {remoteStreams.map((u) => (
+                <audio
+                  key={u.userId}
+                  autoPlay
+                  playsInline
+                  ref={(el) => {
+                    if (el && u.stream) {
+                      el.srcObject = u.stream;
+                      el.muted = false;
+                      el.volume = 1;
+                    }
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Header */}
             <h2 className="text-lg font-semibold text-white mb-6">
               {remoteStreams.length === 0
                 ? "Calling..."
                 : `${remoteStreams.length + 1} participants`}
             </h2>
 
-            <div className="flex flex-wrap justify-center gap-6 max-w-md">
-              {/* You */}
+            {/* Grid */}
+            <div
+              className={`grid gap-8 place-items-center w-full max-w-md ${
+                remoteStreams.length + 1 <= 2
+                  ? "grid-cols-2"
+                  : remoteStreams.length + 1 <= 4
+                  ? "grid-cols-2"
+                  : "grid-cols-3"
+              }`}
+            >
+              {/* YOU */}
               <div
-                className={`flex flex-col items-center gap-2 transition-all ${
+                className={`flex flex-col items-center transition-all duration-200 ${
                   activeSpeakerId === user?._id ? "scale-110" : ""
                 }`}
               >
                 <div className="relative">
-                  <Avatar
-                    user={{ fName: "You" }}
-                    size={80}
-                    isSpeaking={false}
-                  />
+                  <Avatar user={{ fName: "You" }} size={90} />
 
-                  {/* 🔇 Mute (YOU) */}
                   {isMuted && (
-                    <span className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md p-1.5 rounded-full shadow">
-                      <MicOff size={12} className="text-white" />
+                    <span className="absolute bottom-2 right-2 bg-black/80 p-1.5 rounded-full">
+                      <MicOff size={14} className="text-white" />
                     </span>
                   )}
                 </div>
 
-                <span className="text-xs text-slate-400">You</span>
+                <span className="text-xs text-slate-400 mt-2">You</span>
               </div>
 
-              {/* Others */}
+              {/* OTHERS */}
               {remoteStreams.map((u) => (
                 <div
                   key={u.userId}
-                  className={`flex flex-col items-center gap-2 transition-all ${
+                  className={`flex flex-col items-center transition-all duration-200 ${
                     activeSpeakerId === u.userId ? "scale-110" : "opacity-80"
                   }`}
                 >
                   <div className="relative">
                     <Avatar
                       user={{ fName: u.name, avatar: u.avatar }}
-                      size={80}
-                      isSpeaking={u.isSpeaking}
+                      size={90}
                     />
 
-                    {/* 🔇 Mute (OTHERS) */}
                     {u.isMuted && (
-                      <span className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md p-1.5 rounded-full shadow">
-                        <MicOff size={12} className="text-white" />
+                      <span className="absolute bottom-2 right-2 bg-black/80 p-1.5 rounded-full">
+                        <MicOff size={14} className="text-white" />
                       </span>
                     )}
                   </div>
 
-                  <span className="text-xs text-slate-400">{u.name}</span>
+                  <span className="text-xs text-slate-400 mt-2">{u.name}</span>
                 </div>
               ))}
             </div>
 
-            <p className="text-sm mt-6 text-slate-400">
+            {/* Status */}
+            <p className="text-sm mt-8 text-slate-400">
               {remoteStreams.length === 0 ? "Ringing..." : "Connected"}
             </p>
           </div>
