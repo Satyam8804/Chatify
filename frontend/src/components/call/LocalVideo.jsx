@@ -8,7 +8,7 @@ const LocalVideo = ({ videoRef, isFrontCamera, isVideoOff, name = "You", classNa
         autoPlay
         muted
         playsInline
-        className={`w-full h-full object-cover transform-gpu transition-opacity duration-300 ${
+        className={`w-full h-full object-contain transform-gpu transition-opacity duration-300 ${
           isFrontCamera ? "scale-x-[-1]" : ""
         } ${isVideoOff ? "opacity-0" : "opacity-100"}`}
       />
