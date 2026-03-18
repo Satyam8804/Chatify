@@ -1,8 +1,9 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/authContext";
-import { Loader } from "lucide-react";
+
 import { useEffect, useState } from "react";
 import logo from "../assets/logo.png";
+import Loader from "../utils/Loader";
 
 const loadingMessages = [
   "Preparing your chats...",
@@ -38,9 +39,7 @@ const ProtectedRoute = ({ children }) => {
         />
 
         <h1 className="text-2xl font-bold text-emerald-500 mb-4">Chatify</h1>
-
-        <Loader className="w-10 h-10 animate-spin text-emerald-500 mb-4" />
-
+        <Loader className="text-emerald-500 w-10 h-10" />
         <p className="text-gray-700 dark:text-slate-300 text-sm transition-all duration-300">
           {loadingMessages[messageIndex]}
         </p>
