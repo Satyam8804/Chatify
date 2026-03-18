@@ -195,32 +195,52 @@ const CallsTab = ({
 
   if (loading && callLogs.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center px-6">
-        <div className="flex flex-col items-center gap-4 text-center">
-          {/* Glow + Loader */}
-          <div className="relative flex items-center justify-center">
-            {/* Glow */}
-            <div className="absolute w-20 h-20 rounded-full bg-emerald-500/20 blur-2xl animate-pulse" />
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-6">
+        {/* Simple Loader */}
+        <Loader className="w-10 h-10 animate-spin text-emerald-500" />
 
-            {/* Spinner Container */}
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center 
-            bg-white dark:bg-slate-800 
-            border border-gray-200 dark:border-slate-700 shadow-md"
-            >
-              <Loader className="w-10 h-10 animate-spin text-emerald-500 mb-4" />
-            </div>
-          </div>
+        {/* Text */}
+        <div>
+          <p className="text-sm font-semibold text-gray-800 dark:text-slate-200">
+            Loading calls...
+          </p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+            Fetching your call history
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-          {/* Text */}
-          <div>
-            <p className="text-sm font-semibold text-gray-800 dark:text-slate-200">
-              Loading calls...
-            </p>
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-              Fetching your call history
-            </p>
+  if (!loading && callLogs.length === 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
+        {/* Icon Container */}
+        <div className="relative flex items-center justify-center">
+          {/* Glow */}
+          <div className="absolute w-20 h-20 rounded-full bg-emerald-500/20 blur-xl animate-pulse" />
+
+          {/* Circle */}
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center 
+          bg-white dark:bg-slate-800 
+          border border-gray-200 dark:border-slate-700 shadow-sm"
+          >
+            <Phone
+              size={22}
+              className="text-emerald-500 opacity-60 group-hover:opacity-100 transition"
+            />
           </div>
+        </div>
+
+        {/* Text */}
+        <div>
+          <p className="text-sm font-semibold text-gray-800 dark:text-slate-200">
+            No call logs
+          </p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+            Your recent calls will appear here
+          </p>
         </div>
       </div>
     );
@@ -267,18 +287,12 @@ const CallsTab = ({
       })}
 
       {loading && callLogs.length > 0 && (
-        <div className="flex items-center justify-center py-4">
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full 
-      bg-gray-100 dark:bg-slate-800 
-      border border-gray-200 dark:border-slate-700 shadow-sm"
-          >
-            <Loader className="w-10 h-10 animate-spin text-emerald-500 mb-4" />
+        <div className="flex items-center justify-center gap-2 py-4">
+          <Loader className="w-5 h-5 animate-spin text-emerald-500" />
 
-            <span className="text-xs font-medium text-gray-600 dark:text-slate-400">
-              Loading more calls...
-            </span>
-          </div>
+          <span className="text-xs font-medium text-gray-600 dark:text-slate-400">
+            Loading more calls...
+          </span>
         </div>
       )}
     </div>
