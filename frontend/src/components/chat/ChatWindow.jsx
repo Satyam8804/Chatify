@@ -77,19 +77,29 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
       }
     };
 
+    const handleCallLog = (message) => {
+      const incomingChatId = message.chat?._id || message.chat;
+      if (String(incomingChatId) !== String(chat._id)) return;
+      setMessages((prev) => {
+        if (prev.some((m) => m._id === message._id)) return prev;
+        return [...prev, message];
+      });
+    };
+
+    
     const handleSeen = ({ chatId, userId }) => {
       if (chatId.toString() !== chat._id.toString()) return;
-
+      
       setMessages((prev) =>
         prev.map((msg) => {
           const alreadySeen = msg.readBy?.includes(userId);
-
+          
           // ✅ play sound only once for your message
           if (!alreadySeen && msg.sender?._id === user?._id) {
             seenSoundRef.current.currentTime = 0;
             seenSoundRef.current.play().catch(() => {});
           }
-
+          
           return {
             ...msg,
             readBy: alreadySeen ? msg.readBy : [...(msg.readBy || []), userId],
@@ -97,13 +107,16 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
         })
       );
     };
-
+    
     socket.on("receive-message", handleReceiveMessage);
     socket.on("message-seen", handleSeen);
-
+    socket.on("call-log-saved", handleCallLog);
+    
     return () => {
       socket.off("receive-message", handleReceiveMessage);
       socket.off("message-seen", handleSeen);
+      socket.off("call-log-saved", handleCallLog);
+
       setActiveChatId(null);
     };
   }, [chat?._id, socket, user?._id]); // ✅ safe access in deps

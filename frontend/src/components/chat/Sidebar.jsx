@@ -159,12 +159,11 @@ const Sidebar = ({
     };
 
     const handleCallLog = (message) => {
-      const incomingChatId = message.chat?._id || message.chat;
-      if (String(incomingChatId) !== String(chat._id)) return;
-      setMessages((prev) => {
-        if (prev.some((m) => m._id === message._id)) return prev;
-        return [...prev, message];
-      });
+      setPage(1);
+      fetchCalls(1, true);
+      if (message) {
+        updateChatLatestMessage(message);
+      }
     };
 
     const handleNewChat = (newChat) => {
