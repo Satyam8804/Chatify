@@ -95,9 +95,16 @@ const VideoCall = forwardRef(
     }, [remoteStreams]);
 
     useEffect(() => {
-      if (swapped && localVideoMainRef.current && localStreamRef.current) {
-        localVideoMainRef.current.srcObject = localStreamRef.current;
-        localVideoMainRef.current.play().catch(() => {});
+      if (swapped) {
+        if (localVideoMainRef.current && localStreamRef.current) {
+          localVideoMainRef.current.srcObject = localStreamRef.current;
+          localVideoMainRef.current.play().catch(() => {});
+        }
+      } else {
+        if (localVideoRef.current && localStreamRef.current) {
+          localVideoRef.current.srcObject = localStreamRef.current;
+          localVideoRef.current.play().catch(() => {});
+        }
       }
     }, [swapped, isSwitching]);
 

@@ -8,6 +8,7 @@ const LocalVideo = ({ videoRef, isFrontCamera, isVideoOff, className = "" }) => 
         autoPlay
         muted
         playsInline
+        onLoadedMetadata={(e) => e.target.play().catch(() => {})}
         className={`w-full h-full object-contain transform-gpu transition-opacity duration-300 ${
           isFrontCamera ? "scale-x-[-1]" : ""
         } ${isVideoOff ? "opacity-0" : "opacity-100"}`}
