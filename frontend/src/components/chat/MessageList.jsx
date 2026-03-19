@@ -335,11 +335,10 @@ const CallBubble = ({ message, isOwn, onStartCall,chat }) => {
 
   const handleCall = (e) => {
     e.stopPropagation();
-    const chatId = message.chat?._id || message.chat;
-    const fullChat = chat?.find((c) => String(c._id) === String(chatId));
-    console.log("fullChat ",fullChat)
-    if (!fullChat) return;
-    onStartCall?.(fullChat, callType);
+    console.log("!message?.chat" ,!message?.chat)
+    console.log("fullChat ",chat)
+    if (!message?.chat) return;
+    onStartCall?.(chat, callType);
   };
 
   return (
