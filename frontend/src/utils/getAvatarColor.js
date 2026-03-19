@@ -12,10 +12,13 @@ const colors = [
 export const getAvatarColor = (seed) => {
   if (!seed) return colors[0];
 
+  const str = String(seed); // ✅ ensure string
+
   let hash = 0;
 
-  for (let i = 0; i < seed.length; i++) {
-    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0; // ✅ force 32-bit int (prevents overflow issues)
   }
 
   return colors[Math.abs(hash) % colors.length];

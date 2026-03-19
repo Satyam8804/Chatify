@@ -1,7 +1,7 @@
 import Avatar from "../common/Avatar";
 import { MicOff } from "lucide-react";
 
-const ParticipantCard = ({ user, isSelf, isMuted, isSpeaking,color }) => {
+const ParticipantCard = ({ user, isSelf, isMuted, isSpeaking, color }) => {
   return (
     <div
       className={`
@@ -24,7 +24,10 @@ const ParticipantCard = ({ user, isSelf, isMuted, isSpeaking,color }) => {
       <Avatar user={user} size={64} IsInside={true} isSpeaking={isSpeaking} />
 
       <div className="flex flex-col items-center gap-1">
-        <span className={`text-[16px] font-bold text-${color} truncate max-w-[100px]`}>
+        <span
+          style={{ color: color || "#eab308" }}
+          className={`text-[16px] font-bold truncate max-w-[100px]`}
+        >
           {isSelf ? "You" : user?.fName}
         </span>
 
