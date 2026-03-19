@@ -18,7 +18,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 
-const MessageList = ({ messages, onReply, onStartCall }) => {
+const MessageList = ({ messages, onReply, onStartCall, chat }) => {
   const { user } = useAuth();
   const bottomRef = useRef(null);
   const { typingUser } = useSocket();
@@ -63,6 +63,7 @@ const MessageList = ({ messages, onReply, onStartCall }) => {
           messageRefs={messageRefs}
           onReplyClick={handleReplyClick}
           onStartCall={onStartCall}
+          chat={chat}
         />
       ))}
       {previewImage && (
@@ -87,6 +88,7 @@ const MessageBubble = ({
   onReplyClick,
   messageRefs,
   onStartCall,
+  chat
 }) => {
   const userColor = !isOwn
     ? getAvatarColor(message.sender?._id || message.sender?.fName)
@@ -241,6 +243,7 @@ const MessageBubble = ({
             message={message}
             isOwn={isOwn}
             onStartCall={onStartCall}
+            chat={chat}
           />
         )}
 
@@ -311,7 +314,7 @@ const MessageBubble = ({
   );
 };
 
-const CallBubble = ({ message, isOwn, onStartCall }) => {
+const CallBubble = ({ message, isOwn, onStartCall,chat }) => {
   if (!message || message.messageType !== "call") return null;
 
   const callData = message.callData || {};
@@ -332,8 +335,11 @@ const CallBubble = ({ message, isOwn, onStartCall }) => {
 
   const handleCall = (e) => {
     e.stopPropagation();
-    if (!message.chat) return;
-    onStartCall?.(message.chat, callType);
+    const chatId = message.chat?._id || message.chat;
+    const fullChat = chat?.find((c) => String(c._id) === String(chatId));
+    console.log("fullChat ",fullChat)
+    if (!fullChat) return;
+    onStartCall?.(fullChat, callType);
   };
 
   return (
@@ -381,14 +387,6 @@ const CallBubble = ({ message, isOwn, onStartCall }) => {
               : "Ended"
             : "Declined"}
         </span>
-      </div>
-
-      <div className="shrink-0 p-1.5 rounded-full bg-white/60 dark:bg-slate-600/60">
-        {callType === "video" ? (
-          <Video size={12} className="text-slate-500 dark:text-slate-300" />
-        ) : (
-          <PhoneCall size={12} className="text-slate-500 dark:text-slate-300" />
-        )}
       </div>
     </div>
   );

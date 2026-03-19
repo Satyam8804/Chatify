@@ -649,7 +649,7 @@ const VideoCall = forwardRef(
             </div>
 
             <p className="text-xs mt-6 text-slate-500 tracking-wide">
-              {remoteStreams.length === 0 ? "Ringing…" : "Connected"}
+              {remoteStreams.length === 0 ? "Connecting…" : "Connected"}
             </p>
           </div>
         )}

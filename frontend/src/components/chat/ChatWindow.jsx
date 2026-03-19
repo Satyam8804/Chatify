@@ -137,6 +137,7 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
           messages={messages}
           onReply={setReplyTo}
           onStartCall={startCall}
+          chat={chat}
         />
       </div>
 
