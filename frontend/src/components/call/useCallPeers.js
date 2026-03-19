@@ -116,6 +116,7 @@ export const useCallPeers = ({
     });
   };
 
+
   const createPeerConnection = (userId) => {
     const existing = getPeerEntry(userId);
     if (existing?.peer) return existing.peer;
@@ -138,7 +139,7 @@ export const useCallPeers = ({
       const incomingStream = e.streams?.[0];
       if (!incomingStream) return;
 
-      const { fName, avatar,lName } = getUserMeta(userId);
+      const { fName, avatar, lName } = getUserMeta(userId);
 
       setupSpeakingDetection(userId, incomingStream);
 

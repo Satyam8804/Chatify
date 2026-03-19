@@ -69,21 +69,6 @@ const VideoCall = forwardRef(
     }, [facingMode]);
 
     useEffect(() => {
-      if (!remoteStreams.length) {
-        setActiveSpeakerId(null); // ✅ reset if no users
-        return;
-      }
-
-      const speakingUser = remoteStreams.find((u) => u.isSpeaking);
-
-      if (speakingUser) {
-        setActiveSpeakerId(speakingUser.userId);
-      } else {
-        setActiveSpeakerId(null); // ✅ IMPORTANT FIX
-      }
-    }, [remoteStreams]);
-
-    useEffect(() => {
       if (swapped) {
         if (localVideoMainRef.current && localStreamRef.current) {
           localVideoMainRef.current.srcObject = localStreamRef.current;
@@ -96,6 +81,32 @@ const VideoCall = forwardRef(
         }
       }
     }, [swapped, isSwitching]);
+
+    // In VideoCall.jsx
+    useEffect(() => {
+      const resume = () => {
+        navigator.mediaDevices?.getUserMedia({ audio: true }).catch(() => {});
+      };
+      document.addEventListener("click", resume, { once: true });
+      document.addEventListener("touchstart", resume, { once: true });
+      return () => {
+        document.removeEventListener("click", resume);
+        document.removeEventListener("touchstart", resume);
+      };
+    }, []);
+
+    useEffect(() => {
+      const handleVisibility = () => {
+        if (document.visibilityState === "visible") {
+          document.querySelectorAll("audio").forEach((el) => {
+            el.play().catch(() => {});
+          });
+        }
+      };
+      document.addEventListener("visibilitychange", handleVisibility);
+      return () =>
+        document.removeEventListener("visibilitychange", handleVisibility);
+    }, []);
 
     useEffect(() => {
       if (selectedRemoteIndex >= remoteStreams.length) {
@@ -483,7 +494,7 @@ const VideoCall = forwardRef(
                 >
                   <RemoteVideo stream={remoteStreams[0].stream} />
                   <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">
-                    {remoteStreams[0].name}
+                    {remoteStreams[0].fName}
                   </span>
                   {remoteStreams[0].isMuted && (
                     <span className="absolute bottom-3 right-3 z-10 bg-black/70 backdrop-blur-md p-1.5 rounded-full border border-white/10">
@@ -597,7 +608,7 @@ const VideoCall = forwardRef(
                 )}
 
             <span className="absolute bottom-1.5 left-0 right-0 text-center text-[9px] text-white/30 font-medium z-10">
-              {swapped ? remoteStreams[selectedRemoteIndex]?.name : "You"}
+              {swapped ? remoteStreams[selectedRemoteIndex]?.fName : "You"}
             </span>
           </div>
         )}
@@ -615,6 +626,7 @@ const VideoCall = forwardRef(
                       el.srcObject = u.stream;
                       el.muted = false;
                       el.volume = 1;
+                      el.play().catch(() => {});
                     }
                   }}
                 />
