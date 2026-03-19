@@ -88,7 +88,7 @@ const MessageBubble = ({
   onReplyClick,
   messageRefs,
   onStartCall,
-  chat
+  chat,
 }) => {
   const userColor = !isOwn
     ? getAvatarColor(message.sender?._id || message.sender?.fName)
@@ -314,7 +314,7 @@ const MessageBubble = ({
   );
 };
 
-const CallBubble = ({ message, isOwn, onStartCall,chat }) => {
+const CallBubble = ({ message, isOwn, onStartCall, chat }) => {
   if (!message || message.messageType !== "call") return null;
 
   const callData = message.callData || {};
@@ -335,12 +335,17 @@ const CallBubble = ({ message, isOwn, onStartCall,chat }) => {
 
   const handleCall = (e) => {
     e.stopPropagation();
-    console.log("!message?.chat" ,!message?.chat)
-    console.log("fullChat ",chat)
+    console.log("!message?.chat", !message?.chat);
+    console.log("fullChat ", chat);
     if (!message?.chat) return;
     onStartCall?.(chat, callType);
   };
 
+  const participantsCount = message?.participants?.length || 0;
+
+  const isGroup = participantsCount > 1 || message?.chat?.isGroup;
+
+  const isVideo = message?.callData?.callType === "video";
   return (
     <div
       onClick={handleCall}
@@ -352,7 +357,7 @@ const CallBubble = ({ message, isOwn, onStartCall,chat }) => {
         }`}
     >
       <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-600 shrink-0">
-        {callType === "video" ? (
+        {isVideo ? (
           <Video size={16} className={colorClass} />
         ) : (
           <PhoneCall size={16} className={colorClass} />
@@ -367,9 +372,11 @@ const CallBubble = ({ message, isOwn, onStartCall,chat }) => {
             <ArrowUpRight size={13} className="text-slate-400 shrink-0" />
           )}
           <span className="text-sm font-semibold text-gray-900 dark:text-white">
-            {message?.participants > 1
-              ? "Group call"
-              : callType === "video"
+            {isGroup
+              ? isVideo
+                ? "Group video call"
+                : "Group audio call"
+              : isVideo
               ? "Video call"
               : "Audio call"}
           </span>
