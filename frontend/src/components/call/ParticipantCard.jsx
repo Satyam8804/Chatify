@@ -3,7 +3,8 @@
 import Avatar from "../common/Avatar";
 import { MicOff } from "lucide-react";
 
-const ParticipantCard = ({ name, avatar, isSelf, isMuted, isSpeaking }) => {
+const ParticipantCard = ({ user,isSelf, isMuted, isSpeaking }) => {
+    console.log("user",user)
   return (
     <div
       className={`
@@ -25,7 +26,7 @@ const ParticipantCard = ({ name, avatar, isSelf, isMuted, isSpeaking }) => {
       )}
 
       <Avatar
-        user={isSelf ? { fName: "You" } : { fName: name, avatar }}
+        user={isSelf ? { fName: "You" } : {user}}
         size={64}
         IsInside={true}
         isSpeaking={isSpeaking}

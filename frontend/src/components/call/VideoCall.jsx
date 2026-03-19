@@ -109,11 +109,24 @@ const VideoCall = forwardRef(
     }, [swapped, isSwitching]);
 
     useEffect(() => {
-      if (selectedRemoteIndex >= remoteStreams.length)
+      if (selectedRemoteIndex >= remoteStreams.length) {
         setSelectedRemoteIndex(0);
+      }
+    }, [remoteStreams.length]);
+
+    useEffect(() => {
       if (remoteStreams.length === 0 && swapped) setSwapped(false);
       if (remoteStreams.length > 1 && swapped) setSwapped(false);
-    }, [remoteStreams.length, selectedRemoteIndex]);
+    }, [remoteStreams.length]);
+
+    useEffect(() => {
+      if (!remoteStreams.length) {
+        setActiveSpeakerId(null);
+        return;
+      }
+      const speakingUser = remoteStreams.find((u) => u.isSpeaking);
+      setActiveSpeakerId(speakingUser ? speakingUser.userId : null);
+    }, [remoteStreams]);
 
     const {
       getLocalStream,
@@ -448,7 +461,7 @@ const VideoCall = forwardRef(
 
     const isFrontCamera = facingMode === "user";
 
-    console.log("remoteStreams -->",remoteStreams)
+    console.log("remoteStreams -->", remoteStreams);
 
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
@@ -633,8 +646,7 @@ const VideoCall = forwardRef(
               {remoteStreams.map((u) => (
                 <ParticipantCard
                   key={u.userId}
-                  name={u.name}
-                  avatar={u.avatar}
+                  user={{fName:u.name,avatar:u.avatar}}
                   isMuted={u.isMuted}
                   isSpeaking={activeSpeakerId === u.userId}
                 />
