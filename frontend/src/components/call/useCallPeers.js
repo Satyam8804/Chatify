@@ -1,8 +1,10 @@
+import { useRef } from "react";
+
 export const useCallPeers = ({
   socket,
   user,
   chatId,
-  chats, // ✅ ADD THIS
+  chats,
   getOrCreatePeer,
   getPeerEntry,
   removePeer,
@@ -11,44 +13,103 @@ export const useCallPeers = ({
   setRemoteStreams,
   onConnected,
 }) => {
-  const audioContextsRef = new Map();
+  const sharedAudioContextRef = useRef(null);
+  const animationFramesRef = useRef(new Map());
+
+  const getAudioContext = () => {
+    if (
+      !sharedAudioContextRef.current ||
+      sharedAudioContextRef.current.state === "closed"
+    ) {
+      sharedAudioContextRef.current = new (window.AudioContext ||
+        window.webkitAudioContext)();
+    }
+    if (sharedAudioContextRef.current.state === "suspended") {
+      sharedAudioContextRef.current.resume();
+    }
+    return sharedAudioContextRef.current;
+  };
 
   const getUserMeta = (userId) => {
-  for (const chat of chats || []) {
-    const u = chat?.users?.find((usr) => String(usr._id) === String(userId));
-    if (u) {
-      return {
-        name: u.fName,
-        avatar: u.avatar ?? null,
-      };
+    for (const chat of chats || []) {
+      const u = chat?.users?.find((usr) => String(usr._id) === String(userId));
+      if (u) {
+        return {
+          name: u.fName,
+          avatar: u.avatar ?? null,
+        };
+      }
     }
-  }
-  return { name: userId, avatar: null };
-};
+    return { name: userId, avatar: null };
+  };
+
+  const setupSpeakingDetection = (userId, incomingStream) => {
+    const audioTrack = incomingStream.getAudioTracks()[0];
+    if (!audioTrack) return;
+
+    const existingFrame = animationFramesRef.current.get(userId);
+    if (existingFrame) {
+      cancelAnimationFrame(existingFrame);
+      animationFramesRef.current.delete(userId);
+    }
+
+    const audioContext = getAudioContext();
+    const source = audioContext.createMediaStreamSource(
+      new MediaStream([audioTrack])
+    );
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    let lastSpeaking = false;
+
+    const detect = () => {
+      analyser.getByteFrequencyData(dataArray);
+      const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+      const isSpeaking = avg > 25;
+
+      if (isSpeaking !== lastSpeaking) {
+        lastSpeaking = isSpeaking;
+        setRemoteStreams((prev) =>
+          prev.map((s) =>
+            s.userId === userId
+              ? { ...s, isSpeaking: !s.isMuted && isSpeaking }
+              : s
+          )
+        );
+      }
+
+      animationFramesRef.current.set(userId, requestAnimationFrame(detect));
+    };
+
+    animationFramesRef.current.set(userId, requestAnimationFrame(detect));
+  };
 
   const handleRemovePeer = (userId) => {
-    removePeer(userId);
+    const frame = animationFramesRef.current.get(userId);
+    if (frame) {
+      cancelAnimationFrame(frame);
+      animationFramesRef.current.delete(userId);
+    }
 
+    removePeer(userId);
     setRemoteStreams((prev) => prev.filter((s) => s.userId !== userId));
   };
 
   const addTracksIfNeeded = (peer, stream) => {
     const senders = peer.getSenders();
-
     stream.getTracks().forEach((track) => {
       const alreadyAdded = senders.some((s) => s.track?.kind === track.kind);
-
       if (!alreadyAdded) {
         try {
           const sender = peer.addTrack(track, stream);
-
           if (track.kind === "audio" && isMutedRef.current)
             sender.track.enabled = false;
-
           if (track.kind === "video" && isVideoOffRef.current)
             sender.track.enabled = false;
         } catch (err) {
-          console.warn("[VideoCall] addTrack failed:", err);
+          console.warn("[useCallPeers] addTrack failed:", err);
         }
       }
     });
@@ -78,57 +139,13 @@ export const useCallPeers = ({
 
       const { name, avatar } = getUserMeta(userId);
 
-      // 🎙️ STEP 1: setup speaking detection
-      const audioTrack = incomingStream.getAudioTracks()[0];
+      setupSpeakingDetection(userId, incomingStream);
 
-      if (audioTrack) {
-        const audioContext = new (window.AudioContext ||
-          window.webkitAudioContext)();
-
-        audioContextsRef.set(userId, audioContext); // ✅ store
-
-        const source = audioContext.createMediaStreamSource(
-          new MediaStream([audioTrack])
-        );
-
-        const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 512;
-
-        source.connect(analyser);
-
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-        const detectSpeaking = () => {
-          analyser.getByteFrequencyData(dataArray);
-
-          const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
-
-          setRemoteStreams((prev) =>
-            prev.map((s) => {
-              if (s.userId !== userId) return s;
-
-              const isSpeaking = !s.isMuted && avg > 25;
-
-              return {
-                ...s,
-                isSpeaking,
-              };
-            })
-          );
-
-          requestAnimationFrame(detectSpeaking);
-        };
-
-        detectSpeaking();
-      }
-
-      // ✅ keep your existing logic
       setRemoteStreams((prev) => {
         const exists = prev.find((s) => s.userId === userId);
 
         if (exists) {
           if (exists.stream === incomingStream) return prev;
-
           return prev.map((s) =>
             s.userId === userId
               ? {
@@ -150,7 +167,7 @@ export const useCallPeers = ({
             name,
             avatar,
             isSpeaking: false,
-            isMuted: !incomingStream.getAudioTracks()[0]?.enabled, // ✅ ADD HERE
+            isMuted: !incomingStream.getAudioTracks()[0]?.enabled,
           },
         ];
       });
@@ -163,10 +180,6 @@ export const useCallPeers = ({
         peer.connectionState === "failed" ||
         peer.connectionState === "closed"
       ) {
-        const ctx = audioContextsRef.get(userId);
-        ctx?.close(); // ✅ now safe
-        audioContextsRef.delete(userId);
-
         handleRemovePeer(userId);
       }
     };
@@ -181,7 +194,6 @@ export const useCallPeers = ({
           }
         }, 3000);
       }
-
       if (peer.iceConnectionState === "failed") {
         try {
           peer.restartIce();
@@ -193,8 +205,6 @@ export const useCallPeers = ({
   };
 
   const initiateOffer = async (userId, userName, getLocalStream) => {
-    console.log("[VideoCall] initiating offer to:", userId);
-
     const peer = createPeerConnection(userId);
     if (!peer) return;
 
@@ -204,13 +214,11 @@ export const useCallPeers = ({
     if (!entry || peer.signalingState !== "stable") return;
 
     entry.makingOffer = true;
-
     addTracksIfNeeded(peer, stream);
 
     try {
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
-
       socket.emit("webrtc-offer", {
         offer: peer.localDescription,
         to: userId,
@@ -218,7 +226,7 @@ export const useCallPeers = ({
         roomId: chatId,
       });
     } catch (err) {
-      console.warn("[VideoCall] initiateOffer error:", err);
+      console.warn("[useCallPeers] initiateOffer error:", err);
     } finally {
       entry.makingOffer = false;
     }

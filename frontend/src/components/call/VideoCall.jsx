@@ -69,17 +69,6 @@ const VideoCall = forwardRef(
     }, [facingMode]);
 
     useEffect(() => {
-      const unlockAudio = () => {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        ctx.resume();
-      };
-
-      window.addEventListener("click", unlockAudio, { once: true });
-
-      return () => window.removeEventListener("click", unlockAudio);
-    }, []);
-
-    useEffect(() => {
       if (!remoteStreams.length) {
         setActiveSpeakerId(null); // ✅ reset if no users
         return;
