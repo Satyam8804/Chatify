@@ -83,16 +83,26 @@ const VideoCall = forwardRef(
       }
     }, [swapped, isSwitching]);
 
-    // In VideoCall.jsx
     useEffect(() => {
-      const resume = () => {
-        navigator.mediaDevices?.getUserMedia({ audio: true }).catch(() => {});
+      const resumeAudio = () => {
+        try {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtx) return;
+
+          const ctx = new AudioCtx();
+
+          if (ctx.state === "suspended") {
+            ctx.resume();
+          }
+        } catch {}
       };
-      document.addEventListener("click", resume, { once: true });
-      document.addEventListener("touchstart", resume, { once: true });
+
+      document.addEventListener("click", resumeAudio, { once: true });
+      document.addEventListener("touchstart", resumeAudio, { once: true });
+
       return () => {
-        document.removeEventListener("click", resume);
-        document.removeEventListener("touchstart", resume);
+        document.removeEventListener("click", resumeAudio);
+        document.removeEventListener("touchstart", resumeAudio);
       };
     }, []);
 
@@ -308,7 +318,6 @@ const VideoCall = forwardRef(
       };
     }, [socket, chatId]);
 
-
     useEffect(() => {
       if (!socket) return;
 
@@ -317,7 +326,7 @@ const VideoCall = forwardRef(
           if (!userId || String(userId) === String(user?._id)) continue;
           const entry = getPeerEntry(userId);
           if (entry?.peer || entry?.makingOffer) continue;
-          await initiateOffer(userId,getLocalStream);
+          await initiateOffer(userId, getLocalStream);
         }
       };
 
@@ -327,7 +336,7 @@ const VideoCall = forwardRef(
         if (pendingPeersRef.current.has(userId)) return;
         pendingPeersRef.current.add(userId);
         try {
-          await initiateOffer(userId,getLocalStream);
+          await initiateOffer(userId, getLocalStream);
         } finally {
           pendingPeersRef.current.delete(userId);
         }
@@ -661,9 +670,21 @@ const VideoCall = forwardRef(
                   ref={(el) => {
                     if (el && u.stream) {
                       el.srcObject = u.stream;
+
                       el.muted = false;
                       el.volume = 1;
-                      el.play().catch(() => {});
+
+                      // 🔥 CRITICAL FIX
+                      const playPromise = el.play();
+
+                      if (playPromise !== undefined) {
+                        playPromise.catch(() => {
+                          console.warn("🔇 autoplay blocked, retrying...");
+                          setTimeout(() => {
+                            el.play().catch(() => {});
+                          }, 500);
+                        });
+                      }
                     }
                   }}
                 />
