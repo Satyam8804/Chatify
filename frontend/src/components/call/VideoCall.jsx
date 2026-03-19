@@ -444,7 +444,11 @@ const VideoCall = forwardRef(
     }, [callChat, chats, remoteStreams, invitedUsers, user?._id]);
 
     const handleInvite = (inviteeId) => {
-      socket.emit("invite-to-call", { chatId, inviteeIds: [inviteeId] });
+      socket.emit("invite-to-call", {
+        chatId,
+        inviteeIds: [inviteeId],
+        callType,
+      });
       setInvitedUsers((prev) => new Set(prev).add(inviteeId));
       setShowAddParticipant(false);
     };

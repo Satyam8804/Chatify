@@ -80,7 +80,7 @@ export const videoCallSocket = (io, socket) => {
     });
   });
 
-  socket.on("invite-to-call", ({ chatId, inviteeIds }) => {
+  socket.on("invite-to-call", ({ chatId, inviteeIds, callType }) => {
     if (!inviteeIds?.length) return;
     inviteeIds.forEach((userId) => {
       onlineUsers.get(userId)?.forEach((socketId) => {
@@ -89,6 +89,7 @@ export const videoCallSocket = (io, socket) => {
           callerName: socket.user?.fName,
           callerAvatar: socket.user?.avatar,
           chatId,
+          callType,
           isGroup: true,
         });
       });
