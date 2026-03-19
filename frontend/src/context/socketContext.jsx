@@ -18,15 +18,16 @@ export const SocketProvider = ({ children }) => {
   const [incomingCall, setIncomingCall] = useState(null);
 
   useEffect(() => {
-    // ✅ user logged out — disconnect and reset
     if (!user?._id) {
-      setSocket((prev) => {
-        prev?.disconnect();
-        return null;
+      socket?.disconnect();
+
+      queueMicrotask(() => {
+        setSocket(null);
+        setOnlineUser(new Set());
+        setUnreadCounts({});
+        setIncomingCall(null);
       });
-      setOnlineUser(new Set());
-      setUnreadCounts({});
-      setIncomingCall(null);
+
       return;
     }
 
@@ -35,7 +36,6 @@ export const SocketProvider = ({ children }) => {
 
     const newSocket = io("https://chatify-jux9.onrender.com", {
       auth: { token },
-      autoConnect: true,
       transports: ["websocket"],
       pingInterval: 10000,
       pingTimeout: 5000,
@@ -45,11 +45,9 @@ export const SocketProvider = ({ children }) => {
 
     setSocket(newSocket);
 
-    newSocket.on("connect", () => logger("🟢 Socket connected:", newSocket.id));
-    newSocket.on("connect_error", (err) =>
-      logger("Socket connect error:", err.message)
-    );
-    newSocket.on("online-users", (users) => setOnlineUser(new Set(users)));
+    newSocket.on("online-users", (users) => {
+      setOnlineUser(new Set(users));
+    });
 
     newSocket.on("user-online", ({ userId }) => {
       setOnlineUser((prev) => new Set(prev).add(userId));
@@ -63,7 +61,6 @@ export const SocketProvider = ({ children }) => {
       });
     });
 
-    // ✅ functional update to avoid stale activeChatId closure
     newSocket.on("message-notification", ({ chatId }) => {
       setActiveChatId((current) => {
         if (chatId !== current) {
@@ -76,7 +73,6 @@ export const SocketProvider = ({ children }) => {
       });
     });
 
-    // ✅ functional update to avoid stale activeChatId closure
     newSocket.on("typing", ({ chatId, user: typingUser }) => {
       setActiveChatId((current) => {
         if (chatId === current) setTypingUser(typingUser);
@@ -84,7 +80,6 @@ export const SocketProvider = ({ children }) => {
       });
     });
 
-    // ✅ functional update to avoid stale activeChatId closure
     newSocket.on("stop-typing", ({ chatId }) => {
       setActiveChatId((current) => {
         if (chatId === current) setTypingUser(null);
@@ -100,26 +95,17 @@ export const SocketProvider = ({ children }) => {
     });
 
     newSocket.on("incoming-call", (data) => {
-      setIncomingCall((prev) => prev ?? data); // ✅ ignore if already has incoming
+      setIncomingCall((prev) => prev ?? data);
     });
 
-    newSocket.on("call-ended", () => setIncomingCall(null));
-
-    newSocket.on("reconnect", (attempt) => {
-      logger("🔄 Socket reconnected after", attempt, "attempts");
+    newSocket.on("call-ended", () => {
+      setIncomingCall(null);
     });
 
-    newSocket.on("reconnect_error", (err) => {
-      logger("❌ Socket reconnect error:", err.message);
-    });
-
-    newSocket.on("disconnect", (reason) => {
-      logger("🔴 Socket disconnected:", reason);
-    });
-    
-    return () => newSocket.disconnect(); // ✅ cleanup on user change
-  }, [user?._id]); // ✅ re-runs on login/logout
-
+    return () => {
+      newSocket.disconnect();
+    };
+  }, [user?._id]);
   return (
     <SocketContext.Provider
       value={{

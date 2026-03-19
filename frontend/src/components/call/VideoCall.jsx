@@ -110,9 +110,11 @@ const VideoCall = forwardRef(
     }, []);
 
     useEffect(() => {
-      if (selectedRemoteIndex >= remoteStreams.length) {
-        setSelectedRemoteIndex(0);
-      }
+      setSelectedRemoteIndex((prev) =>
+        remoteStreams.length === 0
+          ? 0
+          : Math.min(prev, remoteStreams.length - 1)
+      );
     }, [remoteStreams.length]);
 
     useEffect(() => {
@@ -170,6 +172,7 @@ const VideoCall = forwardRef(
       getOrCreatePeer,
       getPeerEntry,
       removePeer,
+      setPeerEntry,
       isMutedRef,
       isVideoOffRef,
       setRemoteStreams,
@@ -178,10 +181,13 @@ const VideoCall = forwardRef(
 
     useEffect(() => {
       if (!socket || !chatId) return;
+
       cleanedUpRef.current = false;
+
       closeAllPeers();
       setRemoteStreams([]);
       setInvitedUsers(new Set());
+
       localStreamRef.current?.getTracks().forEach((t) => {
         try {
           t.stop();
@@ -196,6 +202,7 @@ const VideoCall = forwardRef(
             (d) => d.kind === "videoinput" && d.deviceId
           );
           camerasRef.current = newCameras;
+
           const idx = newCameras.findIndex(
             (d) => d.deviceId === currentDeviceIdRef.current
           );
@@ -211,9 +218,12 @@ const VideoCall = forwardRef(
           clearTimeout(timeout);
           timeout = setTimeout(() => {
             if (peersRef.current.size === 0) return;
+
             const track = localStreamRef.current?.getVideoTracks()[0];
             if (!track) return;
+
             const constraints = getVideoConstraints();
+
             track
               .applyConstraints({
                 width: constraints.width,
@@ -221,7 +231,7 @@ const VideoCall = forwardRef(
                 frameRate: constraints.frameRate,
               })
               .catch(() => {});
-          }, 2000); // ✅ debounce 2 seconds — ignores immediate fire
+          }, 2000);
         };
       })();
 
@@ -230,27 +240,41 @@ const VideoCall = forwardRef(
         navigator.mozConnection ||
         navigator.webkitConnection;
 
+      // ✅ FIX: define once in correct scope
+      const handleReconnect = () => {
+        socket.emit("join-call-room", { roomId: chatId });
+      };
+
       const init = async () => {
         try {
           await getLocalStream();
+
           const devices = await navigator.mediaDevices.enumerateDevices();
           camerasRef.current = devices.filter(
             (d) => d.kind === "videoinput" && d.deviceId
           );
+
           const idx = camerasRef.current.findIndex(
             (d) => d.deviceId === currentDeviceIdRef.current
           );
           cameraIndexRef.current = idx === -1 ? 0 : idx;
+
           navigator.mediaDevices.addEventListener(
             "devicechange",
             handleDeviceChange
           );
-          if (connection)
+
+          if (connection) {
             connection.addEventListener("change", handleConnectionChange);
+          }
 
           socket.emit("join-call-room", { roomId: chatId });
 
-          // ✅ caller notifies receivers AFTER joining room
+          // ✅ FIX: prevent duplicate listeners
+          socket.off("reconnect");
+          socket.on("reconnect", handleReconnect);
+
+          // ✅ caller notify
           if (initiator?.isInitiator && initiator?.receiverIds?.length) {
             socket.emit("video-call-user", {
               chatId,
@@ -259,10 +283,6 @@ const VideoCall = forwardRef(
               callType,
             });
           }
-
-          socket.on("reconnect", () => {
-            socket.emit("join-call-room", { roomId: chatId });
-          });
         } catch (err) {
           logger("[VideoCall] init error:", err);
         }
@@ -271,17 +291,23 @@ const VideoCall = forwardRef(
       init();
 
       return () => {
-        socket.off("reconnect"); // ✅ add here
+        socket.off("reconnect", handleReconnect);
+
         navigator.mediaDevices.removeEventListener(
           "devicechange",
           handleDeviceChange
         );
-        if (connection)
+
+        if (connection) {
           connection.removeEventListener("change", handleConnectionChange);
+        }
+
         socket.emit("leave-call-room", { roomId: chatId });
+
         closeAllPeers();
       };
     }, [socket, chatId]);
+
 
     useEffect(() => {
       if (!socket) return;
@@ -324,8 +350,13 @@ const VideoCall = forwardRef(
         }
         const offerCollision =
           entry.makingOffer || peer.signalingState !== "stable";
-        if (!entry.polite && offerCollision) return;
+
+        if (offerCollision) {
+          if (!entry.polite) return;
+        }
+        addTracksIfNeeded(peer, stream);
         await peer.setRemoteDescription(offer);
+        
         if (entry?.pendingCandidates?.length) {
           for (const candidate of entry.pendingCandidates) {
             try {
@@ -334,7 +365,7 @@ const VideoCall = forwardRef(
           }
           setPeerEntry(from, { ...entry, pendingCandidates: [] });
         }
-        addTracksIfNeeded(peer, stream);
+
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
         socket.emit("webrtc-answer", {
@@ -354,7 +385,7 @@ const VideoCall = forwardRef(
         }
 
         try {
-          if (!entry.peer.currentRemoteDescription) {
+          if (!entry.peer.remoteDescription) {
             await entry.peer.setRemoteDescription(answer);
           }
         } catch (err) {
@@ -466,8 +497,6 @@ const VideoCall = forwardRef(
     };
 
     const isFrontCamera = facingMode === "user";
-
-  
 
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
@@ -616,7 +645,14 @@ const VideoCall = forwardRef(
 
         {callType === "audio" && (
           <div className="flex-1 flex flex-col items-center justify-center px-4 py-6">
-            <div className="hidden">
+            <div
+              style={{
+                position: "absolute",
+                width: 0,
+                height: 0,
+                overflow: "hidden",
+              }}
+            >
               {remoteStreams.map((u) => (
                 <audio
                   key={u.userId}

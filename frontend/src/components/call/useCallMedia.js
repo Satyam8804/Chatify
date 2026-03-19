@@ -116,7 +116,7 @@ export const useCallMedia = ({
 
     // 🔥 REQUIRED (this is what you're missing)
     socket.emit("mute-state", {
-      chatId,
+      roomId: chatId,
       isMuted: muted,
     });
   };
