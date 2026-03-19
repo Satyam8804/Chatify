@@ -312,8 +312,7 @@ const MessageBubble = ({
 };
 
 const CallBubble = ({ message, isOwn, onStartCall }) => {
-
-  if (!message || message.messageType !== "call") return null; // ✅ FIX
+  if (!message || message.messageType !== "call") return null;
 
   const callData = message.callData || {};
   const { callType, status, duration = 0 } = callData;
@@ -328,24 +327,26 @@ const CallBubble = ({ message, isOwn, onStartCall }) => {
   };
 
   let colorClass = "text-gray-400";
+  if (status === "missed" && isIncoming) colorClass = "text-red-500";
+  else if (status === "completed") colorClass = "text-green-500";
 
-  if (status === "missed" && isIncoming) {
-    colorClass = "text-red-500";
-  } else if (status === "completed") {
-    colorClass = "text-green-500";
-  }
+  const handleCall = (e) => {
+    e.stopPropagation();
+    if (!message.chat) return;
+    onStartCall?.(message.chat, callType);
+  };
 
   return (
     <div
-      className={`flex items-center gap-3 px-3 py-2 rounded-lg w-fit min-w-[180px]
+      onClick={handleCall}
+      className={`flex items-center gap-3 px-3 py-2 rounded-lg w-fit min-w-[180px] cursor-pointer transition-opacity active:opacity-70
         ${
           isOwn
-            ? "bg-emerald-200 dark:bg-emerald-800"
-            : "bg-gray-100 dark:bg-slate-700"
+            ? "bg-emerald-200 dark:bg-emerald-800 hover:bg-emerald-300/80 dark:hover:bg-emerald-700/80"
+            : "bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600"
         }`}
     >
-      {/* ICON */}
-      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-600">
+      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-slate-600 shrink-0">
         {callType === "video" ? (
           <Video size={16} className={colorClass} />
         ) : (
@@ -353,50 +354,42 @@ const CallBubble = ({ message, isOwn, onStartCall }) => {
         )}
       </div>
 
-      {/* TEXT */}
-      <div className="flex flex-col">
-        <div className="flex items-center gap-1">
+      <div className="flex flex-col gap-0.5 flex-1">
+        <div className="flex items-center gap-1.5">
           {isIncoming ? (
-            <ArrowDownLeft size={14} className="text-gray-400" />
+            <ArrowDownLeft size={13} className="text-slate-400 shrink-0" />
           ) : (
-            <ArrowUpRight size={14} className="text-gray-400" />
+            <ArrowUpRight size={13} className="text-slate-400 shrink-0" />
           )}
-
-          <span className="text-sm text-gray-800 dark:text-slate-200">
-            {status === "missed"
-              ? isIncoming
-                ? "Missed call"
-                : "Call not answered"
-              : status === "completed"
-              ? callType === "video"
-                ? "Video call"
-                : "Voice call"
-              : "Call declined"}
+          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+            {message?.participants > 1
+              ? "Group call"
+              : callType === "video"
+              ? "Video call"
+              : "Audio call"}
           </span>
         </div>
 
-        {duration > 0 && (
-          <span className="text-xs text-gray-500 dark:text-slate-400">
-            {formatDuration(duration)}
-          </span>
-        )}
+        <span className="text-[11px] text-slate-400 dark:text-slate-500 pl-5">
+          {status === "missed"
+            ? isIncoming
+              ? "Missed"
+              : "No answer"
+            : status === "completed"
+            ? duration > 0
+              ? formatDuration(duration)
+              : "Ended"
+            : "Declined"}
+        </span>
       </div>
 
-      {/* CALL BUTTON */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-
-          if (!message.chat) return;
-
-          const chatObj = message.chat;
-
-          onStartCall?.(chatObj, callType);
-        }}
-        className="ml-1 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600 transition"
-      >
-        {callType === "video" ? <Video size={12} /> : <PhoneCall size={12} />}
-      </button>
+      <div className="shrink-0 p-1.5 rounded-full bg-white/60 dark:bg-slate-600/60">
+        {callType === "video" ? (
+          <Video size={12} className="text-slate-500 dark:text-slate-300" />
+        ) : (
+          <PhoneCall size={12} className="text-slate-500 dark:text-slate-300" />
+        )}
+      </div>
     </div>
   );
 };
