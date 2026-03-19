@@ -173,6 +173,7 @@ export const useCallPeers = ({
     };
 
     peer.ontrack = (e) => {
+      console.log("🎥 TRACK RECEIVED:", e.streams);
       const incomingStream = e.streams?.[0];
       if (!incomingStream) return;
 
@@ -227,6 +228,7 @@ export const useCallPeers = ({
     };
 
     peer.oniceconnectionstatechange = () => {
+      console.log("ICE STATE:", peer.iceConnectionState);
       if (peer.iceConnectionState === "disconnected") {
         setTimeout(() => {
           if (peer.iceConnectionState === "disconnected") {
@@ -248,16 +250,17 @@ export const useCallPeers = ({
   };
 
   const initiateOffer = async (userId, getLocalStream) => {
-    console.log("🚀 initiating offer:", userId);
-
-    console.log("setPeerEntry type:", typeof setPeerEntry);
-
     if (!getLocalStream) return;
 
     const peer = createPeerConnection(userId);
     if (!peer) return;
 
     const stream = await getLocalStream();
+
+    if (!stream || stream.getTracks().length === 0) {
+      console.warn("❌ No local tracks available");
+      return;
+    }
 
     let entry = getPeerEntry(userId);
 
@@ -268,7 +271,10 @@ export const useCallPeers = ({
 
     if (!entry) return;
 
-    if (peer.signalingState !== "stable") return;
+    if (peer.signalingState !== "stable") {
+      console.warn("⚠️ Peer not stable:", peer.signalingState);
+      return;
+    }
 
     setPeerEntry(userId, {
       ...(entry || {}),
@@ -276,6 +282,8 @@ export const useCallPeers = ({
     });
 
     addTracksIfNeeded(peer, stream);
+
+    await new Promise((r) => setTimeout(r, 0)); // 🔥 important
 
     try {
       const offer = await peer.createOffer();
