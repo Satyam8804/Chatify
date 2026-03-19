@@ -630,13 +630,14 @@ const VideoCall = forwardRef(
             >
               <ParticipantCard
                 isSelf
+                user={user}
                 isMuted={isMuted}
                 isSpeaking={activeSpeakerId === user?._id}
               />
               {remoteStreams.map((u) => (
                 <ParticipantCard
                   key={u.userId}
-                  user={{fName:u.name,avatar:u.avatar}}
+                  user={{ fName: u.fName, lName: u.lName, avatar: u.avatar }}
                   isMuted={u.isMuted}
                   isSpeaking={activeSpeakerId === u.userId}
                 />

@@ -1,10 +1,7 @@
-// components/call/ParticipantCard.jsx
-
 import Avatar from "../common/Avatar";
 import { MicOff } from "lucide-react";
 
-const ParticipantCard = ({ user,isSelf, isMuted, isSpeaking }) => {
-    console.log("user",user)
+const ParticipantCard = ({ user, isSelf, isMuted, isSpeaking }) => {
   return (
     <div
       className={`
@@ -20,17 +17,11 @@ const ParticipantCard = ({ user,isSelf, isMuted, isSpeaking }) => {
         }
       `}
     >
-      {/* Speaking pulse ring */}
       {isSpeaking && (
         <span className="absolute inset-0 rounded-2xl border-2 border-emerald-400/30 animate-ping pointer-events-none" />
       )}
 
-      <Avatar
-        user={isSelf ? { fName: "You" } : user}
-        size={64}
-        IsInside={true}
-        isSpeaking={isSpeaking}
-      />
+      <Avatar user={user} size={64} IsInside={true} isSpeaking={isSpeaking} />
 
       <div className="flex flex-col items-center gap-1">
         <span className="text-[13px] font-medium text-white/90 truncate max-w-[100px]">

@@ -1,7 +1,6 @@
 import { getInitials } from "../../utils/getInitials";
 import { getAvatarColor } from "../../utils/getAvatarColor";
 
-
 const Avatar = ({
   user,
   users = [],
@@ -15,7 +14,7 @@ const Avatar = ({
 
   return (
     <div
-      className={`relative inline-block transition-all duration-200 ${
+      className={`relative inline-block transition-all duration-200 rounded-full ${
         isSpeaking ? "ring-4 ring-emerald-400 animate-pulse" : ""
       }`}
       style={{ width: size, height: size }}

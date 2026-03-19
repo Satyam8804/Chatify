@@ -35,12 +35,13 @@ export const useCallPeers = ({
       const u = chat?.users?.find((usr) => String(usr._id) === String(userId));
       if (u) {
         return {
-          name: u.fName,
+          fName: u.fName,
+          lName: u.lName ?? null,
           avatar: u.avatar ?? null,
         };
       }
     }
-    return { name: userId, avatar: null };
+    return { name: userId, lName: null, avatar: null };
   };
 
   const setupSpeakingDetection = (userId, incomingStream) => {
@@ -137,7 +138,7 @@ export const useCallPeers = ({
       const incomingStream = e.streams?.[0];
       if (!incomingStream) return;
 
-      const { name, avatar } = getUserMeta(userId);
+      const { fName, avatar,lName } = getUserMeta(userId);
 
       setupSpeakingDetection(userId, incomingStream);
 
@@ -151,7 +152,8 @@ export const useCallPeers = ({
               ? {
                   ...s,
                   stream: incomingStream,
-                  name,
+                  fName,
+                  lName,
                   avatar,
                   isMuted: !incomingStream.getAudioTracks()[0]?.enabled,
                 }
@@ -164,7 +166,8 @@ export const useCallPeers = ({
           {
             userId,
             stream: incomingStream,
-            name,
+            fName,
+            lName,
             avatar,
             isSpeaking: false,
             isMuted: !incomingStream.getAudioTracks()[0]?.enabled,
