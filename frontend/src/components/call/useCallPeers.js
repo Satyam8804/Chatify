@@ -14,17 +14,17 @@ export const useCallPeers = ({
   const audioContextsRef = new Map();
 
   const getUserMeta = (userId) => {
-    for (const chat of chats || []) {
-      const u = chat?.users?.find((usr) => String(usr._id) === String(userId));
-      if (u) {
-        return {
-          name: u.fName,
-          avatar: u.profilePic,
-        };
-      }
+  for (const chat of chats || []) {
+    const u = chat?.users?.find((usr) => String(usr._id) === String(userId));
+    if (u) {
+      return {
+        name: u.fName,
+        avatar: u.avatar ?? null,
+      };
     }
-    return { name: "User", avatar: null };
-  };
+  }
+  return { name: userId, avatar: null };
+};
 
   const handleRemovePeer = (userId) => {
     removePeer(userId);

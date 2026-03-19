@@ -165,6 +165,7 @@ const VideoCall = forwardRef(
       socket,
       user,
       chatId,
+      chats,
       getOrCreatePeer,
       getPeerEntry,
       removePeer,

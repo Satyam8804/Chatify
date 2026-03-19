@@ -26,7 +26,7 @@ const ParticipantCard = ({ user,isSelf, isMuted, isSpeaking }) => {
       )}
 
       <Avatar
-        user={isSelf ? { fName: "You" } : {user}}
+        user={isSelf ? { fName: "You" } : user}
         size={64}
         IsInside={true}
         isSpeaking={isSpeaking}
@@ -34,7 +34,7 @@ const ParticipantCard = ({ user,isSelf, isMuted, isSpeaking }) => {
 
       <div className="flex flex-col items-center gap-1">
         <span className="text-[13px] font-medium text-white/90 truncate max-w-[100px]">
-          {isSelf ? "You" : name}
+          {isSelf ? "You" : user?.fName}
         </span>
 
         {isMuted && (
