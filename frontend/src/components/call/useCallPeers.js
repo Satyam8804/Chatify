@@ -250,6 +250,8 @@ export const useCallPeers = ({
   const initiateOffer = async (userId, getLocalStream) => {
     console.log("🚀 initiating offer:", userId);
 
+    console.log("setPeerEntry type:", typeof setPeerEntry);
+
     if (!getLocalStream) return;
 
     const peer = createPeerConnection(userId);
@@ -268,7 +270,10 @@ export const useCallPeers = ({
 
     if (peer.signalingState !== "stable") return;
 
-    setPeerEntry(userId, { ...entry, makingOffer: true });
+    setPeerEntry(userId, {
+      ...(entry || {}),
+      makingOffer: true,
+    });
 
     addTracksIfNeeded(peer, stream);
 
@@ -285,7 +290,11 @@ export const useCallPeers = ({
     } catch (err) {
       console.error("❌ offer error:", err);
     } finally {
-      setPeerEntry(userId, { ...entry, makingOffer: false });
+      const latest = getPeerEntry(userId);
+      setPeerEntry(userId, {
+        ...(latest || {}),
+        makingOffer: false,
+      });
     }
   };
 
