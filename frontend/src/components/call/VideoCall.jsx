@@ -448,6 +448,8 @@ const VideoCall = forwardRef(
 
     const isFrontCamera = facingMode === "user";
 
+    console.log("remoteStreams -->",remoteStreams)
+
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
         {callType === "video" && (
