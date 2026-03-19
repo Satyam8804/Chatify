@@ -15,7 +15,7 @@ const Avatar = ({
   return (
     <div
       className={`relative inline-block transition-all duration-200 rounded-full ${
-        isSpeaking ? "ring-4 ring-emerald-400 animate-pulse" : ""
+        isSpeaking ? "ring-2 ring-emerald-400 animate-pulse" : ""
       }`}
       style={{ width: size, height: size }}
     >

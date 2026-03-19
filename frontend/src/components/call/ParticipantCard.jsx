@@ -7,7 +7,7 @@ const ParticipantCard = ({ user, isSelf, isMuted, isSpeaking }) => {
       className={`
         relative flex flex-col items-center justify-center gap-3
         bg-slate-900 rounded-2xl py-6 px-3 overflow-hidden
-        border transition-all duration-300
+        border-2 transition-all duration-300
         ${
           isSpeaking
             ? "border-emerald-400/60 shadow-[0_0_0_3px_rgba(74,222,128,0.08)]"
