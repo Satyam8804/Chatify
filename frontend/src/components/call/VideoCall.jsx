@@ -20,6 +20,7 @@ import { logger } from "../../utils/logger";
 
 import { MicOff } from "lucide-react";
 import ParticipantCard from "./ParticipantCard";
+import { getAvatarColor } from "../../utils/getAvatarColor";
 
 const VideoCall = forwardRef(
   (
@@ -466,7 +467,7 @@ const VideoCall = forwardRef(
 
     const isFrontCamera = facingMode === "user";
 
-    console.log("remoteStreams -->", remoteStreams);
+  
 
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
@@ -648,11 +649,13 @@ const VideoCall = forwardRef(
                 isSelf
                 user={user}
                 isMuted={isMuted}
+                color={getAvatarColor(activeSpeakerId || user?.fName)}
                 isSpeaking={activeSpeakerId === user?._id}
               />
               {remoteStreams.map((u) => (
                 <ParticipantCard
                   key={u.userId}
+                  color={getAvatarColor(activeSpeakerId || u?.fName)}
                   user={{ fName: u.fName, lName: u.lName, avatar: u.avatar }}
                   isMuted={u.isMuted}
                   isSpeaking={activeSpeakerId === u.userId}
