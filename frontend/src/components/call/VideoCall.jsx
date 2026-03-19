@@ -313,21 +313,21 @@ const VideoCall = forwardRef(
       if (!socket) return;
 
       const handleExistingParticipants = async ({ participants }) => {
-        for (const { userId, name } of participants) {
+        for (const { userId } of participants) {
           if (!userId || String(userId) === String(user?._id)) continue;
           const entry = getPeerEntry(userId);
           if (entry?.peer || entry?.makingOffer) continue;
-          await initiateOffer(userId, name, getLocalStream);
+          await initiateOffer(userId,getLocalStream);
         }
       };
 
-      const handleUserJoined = async ({ userId, name }) => {
+      const handleUserJoined = async ({ userId }) => {
         if (!userId || String(userId) === String(user?._id)) return;
         if (getPeerEntry(userId)?.peer) return;
         if (pendingPeersRef.current.has(userId)) return;
         pendingPeersRef.current.add(userId);
         try {
-          await initiateOffer(userId, name, getLocalStream);
+          await initiateOffer(userId,getLocalStream);
         } finally {
           pendingPeersRef.current.delete(userId);
         }
@@ -356,7 +356,7 @@ const VideoCall = forwardRef(
         }
         addTracksIfNeeded(peer, stream);
         await peer.setRemoteDescription(offer);
-        
+
         if (entry?.pendingCandidates?.length) {
           for (const candidate of entry.pendingCandidates) {
             try {
