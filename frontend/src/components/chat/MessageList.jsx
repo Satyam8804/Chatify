@@ -275,7 +275,7 @@ const MessageBubble = ({
             </span>
             <span
               className="cursor-pointer opacity-0 group-hover:opacity-100 transition text-gray-400 dark:text-slate-500 hover:text-black dark:hover:text-white"
-              onClick={() => copyMessage(renderMessage(message.content))}
+              onClick={() => copyMessage(message.content)}
             >
               {copiedId === message._id ? (
                 <Check size={12} />
