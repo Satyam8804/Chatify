@@ -105,6 +105,26 @@ const MessageBubble = ({
     minute: "2-digit",
   });
 
+  const renderMessage = (text) => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+
+    return text.split(urlRegex).map((part, i) =>
+      urlRegex.test(part) ? (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-500 underline"
+        >
+          {part}
+        </a>
+      ) : (
+        part
+      )
+    );
+  };
+
   return (
     <div
       ref={(el) => {
@@ -133,7 +153,7 @@ const MessageBubble = ({
 
       {/* Message Bubble */}
       <div
-        className={`relative max-w-[%] px-2 py-1 text-sm shadow break-words
+        className={`relative max-w-[70%] min-w-[60px] px-2 py-1 text-sm shadow break-words
           ${
             isOwn
               ? "bg-emerald-100 dark:bg-emerald-900 text-black dark:text-emerald-50 rounded-tl-sm rounded-bl-sm rounded-br-sm"
@@ -251,11 +271,11 @@ const MessageBubble = ({
         {message.messageType !== "call" && message.content && (
           <div className="flex gap-2 items-end">
             <span className="whitespace-pre-wrap break-all text-[13px] leading-relaxed">
-              {message.content}
+              {renderMessage(message.content)}
             </span>
             <span
               className="cursor-pointer opacity-0 group-hover:opacity-100 transition text-gray-400 dark:text-slate-500 hover:text-black dark:hover:text-white"
-              onClick={() => copyMessage(message.content)}
+              onClick={() => copyMessage(renderMessage(message.content))}
             >
               {copiedId === message._id ? (
                 <Check size={12} />
