@@ -5,10 +5,10 @@ const Avatar = ({
   user,
   users = [],
   isGroup = false,
-  size = 50,
+  size = 45,
   isOnline = false,
   IsInside = false,
-  isSpeaking = false, // ✅ NEW
+  isSpeaking = false,
 }) => {
   const color = getAvatarColor(user?._id || user?.fName);
 
@@ -21,7 +21,10 @@ const Avatar = ({
     >
       {/* Avatar Content */}
       {isGroup ? (
-        <div className="grid grid-cols-2 grid-rows-2 w-full h-full rounded-full overflow-hidden">
+        <div
+          style={{ width: size, height: size }}
+          className="grid grid-cols-2 grid-rows-2 w-full h-full rounded-full overflow-hidden"
+        >
           {users.slice(0, 4).map((u) => {
             const bg = getAvatarColor(u?._id || u?.fName);
 

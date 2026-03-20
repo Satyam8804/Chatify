@@ -1,10 +1,16 @@
 import { useState } from "react";
 import { useAuth } from "../../context/authContext";
-import { getInitials } from "../../utils/getInitials";
 import { formatLastSeen } from "../../utils/formatMessageDate";
-import { getAvatarColor } from "../../utils/getAvatarColor";
 import Avatar from "../common/Avatar";
-import { Image, Music, Video, FileText } from "lucide-react";
+import {
+  Image,
+  Music,
+  Video,
+  FileText,
+  Phone,
+  PhoneIncoming,
+  PhoneOutgoing,
+} from "lucide-react";
 import { BsCheck, BsCheckAll } from "react-icons/bs";
 import ImagePreview from "../chat/ImagePreview.jsx";
 
@@ -48,31 +54,8 @@ const ChatItem = ({ chat, isActive, onClick, onlineUser, unreadCounts }) => {
       >
         {/* Avatar */}
         {isGroup ? (
-          // Group avatar — no preview
-          <div className="w-10 h-10 rounded-full overflow-hidden grid grid-cols-2 grid-rows-2 shrink-0">
-            {chat.users.slice(0, 4).map((u) => {
-              const bg = getAvatarColor(u?._id || u?.fName);
-              return (
-                <div
-                  key={u._id}
-                  className="flex items-center justify-center text-white text-[9px] font-semibold overflow-hidden"
-                  style={{ backgroundColor: u?.avatar ? "transparent" : bg }}
-                >
-                  {u?.avatar ? (
-                    <img
-                      src={u.avatar}
-                      alt={u.fName}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    getInitials(u?.fName, u?.lName)
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <Avatar users={chat?.users} isGroup />
         ) : (
-          // ✅ Direct avatar — clickable, stopPropagation prevents chat open
           <div
             onClick={(e) => {
               e.stopPropagation();
@@ -113,9 +96,42 @@ const ChatItem = ({ chat, isActive, onClick, onlineUser, unreadCounts }) => {
                 <BsCheck color="gray" size={14} className="shrink-0" />
               ))}
 
-            {/* Last Message */}
             <div className="text-[12px] text-gray-500 dark:text-slate-400 truncate flex items-center gap-1">
-              {chat?.lastMessage?.content ? (
+              {chat?.lastMessage?.messageType === "call" ? (
+                <>
+                  {/* Single Icon */}
+                  {chat.lastMessage.callData?.callType === "video" ? (
+                    <Video
+                      size={14}
+                      className={`shrink-0  text-gray-400`}
+                    />
+                  ) : (
+                    <Phone
+                      size={12}
+                      className={`shrink-0 text-gray-400
+                      }`}
+                    />
+                  )}
+
+                  {/* Text */}
+                  <span
+                    className={
+                      chat.lastMessage.callData?.status === "missed"
+                        ? "text-red-600"
+                        : "text-green-400"
+                    }
+                  >
+                    {chat.lastMessage.callData?.status === "missed"
+                      ? "Missed"
+                      : chat.lastMessage.sender?._id === user?._id
+                      ? "Outgoing"
+                      : "Incoming"}{" "}
+                    {chat.lastMessage.callData?.callType === "video"
+                      ? "video call"
+                      : "audio call"}
+                  </span>
+                </>
+              ) : chat?.lastMessage?.content ? (
                 <span className="truncate">{chat.lastMessage.content}</span>
               ) : ["png", "jpg", "jpeg", "webp", "gif"].includes(ext) ? (
                 <>

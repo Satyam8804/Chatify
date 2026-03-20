@@ -40,7 +40,7 @@ const ChatHeader = ({
         {setSelectedChat && (
           <button
             onClick={() => setSelectedChat(null)}
-            className="md:hidden flex items-center justify-center w-9 h-9 rounded-full text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+            className="md:hidden cursor-pointer flex items-center justify-center w-9 h-9 rounded-full text-gray-500 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
           >
             <ArrowLeft size={20} />
           </button>
@@ -110,7 +110,9 @@ const ChatHeader = ({
           </div>
         </div>
 
-        <div className="flex justify-center items-center border-2 dark:border-gray-800 border-gray-100  rounded-3xl gap-4 px-1 py-0.5">
+        <div
+        
+         className="flex justify-center items-center border-2 dark:border-gray-800 border-gray-100  rounded-3xl gap-4 px-1 py-0.5 outline-gray-700 outline-1">
           {startCall && (
             <button
               onClick={() => startCall(chat, "video")} // ✅ disabled handles the guard

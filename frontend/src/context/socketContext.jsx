@@ -19,17 +19,17 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     if (!user?._id) {
-      socket?.disconnect();
+  socket?.disconnect();
 
-      queueMicrotask(() => {
-        setSocket(null);
-        setOnlineUser(new Set());
-        setUnreadCounts({});
-        setIncomingCall(null);
-      });
+  queueMicrotask(() => {
+    setSocket(null);
+    setOnlineUser(new Set());
+    setUnreadCounts({});
+    setIncomingCall(null);
+  });
 
-      return;
-    }
+  return;
+}
 
     const token = getToken();
     if (!token) return;

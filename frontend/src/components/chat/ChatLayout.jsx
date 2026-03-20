@@ -289,7 +289,7 @@ const ChatLayout = () => {
           selectedChat ? "hidden md:block" : "block"
         } w-full md:w-80 bg-white dark:bg-slate-900 shrink-0`}
       >
-        <Suspense fallback={<SidebarSkeleton fullScreen={false}/>}>
+        <Suspense fallback={<SidebarSkeleton fullscreen={false}/>}>
           <Sidebar
             selectedChat={selectedChat}
             setSelectedChat={setSelectedChat}
@@ -308,7 +308,7 @@ const ChatLayout = () => {
       >
         {selectedChat ? (
           <Suspense
-            fallback={<Loader text="Opening chat..." fullScreen={false} />}
+            fallback={<Loader text="Opening chat..." fullscreen={false} />}
           >
             <ChatWindow
               chat={selectedChat}
@@ -362,7 +362,7 @@ const ChatLayout = () => {
           {/* Video Call */}
           <div className="flex-1 min-h-0 w-full">
             <Suspense
-              fallback={<Loader text="Connecting call..." fullScreen={false} />}
+              fallback={<Loader text="Connecting call..." fullscreen={false} />}
             >
               <VideoCall
                 ref={videoCallRef}

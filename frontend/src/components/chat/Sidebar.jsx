@@ -201,10 +201,10 @@ const Sidebar = ({
 
   return (
     <div className="relative h-full flex flex-col bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-700 transition-colors">
-      <div className="flex justify-between items-center px-5 py-4 border-b border-gray-200 dark:border-slate-700">
+      <div className="flex justify-between items-center px-5 py-4 border-b-2 border-gray-300 dark:border-slate-500 inset">
         <div className="flex items-center gap-2">
           <img src={ChatifyLogo} alt="" className="h-12" />
-          <span className="text-xl font-bold text-gray-900 dark:text-white">
+          <span className="text-3xl font-extrabold text-gray-500 dark:text-gray-200">
             Chatify
           </span>
         </div>
