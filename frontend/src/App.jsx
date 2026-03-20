@@ -1,11 +1,14 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
+
+import ProtectedRoute from "./routes/ProtectedRoute";
+import PublicRoute from "./routes/PublicRoute.jsx";
+
+// ✅ Direct imports (NO lazy)
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import ProtectedRoute from "./routes/ProtectedRoute";
 import Chat from "./pages/Chat.jsx";
-import { Toaster } from "react-hot-toast";
-import PublicRoute from "./routes/PublicRoute.jsx";
-import GoogleAuthSuccess from './auth/google/success/GoogleAuthSuccess';
+import GoogleAuthSuccess from "./auth/google/success/GoogleAuthSuccess";
 
 function App() {
   return (
@@ -18,6 +21,7 @@ function App() {
         }}
       />
 
+      {/* ❌ Removed Suspense completely */}
       <Routes>
         <Route
           path="/"
@@ -27,6 +31,7 @@ function App() {
             </PublicRoute>
           }
         />
+
         <Route
           path="/login"
           element={
@@ -35,6 +40,7 @@ function App() {
             </PublicRoute>
           }
         />
+
         <Route
           path="/register"
           element={
@@ -43,6 +49,7 @@ function App() {
             </PublicRoute>
           }
         />
+
         <Route
           path="/chat"
           element={
@@ -52,8 +59,11 @@ function App() {
           }
         />
 
-        {/* ── Google OAuth redirect landing page ── */}
-        <Route path="/auth/google/success" element={<GoogleAuthSuccess />} />
+        {/* Google OAuth */}
+        <Route
+          path="/auth/google/success"
+          element={<GoogleAuthSuccess />}
+        />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

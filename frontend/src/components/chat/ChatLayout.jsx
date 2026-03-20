@@ -1,13 +1,18 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSocket } from "../../context/socketContext";
 import { useAuth } from "../../context/authContext";
-import Sidebar from "./Sidebar";
-import ChatWindow from "./ChatWindow";
 import EmptyChatState from "./EmptyChatState";
 import VideoCall from "../call/VideoCall.jsx";
 import outgoingRingFile from "../../assets/sound/outgoing-ring.mp3";
 import IncomingCallModal from "../common/IncomingCallModal.jsx";
 import api from "../../api/axios.js";
+
+import { lazy, Suspense } from "react";
+import Loader from "../../utils/Loader";
+import SidebarSkeleton from "../../utils/SidebarSkeleton.jsx";
+
+const Sidebar = lazy(() => import("./Sidebar.jsx"));
+const ChatWindow = lazy(() => import("./ChatWindow.jsx"));
 
 const formatDuration = (secs) => {
   const m = String(Math.floor(secs / 60)).padStart(2, "0");
@@ -197,7 +202,7 @@ const ChatLayout = () => {
     (chat, type = "video") => {
       const ctx = new AudioContext();
       ctx.resume();
-      
+
       if (isCallingRef.current || !socket || !chat?._id) return;
 
       const isGroup = !!chat.isGroupChat;
@@ -278,37 +283,46 @@ const ChatLayout = () => {
 
   return (
     <div className="h-screen w-full flex bg-gray-100 dark:bg-slate-950 transition-colors">
+      {/* Sidebar */}
       <div
         className={`${
           selectedChat ? "hidden md:block" : "block"
         } w-full md:w-80 bg-white dark:bg-slate-900 shrink-0`}
       >
-        <Sidebar
-          selectedChat={selectedChat}
-          setSelectedChat={setSelectedChat}
-          setChats={setChats}
-          chats={chats}
-          onStartCall={startCall}
-        />
+        <Suspense fallback={<SidebarSkeleton fullScreen={false}/>}>
+          <Sidebar
+            selectedChat={selectedChat}
+            setSelectedChat={setSelectedChat}
+            setChats={setChats}
+            chats={chats}
+            onStartCall={startCall}
+          />
+        </Suspense>
       </div>
 
+      {/* Chat Area */}
       <div
         className={`${
           selectedChat ? "block" : "hidden md:block"
         } flex-1 bg-gray-100 dark:bg-slate-950 min-w-0`}
       >
         {selectedChat ? (
-          <ChatWindow
-            chat={selectedChat}
-            setSelectedChat={setSelectedChat}
-            startCall={startCall}
-            isCalling={isCalling}
-          />
+          <Suspense
+            fallback={<Loader text="Opening chat..." fullScreen={false} />}
+          >
+            <ChatWindow
+              chat={selectedChat}
+              setSelectedChat={setSelectedChat}
+              startCall={startCall}
+              isCalling={isCalling}
+            />
+          </Suspense>
         ) : (
           <EmptyChatState />
         )}
       </div>
 
+      {/* Incoming Call Modal */}
       <IncomingCallModal
         isCalling={isCalling}
         onAccept={(callerId, callerName, chatId, isGroup, callType) =>
@@ -316,11 +330,13 @@ const ChatLayout = () => {
         }
       />
 
+      {/* Video Call Overlay */}
       {isCalling && (
         <div
           className="fixed inset-0 z-[100] bg-slate-950 flex flex-col"
           style={{ height: "100dvh" }}
         >
+          {/* Header */}
           <div className="flex items-center justify-between px-5 py-3 bg-slate-900 border-b border-white/5 shrink-0">
             <div className="flex items-center gap-2.5">
               <span
@@ -334,6 +350,7 @@ const ChatLayout = () => {
                   : `Calling ${callTargetName}…`}
               </span>
             </div>
+
             <button
               onClick={endCall}
               className="text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg transition-colors"
@@ -342,16 +359,21 @@ const ChatLayout = () => {
             </button>
           </div>
 
+          {/* Video Call */}
           <div className="flex-1 min-h-0 w-full">
-            <VideoCall
-              ref={videoCallRef}
-              chatId={callChatId}
-              chats={chats}
-              onEndCall={endCall}
-              onConnected={startTimer}
-              initiator={initiator}
-              callType={callType}
-            />
+            <Suspense
+              fallback={<Loader text="Connecting call..." fullScreen={false} />}
+            >
+              <VideoCall
+                ref={videoCallRef}
+                chatId={callChatId}
+                chats={chats}
+                onEndCall={endCall}
+                onConnected={startTimer}
+                initiator={initiator}
+                callType={callType}
+              />
+            </Suspense>
           </div>
         </div>
       )}
