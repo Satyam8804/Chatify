@@ -304,7 +304,7 @@ const ChatLayout = () => {
       <div
         className={`${
           selectedChat ? "block" : "hidden md:block"
-        } flex-1 bg-gray-100 dark:bg-slate-950 min-w-0`}
+        } flex-1 items-center justify-between bg-gray-100 dark:bg-slate-950 min-w-0`}
       >
         {selectedChat ? (
           <Suspense
