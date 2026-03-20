@@ -5,7 +5,7 @@ const Avatar = ({
   user,
   users = [],
   isGroup = false,
-  size = 40,
+  size = 50,
   isOnline = false,
   IsInside = false,
   isSpeaking = false, // ✅ NEW
@@ -48,7 +48,7 @@ const Avatar = ({
         <img
           src={user.avatar}
           alt={user.fName}
-          className="w-full h-full rounded-full object-cover"
+          className="w-full h-full rounded-full object-cover brightness-110"
         />
       ) : (
         <div
