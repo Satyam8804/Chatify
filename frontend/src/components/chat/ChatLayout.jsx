@@ -50,7 +50,6 @@ const ChatLayout = () => {
   const callDurationRef = useRef(0);
   const callConnectedRef = useRef(false);
   const initiatorRef = useRef(null);
-  const endGraceTimerRef = useRef(null);
 
   useEffect(() => {
     isCallingRef.current = isCalling;
@@ -120,9 +119,7 @@ const ChatLayout = () => {
     videoCallRef.current?.cleanup?.();
     stopRing();
     clearTimeout(ringTimeoutRef.current);
-    clearTimeout(endGraceTimerRef.current);
     ringTimeoutRef.current = null;
-    endGraceTimerRef.current = null;
     stopTimer();
     setIsCalling(false);
     setCallTargetName("");
@@ -139,7 +136,6 @@ const ChatLayout = () => {
       document.exitFullscreen().catch(() => {});
     }
   }, [stopTimer, stopRing]);
-
   const saveCallLog = useCallback(
     async (status, duration = 0) => {
       if (callSavedRef.current || !initiatorRef.current?.isInitiator) return;
@@ -162,7 +158,6 @@ const ChatLayout = () => {
     const onAccepted = () => {
       stopRing();
       clearTimeout(ringTimeoutRef.current);
-      clearTimeout(endGraceTimerRef.current);
     };
 
     const onRejected = async () => {
@@ -183,15 +178,11 @@ const ChatLayout = () => {
 
     const onEnded = async () => {
       if (isGroupCallRef.current) return;
-
-      clearTimeout(endGraceTimerRef.current);
-      endGraceTimerRef.current = setTimeout(async () => {
-        await saveCallLog(
-          callConnectedRef.current ? "completed" : "missed",
-          callDurationRef.current
-        );
-        resetCall();
-      }, 6000);
+      await saveCallLog(
+        callConnectedRef.current ? "completed" : "missed",
+        callDurationRef.current
+      );
+      resetCall();
     };
 
     socket.on("call-accepted", onAccepted);
@@ -361,7 +352,7 @@ const ChatLayout = () => {
                     : `Calling ${callTargetName}…`}
                 </span>
               </div>
-              <NetworkBar /> 
+              <NetworkBar />
             </div>
 
             <button

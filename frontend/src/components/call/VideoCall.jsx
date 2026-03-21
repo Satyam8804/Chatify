@@ -629,6 +629,22 @@ const VideoCall = forwardRef(
       const handleUserLeft = ({ userId }) => {
         log("user-left-call:", userId);
         handleRemovePeer(userId);
+
+        setTimeout(() => {
+          if (
+            peersRef.current.size === 0 &&
+            socket &&
+            chatId &&
+            !cleanedUpRef.current
+          ) {
+            log(
+              "All peers gone after user-left — rejoining call room to trigger reconnect"
+            );
+            closeAllPeers();
+            setRemoteStreams([]);
+            socket.emit("join-call-room", { roomId: chatId });
+          }
+        }, 2000);
       };
 
       socket.on("existing-participants", handleExistingParticipants);
