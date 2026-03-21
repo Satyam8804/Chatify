@@ -29,6 +29,16 @@ export const useWebRTC = () => {
       return entry.peer;
     }
 
+    if (entry?.peer) {
+      try {
+        entry.peer.ontrack = null;
+        entry.peer.onicecandidate = null;
+        entry.peer.onconnectionstatechange = null;
+        entry.peer.oniceconnectionstatechange = null;
+        entry.peer.close();
+      } catch {}
+    }
+
     const peer = new RTCPeerConnection(ICE_SERVERS);
 
     peersRef.current.set(userId, {

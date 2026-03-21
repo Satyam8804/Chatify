@@ -167,6 +167,10 @@ export const useCallPeers = ({
 
     if (existing?.peer) {
       try {
+        existing.peer.ontrack = null;
+        existing.peer.onicecandidate = null;
+        existing.peer.onconnectionstatechange = null;
+        existing.peer.oniceconnectionstatechange = null;
         existing.peer.close();
       } catch {}
     }

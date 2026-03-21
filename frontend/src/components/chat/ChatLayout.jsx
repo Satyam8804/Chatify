@@ -49,6 +49,7 @@ const ChatLayout = () => {
   const callDurationRef = useRef(0);
   const callConnectedRef = useRef(false);
   const initiatorRef = useRef(null);
+  const endGraceTimerRef = useRef(null);
 
   useEffect(() => {
     isCallingRef.current = isCalling;
@@ -118,7 +119,9 @@ const ChatLayout = () => {
     videoCallRef.current?.cleanup?.();
     stopRing();
     clearTimeout(ringTimeoutRef.current);
+    clearTimeout(endGraceTimerRef.current);
     ringTimeoutRef.current = null;
+    endGraceTimerRef.current = null;
     stopTimer();
     setIsCalling(false);
     setCallTargetName("");
@@ -158,6 +161,7 @@ const ChatLayout = () => {
     const onAccepted = () => {
       stopRing();
       clearTimeout(ringTimeoutRef.current);
+      clearTimeout(endGraceTimerRef.current);
     };
 
     const onRejected = async () => {
@@ -178,11 +182,15 @@ const ChatLayout = () => {
 
     const onEnded = async () => {
       if (isGroupCallRef.current) return;
-      await saveCallLog(
-        callConnectedRef.current ? "completed" : "missed",
-        callDurationRef.current
-      );
-      resetCall();
+
+      clearTimeout(endGraceTimerRef.current);
+      endGraceTimerRef.current = setTimeout(async () => {
+        await saveCallLog(
+          callConnectedRef.current ? "completed" : "missed",
+          callDurationRef.current
+        );
+        resetCall();
+      }, 6000);
     };
 
     socket.on("call-accepted", onAccepted);
@@ -289,7 +297,7 @@ const ChatLayout = () => {
           selectedChat ? "hidden md:block" : "block"
         } w-full md:w-80 bg-white dark:bg-slate-900 shrink-0`}
       >
-        <Suspense fallback={<SidebarSkeleton fullscreen={false}/>}>
+        <Suspense fallback={<SidebarSkeleton fullscreen={false} />}>
           <Sidebar
             selectedChat={selectedChat}
             setSelectedChat={setSelectedChat}

@@ -21,6 +21,7 @@ import { logger } from "../../utils/logger";
 import { MicOff, Wifi, WifiOff, AlertTriangle } from "lucide-react";
 import ParticipantCard from "./ParticipantCard";
 import { getAvatarColor } from "../../utils/getAvatarColor";
+import NetworkBar from "../common/NetworkBar.jsx";
 
 const log = (...args) => console.log("[VideoCall]", ...args);
 
@@ -496,10 +497,8 @@ const VideoCall = forwardRef(
 
       const handleOffer = async ({ offer, from, fromName }) => {
         if (cleanedUpRef.current) return;
-        if (pendingPeersRef.current.has(from)) {
-          log("Ignoring offer — pending for:", from);
-          return;
-        }
+        if (pendingPeersRef.current.has(from)) return;
+
         log("webrtc-offer from:", from, "| fromName:", fromName);
 
         const stream = await getLocalStream();
@@ -523,9 +522,23 @@ const VideoCall = forwardRef(
           `Offer collision check — makingOffer: ${entry.makingOffer}, signalingState: ${peer.signalingState}, polite: ${entry.polite}, collision: ${offerCollision}`
         );
 
-        if (offerCollision && !entry.polite) {
-          log("Dropping offer — impolite peer, collision detected");
-          return;
+        if (offerCollision) {
+          if (!entry.polite) {
+            log("Dropping offer — impolite peer");
+            return;
+          }
+          try {
+            log("Polite rollback — rolling back local offer for:", from);
+            await peer.setLocalDescription({ type: "rollback" });
+            setPeerEntry(from, {
+              ...getPeerEntry(from),
+              makingOffer: false,
+              pendingCandidates: [],
+            });
+          } catch (e) {
+            log("Rollback failed:", e);
+            return;
+          }
         }
 
         addTracksIfNeeded(peer, stream);
@@ -838,6 +851,7 @@ const VideoCall = forwardRef(
               Live
             </span>
           </div>
+          <NetworkBar />
           <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
             <span className="text-[10px] text-slate-400">
               {remoteStreams.length + 1} participants
