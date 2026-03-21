@@ -36,7 +36,7 @@ const ChatHeader = ({
 
   return (
     <>
-      <div className="h-16 px-3 flex items-center gap-3 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 transition-colors">
+      <div className="h-16 px-1 flex items-center gap-1 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 transition-colors">
         {setSelectedChat && (
           <button
             onClick={() => setSelectedChat(null)}
@@ -52,26 +52,7 @@ const ChatHeader = ({
         >
           {isGroup ? (
             <div className="w-10 h-10 rounded-full overflow-hidden grid grid-cols-2 grid-rows-2 shrink-0">
-              {chat.users.slice(0, 4).map((u) => {
-                const bg = getAvatarColor(u?._id || u?.fName);
-                return (
-                  <div
-                    key={u._id}
-                    className="flex items-center justify-center text-white text-[9px] font-semibold"
-                    style={{ backgroundColor: u?.avatar ? "transparent" : bg }}
-                  >
-                    {u?.avatar ? (
-                      <img
-                        src={u.avatar}
-                        alt={u.fName}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      getInitials(u?.fName, u?.lName)
-                    )}
-                  </div>
-                );
-              })}
+              <Avatar users={chat?.users} isGroup />
             </div>
           ) : (
             <Avatar user={friendObj} isOnline={isOnline} />
@@ -110,9 +91,7 @@ const ChatHeader = ({
           </div>
         </div>
 
-        <div
-        
-         className="flex justify-center items-center border-2 dark:border-gray-800 border-gray-100  rounded-3xl gap-4 px-1 py-0.5 outline-gray-700 outline-1">
+        <div className="flex justify-center items-center border-2 dark:border-gray-800 border-gray-100  rounded-3xl gap-4 px-1 py-0.5 outline-gray-700 outline-1">
           {startCall && (
             <button
               onClick={() => startCall(chat, "video")} // ✅ disabled handles the guard
@@ -132,7 +111,7 @@ const ChatHeader = ({
 
           {startCall && (
             <button
-              onClick={() => startCall(chat, "audio")} 
+              onClick={() => startCall(chat, "audio")}
               disabled={isCalling}
               title={
                 isCalling ? "Call already in progress" : "Start Audio call"
