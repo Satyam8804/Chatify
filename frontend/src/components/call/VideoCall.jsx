@@ -326,8 +326,6 @@ const VideoCall = forwardRef(
 
           if (allGone && socket && chatId) {
             log("All peers gone — emitting join-call-room");
-            closeAllPeers();
-            setRemoteStreams([]);
             setNetworkStatus("reconnecting");
             setNetworkLabel("Reconnecting…");
             socket.emit("join-call-room", { roomId: chatId });
@@ -444,20 +442,48 @@ const VideoCall = forwardRef(
       const handleExistingParticipants = async ({ participants }) => {
         if (cleanedUpRef.current) return;
         log("existing-participants received:", participants);
-        for (const { userId } of participants) {
-          if (!userId || String(userId) === String(user?._id)) continue;
+
+        const others = participants.filter(
+          ({ userId }) => userId && String(userId) !== String(user?._id)
+        );
+
+        if (others.length === 0) {
+          log("existing-participants empty — scheduling retry in 3s");
+          setTimeout(() => {
+            if (!cleanedUpRef.current && socket) {
+              log("Retrying join-call-room after empty participants");
+              socket.emit("join-call-room", { roomId: chatId });
+            }
+          }, 3000);
+          return;
+        }
+
+        for (const { userId } of others) {
           const entry = getPeerEntry(userId);
           const isHealthy =
             entry?.peer &&
             entry.peer.connectionState !== "failed" &&
             entry.peer.connectionState !== "closed";
+
           log(
-            `Participant ${userId} — healthy: ${isHealthy}, makingOffer: ${entry?.makingOffer}`
+            `Participant ${userId} — healthy: ${isHealthy}, makingOffer: ${
+              entry?.makingOffer
+            }, pendingCandidates: ${entry?.pendingCandidates?.length ?? 0}`
           );
+
           if (isHealthy || entry?.makingOffer) continue;
+
+          if (entry?.pendingCandidates?.length && !entry?.peer) {
+            log(
+              `Pre-creating peer for ${userId} — has ${entry.pendingCandidates.length} pending candidates`
+            );
+            createPeerConnection(userId);
+          }
+
           log("Initiating offer to existing participant:", userId);
           await initiateOffer(userId, getLocalStream);
         }
+
         setNetworkStatus("connected");
         setNetworkLabel("");
       };
@@ -586,6 +612,21 @@ const VideoCall = forwardRef(
           if (!entry.peer.remoteDescription) {
             log("setRemoteDescription (answer) for:", from);
             await entry.peer.setRemoteDescription(answer);
+
+            // ✅ flush any candidates that arrived before answer
+            const latest = getPeerEntry(from);
+            if (latest?.pendingCandidates?.length) {
+              log(
+                `Flushing ${latest.pendingCandidates.length} pending candidates after answer for:`,
+                from
+              );
+              for (const candidate of latest.pendingCandidates) {
+                try {
+                  await entry.peer.addIceCandidate(candidate);
+                } catch {}
+              }
+              setPeerEntry(from, { ...latest, pendingCandidates: [] });
+            }
           } else {
             log("Remote description already set — skipping answer from:", from);
           }
@@ -637,11 +678,7 @@ const VideoCall = forwardRef(
             chatId &&
             !cleanedUpRef.current
           ) {
-            log(
-              "All peers gone after user-left — rejoining call room to trigger reconnect"
-            );
-            closeAllPeers();
-            setRemoteStreams([]);
+            log("All peers gone after user-left — rejoining call room");
             socket.emit("join-call-room", { roomId: chatId });
           }
         }, 2000);
