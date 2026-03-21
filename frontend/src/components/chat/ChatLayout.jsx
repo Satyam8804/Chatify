@@ -10,6 +10,7 @@ import api from "../../api/axios.js";
 import { lazy, Suspense } from "react";
 import Loader from "../../utils/Loader";
 import SidebarSkeleton from "../../utils/SidebarSkeleton.jsx";
+import NetworkBar from "../common/NetworkBar.jsx";
 
 const Sidebar = lazy(() => import("./Sidebar.jsx"));
 const ChatWindow = lazy(() => import("./ChatWindow.jsx"));
@@ -346,17 +347,21 @@ const ChatLayout = () => {
         >
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-3 bg-slate-900 border-b border-white/5 shrink-0">
-            <div className="flex items-center gap-2.5">
-              <span
-                className={`w-2 h-2 rounded-full animate-pulse ${
-                  callConnected ? "bg-emerald-400" : "bg-amber-400"
-                }`}
-              />
-              <span className="text-sm font-medium text-slate-300">
-                {callConnected
-                  ? formatDuration(callDuration)
-                  : `Calling ${callTargetName}…`}
-              </span>
+            <div className="flex items-center gap-3">
+              {" "}
+              <div className="flex items-center gap-2.5">
+                <span
+                  className={`w-2 h-2 rounded-full animate-pulse ${
+                    callConnected ? "bg-emerald-400" : "bg-amber-400"
+                  }`}
+                />
+                <span className="text-sm font-medium text-slate-300">
+                  {callConnected
+                    ? formatDuration(callDuration)
+                    : `Calling ${callTargetName}…`}
+                </span>
+              </div>
+              <NetworkBar /> 
             </div>
 
             <button

@@ -1,9 +1,41 @@
 import { useEffect, useState } from "react";
-import { Wifi, WifiOff, AlertTriangle } from "lucide-react";
+
+const getSignalLevel = () => {
+  const connection =
+    navigator.connection ||
+    navigator.mozConnection ||
+    navigator.webkitConnection;
+
+  if (!navigator.onLine) return 0;
+  if (!connection) return 4; // assume good if API unavailable
+
+  const { effectiveType, downlink, rtt } = connection;
+
+  // use rtt as primary signal — most reliable cross-network indicator
+  if (rtt != null) {
+    if (rtt === 0)   return 4; // no data yet, assume good
+    if (rtt < 100)   return 4;
+    if (rtt < 250)   return 3;
+    if (rtt < 500)   return 2;
+    return 1;
+  }
+
+  // fallback to effectiveType
+  if (effectiveType === "4g") return 4;
+  if (effectiveType === "3g") return 3;
+  if (effectiveType === "2g") return 2;
+  return 1;
+};
+
+const barConfig = [
+  { level: 1, height: "h-[5px]"  },
+  { level: 2, height: "h-[9px]"  },
+  { level: 3, height: "h-[13px]" },
+  { level: 4, height: "h-[17px]" },
+];
 
 const NetworkBar = () => {
-  const [status, setStatus] = useState("online");
-  const [label, setLabel] = useState("");
+  const [signalLevel, setSignalLevel] = useState(4);
 
   useEffect(() => {
     const connection =
@@ -11,76 +43,41 @@ const NetworkBar = () => {
       navigator.mozConnection ||
       navigator.webkitConnection;
 
-    const evaluate = () => {
-      if (!navigator.onLine) {
-        setStatus("offline");
-        setLabel("Offline");
-        return;
-      }
-      const effectiveType = connection?.effectiveType;
-      const downlink = connection?.downlink;
-      if (
-        effectiveType === "slow-2g" ||
-        effectiveType === "2g" ||
-        downlink < 1
-      ) {
-        setStatus("poor");
-        setLabel("Poor");
-      } else if (effectiveType === "3g" || (downlink != null && downlink < 5)) {
-        setStatus("weak");
-        setLabel("Weak");
-      } else {
-        setStatus("online");
-        setLabel("");
-      }
-    };
+    const update = () => setSignalLevel(getSignalLevel());
 
-    evaluate();
-    window.addEventListener("online", evaluate);
-    window.addEventListener("offline", evaluate);
-    if (connection) connection.addEventListener("change", evaluate);
+    update();
+
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    if (connection) connection.addEventListener("change", update);
+
+    const interval = setInterval(update, 3000);
 
     return () => {
-      window.removeEventListener("online", evaluate);
-      window.removeEventListener("offline", evaluate);
-      if (connection) connection.removeEventListener("change", evaluate);
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+      if (connection) connection.removeEventListener("change", update);
+      clearInterval(interval);
     };
   }, []);
 
-  if (status === "online") return null;
-
-  const config = {
-    offline: {
-      color: "text-rose-400",
-      border: "border-rose-500/30",
-      bg: "bg-rose-500/10",
-      icon: <WifiOff size={11} />,
-    },
-    poor: {
-      color: "text-amber-400",
-      border: "border-amber-500/30",
-      bg: "bg-amber-500/10",
-      icon: <AlertTriangle size={11} />,
-    },
-    weak: {
-      color: "text-yellow-400",
-      border: "border-yellow-500/30",
-      bg: "bg-yellow-500/10",
-      icon: <Wifi size={11} />,
-    },
-  }[status];
+  const getBarColor = (barLevel) => {
+    if (!navigator.onLine) return "bg-rose-500";
+    if (barLevel > signalLevel) return "bg-slate-600";
+    if (signalLevel === 4) return "bg-emerald-400";
+    if (signalLevel === 3) return "bg-emerald-400";
+    if (signalLevel === 2) return "bg-orange-400";
+    return "bg-rose-500";
+  };
 
   return (
-    <div
-      className={`flex items-center gap-1.5 ${config.bg} border ${config.border} rounded-full px-3 py-1.5 backdrop-blur-md`}
-    >
-      <span className={config.color}>{config.icon}</span>
-      <span className={`text-[10px] font-medium ${config.color}`}>{label}</span>
-      {status === "offline" && (
-        <span
-          className={`w-2 h-2 rounded-full border ${config.border} border-t-transparent animate-spin ml-0.5`}
+    <div className="flex items-end gap-[3px]" title={`Signal: ${signalLevel}/4`}>
+      {barConfig.map(({ level, height }) => (
+        <div
+          key={level}
+          className={`w-[4px] rounded-sm transition-colors duration-500 ${height} ${getBarColor(level)}`}
         />
-      )}
+      ))}
     </div>
   );
 };

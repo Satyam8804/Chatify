@@ -21,7 +21,6 @@ import { logger } from "../../utils/logger";
 import { MicOff, Wifi, WifiOff, AlertTriangle } from "lucide-react";
 import ParticipantCard from "./ParticipantCard";
 import { getAvatarColor } from "../../utils/getAvatarColor";
-import NetworkBar from "../common/NetworkBar.jsx";
 
 const log = (...args) => console.log("[VideoCall]", ...args);
 
@@ -851,7 +850,6 @@ const VideoCall = forwardRef(
               Live
             </span>
           </div>
-          <NetworkBar />
           <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
             <span className="text-[10px] text-slate-400">
               {remoteStreams.length + 1} participants
