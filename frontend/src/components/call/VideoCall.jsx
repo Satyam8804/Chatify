@@ -16,9 +16,9 @@ import RemoteVideo from "./RemoteVideo";
 import CallControls from "./CallControls";
 import AddParticipant from "./AddParticipant";
 import LocalVideo from "./LocalVideo";
+import NetworkBar from "../common/NetworkBar";
 import { logger } from "../../utils/logger";
-
-import { MicOff, Wifi, WifiOff, AlertTriangle } from "lucide-react";
+import { MicOff } from "lucide-react";
 import ParticipantCard from "./ParticipantCard";
 import { getAvatarColor } from "../../utils/getAvatarColor";
 
@@ -64,8 +64,7 @@ const VideoCall = forwardRef(
     const [swapped, setSwapped] = useState(false);
     const [selectedRemoteIndex, setSelectedRemoteIndex] = useState(0);
     const [activeSpeakerId, setActiveSpeakerId] = useState(null);
-    const [networkStatus, setNetworkStatus] = useState("connected");
-    const [networkLabel, setNetworkLabel] = useState("");
+    const [connectionFailed, setConnectionFailed] = useState(false);
 
     const canSwap = remoteStreams.length === 1;
 
@@ -128,6 +127,10 @@ const VideoCall = forwardRef(
     useEffect(() => {
       if (remoteStreams.length === 0 && swapped) setSwapped(false);
       if (remoteStreams.length > 1 && swapped) setSwapped(false);
+    }, [remoteStreams.length]);
+
+    useEffect(() => {
+      if (remoteStreams.length > 0) setConnectionFailed(false);
     }, [remoteStreams.length]);
 
     useEffect(() => {
@@ -197,6 +200,7 @@ const VideoCall = forwardRef(
       closeAllPeers();
       setRemoteStreams([]);
       setInvitedUsers(new Set());
+      setConnectionFailed(false);
 
       localStreamRef.current?.getTracks().forEach((t) => {
         try {
@@ -242,8 +246,6 @@ const VideoCall = forwardRef(
           );
 
           if (!navigator.onLine) {
-            setNetworkStatus("offline");
-            setNetworkLabel("Offline");
             if (retryCount < MAX_RETRIES) {
               retryCount++;
               log(`Device offline — retry ${retryCount}/${MAX_RETRIES} in 3s`);
@@ -261,21 +263,6 @@ const VideoCall = forwardRef(
           log(
             `Network stable — effectiveType: ${effectiveType}, downlink: ${downlink}`
           );
-
-          if (
-            effectiveType === "slow-2g" ||
-            effectiveType === "2g" ||
-            downlink < 1
-          ) {
-            setNetworkStatus("poor");
-            setNetworkLabel("Poor connection");
-          } else if (effectiveType === "3g" || downlink < 5) {
-            setNetworkStatus("poor");
-            setNetworkLabel("Weak connection");
-          } else {
-            setNetworkStatus("reconnecting");
-            setNetworkLabel("Reconnecting…");
-          }
 
           log("Peer map size:", peersRef.current.size);
 
@@ -326,8 +313,6 @@ const VideoCall = forwardRef(
 
           if (allGone && socket && chatId) {
             log("All peers gone — emitting join-call-room");
-            setNetworkStatus("reconnecting");
-            setNetworkLabel("Reconnecting…");
             socket.emit("join-call-room", { roomId: chatId });
           }
         };
@@ -342,15 +327,11 @@ const VideoCall = forwardRef(
 
       const handleOnline = () => {
         log("window online event fired");
-        setNetworkStatus("reconnecting");
-        setNetworkLabel("Reconnecting…");
         handleConnectionChange();
       };
 
       const handleOffline = () => {
         log("window offline event fired");
-        setNetworkStatus("offline");
-        setNetworkLabel("Offline");
       };
 
       const connection =
@@ -360,10 +341,25 @@ const VideoCall = forwardRef(
 
       const handleReconnect = () => {
         log("Socket reconnected — emitting join-call-room");
-        setNetworkStatus("reconnecting");
-        setNetworkLabel("Reconnecting…");
         socket.emit("join-call-room", { roomId: chatId });
       };
+
+      const handleUserJoinedEarly = async ({ userId }) => {
+        if (cleanedUpRef.current) return;
+        log("user-joined-call (early handler):", userId);
+        if (!userId || String(userId) === String(user?._id)) return;
+        const existingEntry = getPeerEntry(userId);
+        if (existingEntry?.peer) return;
+        if (pendingPeersRef.current.has(userId)) return;
+        pendingPeersRef.current.add(userId);
+        try {
+          await initiateOffer(userId, getLocalStream);
+        } finally {
+          pendingPeersRef.current.delete(userId);
+        }
+      };
+
+      socket.on("user-joined-call", handleUserJoinedEarly);
 
       const init = async () => {
         try {
@@ -412,8 +408,7 @@ const VideoCall = forwardRef(
             });
           }
 
-          // watchdog — if no remote stream after 8s, rejoin
-          let attempt = 0;
+          let watchdogAttempt = 0;
           const MAX_WATCHDOG_RETRIES = 5;
 
           const watchdog = setInterval(() => {
@@ -437,13 +432,14 @@ const VideoCall = forwardRef(
               return;
             }
 
-            attempt++;
+            watchdogAttempt++;
             log(
-              `Watchdog — no peer connected after 8s, retry ${attempt}/${MAX_WATCHDOG_RETRIES}`
+              `Watchdog — no peer connected after 8s, retry ${watchdogAttempt}/${MAX_WATCHDOG_RETRIES}`
             );
 
-            if (attempt >= MAX_WATCHDOG_RETRIES) {
+            if (watchdogAttempt >= MAX_WATCHDOG_RETRIES) {
               log("Watchdog — max retries reached, stopping");
+              setConnectionFailed(true);
               clearInterval(watchdog);
               return;
             }
@@ -451,7 +447,6 @@ const VideoCall = forwardRef(
             socket.emit("join-call-room", { roomId: chatId });
           }, 8000);
 
-          // store so cleanup can clear it
           cleanupRef.watchdog = watchdog;
 
           log("init() complete");
@@ -463,8 +458,9 @@ const VideoCall = forwardRef(
       init();
 
       return () => {
-        clearInterval(cleanupRef.watchdog); // ✅ add this
+        clearInterval(cleanupRef.watchdog);
         socket.off("reconnect", handleReconnect);
+        socket.off("user-joined-call", handleUserJoinedEarly);
         navigator.mediaDevices.removeEventListener(
           "devicechange",
           handleDeviceChange
@@ -526,33 +522,7 @@ const VideoCall = forwardRef(
           await initiateOffer(userId, getLocalStream);
         }
 
-        setNetworkStatus("connected");
-        setNetworkLabel("");
-      };
-
-      const handleUserJoined = async ({ userId }) => {
-        if (cleanedUpRef.current) return;
-        log("user-joined-call:", userId);
-        if (!userId || String(userId) === String(user?._id)) return;
-        const existingEntry = getPeerEntry(userId);
-        log(
-          `Existing entry for ${userId}:`,
-          existingEntry
-            ? `connState: ${existingEntry.peer?.connectionState}`
-            : "none"
-        );
-        if (existingEntry?.peer) return;
-        if (pendingPeersRef.current.has(userId)) {
-          log("Already pending offer for:", userId);
-          return;
-        }
-        pendingPeersRef.current.add(userId);
-        try {
-          log("Initiating offer to joined user:", userId);
-          await initiateOffer(userId, getLocalStream);
-        } finally {
-          pendingPeersRef.current.delete(userId);
-        }
+        setConnectionFailed(false);
       };
 
       const handleUserMuted = ({ userId, isMuted }) => {
@@ -655,7 +625,6 @@ const VideoCall = forwardRef(
             log("setRemoteDescription (answer) for:", from);
             await entry.peer.setRemoteDescription(answer);
 
-            // ✅ flush any candidates that arrived before answer
             const latest = getPeerEntry(from);
             if (latest?.pendingCandidates?.length) {
               log(
@@ -727,7 +696,6 @@ const VideoCall = forwardRef(
       };
 
       socket.on("existing-participants", handleExistingParticipants);
-      socket.on("user-joined-call", handleUserJoined);
       socket.on("webrtc-offer", handleOffer);
       socket.on("webrtc-answer", handleAnswer);
       socket.on("ice-candidate", handleIce);
@@ -736,7 +704,6 @@ const VideoCall = forwardRef(
 
       return () => {
         socket.off("existing-participants", handleExistingParticipants);
-        socket.off("user-joined-call", handleUserJoined);
         socket.off("webrtc-offer", handleOffer);
         socket.off("webrtc-answer", handleAnswer);
         socket.off("ice-candidate", handleIce);
@@ -807,49 +774,8 @@ const VideoCall = forwardRef(
 
     const isFrontCamera = facingMode === "user";
 
-    const networkBarConfig = {
-      connected: {
-        bg: "bg-emerald-500/20",
-        text: "text-emerald-300",
-        icon: <Wifi size={11} />,
-      },
-      poor: {
-        bg: "bg-amber-500/20",
-        text: "text-amber-300",
-        icon: <AlertTriangle size={11} />,
-      },
-      reconnecting: {
-        bg: "bg-sky-500/20",
-        text: "text-sky-300",
-        icon: <Wifi size={11} />,
-      },
-      offline: {
-        bg: "bg-rose-500/20",
-        text: "text-rose-300",
-        icon: <WifiOff size={11} />,
-      },
-    }[networkStatus];
-
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
-        {networkStatus !== "connected" && (
-          <div
-            className={`absolute top-0 left-0 right-0 z-50 flex items-center justify-center gap-1.5 py-1.5 ${networkBarConfig.bg} backdrop-blur-sm`}
-          >
-            <span className={networkBarConfig.text}>
-              {networkBarConfig.icon}
-            </span>
-            <span
-              className={`text-[11px] font-medium ${networkBarConfig.text}`}
-            >
-              {networkLabel}
-            </span>
-            {networkStatus === "reconnecting" && (
-              <span className="w-2.5 h-2.5 rounded-full border border-sky-400 border-t-transparent animate-spin ml-1" />
-            )}
-          </div>
-        )}
-
         {callType === "video" && (
           <div className="flex-1 relative min-h-0 overflow-hidden">
             <div className={`absolute inset-0 ${swapped ? "hidden" : "flex"}`}>
@@ -861,10 +787,29 @@ const VideoCall = forwardRef(
                     isVideoOff={isVideoOff}
                   />
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950/60">
-                    <div className="w-10 h-10 rounded-full border-2 border-sky-500/20 border-t-sky-400 animate-spin" />
-                    <p className="text-xs font-medium text-slate-400 tracking-wide">
-                      Connecting…
-                    </p>
+                    {connectionFailed ? (
+                      <>
+                        <p className="text-sm font-medium text-slate-300">
+                          Unable to connect
+                        </p>
+                        <button
+                          onClick={() => {
+                            setConnectionFailed(false);
+                            socket.emit("join-call-room", { roomId: chatId });
+                          }}
+                          className="text-xs font-semibold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 px-4 py-2 rounded-lg transition-colors"
+                        >
+                          Retry
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-10 h-10 rounded-full border-2 border-sky-500/20 border-t-sky-400 animate-spin" />
+                        <p className="text-xs font-medium text-slate-400 tracking-wide">
+                          Connecting…
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
               ) : remoteStreams.length === 1 ? (
@@ -945,6 +890,9 @@ const VideoCall = forwardRef(
               Live
             </span>
           </div>
+
+          <NetworkBar />
+
           <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
             <span className="text-[10px] text-slate-400">
               {remoteStreams.length + 1} participants
@@ -1057,8 +1005,24 @@ const VideoCall = forwardRef(
             </div>
 
             <p className="text-xs mt-6 text-slate-500 tracking-wide">
-              {remoteStreams.length === 0 ? "Connecting…" : "Connected"}
+              {remoteStreams.length === 0
+                ? connectionFailed
+                  ? "Unable to connect"
+                  : "Connecting…"
+                : "Connected"}
             </p>
+
+            {connectionFailed && remoteStreams.length === 0 && (
+              <button
+                onClick={() => {
+                  setConnectionFailed(false);
+                  socket.emit("join-call-room", { roomId: chatId });
+                }}
+                className="mt-3 text-xs font-semibold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 px-4 py-2 rounded-lg transition-colors"
+              >
+                Retry
+              </button>
+            )}
           </div>
         )}
 
