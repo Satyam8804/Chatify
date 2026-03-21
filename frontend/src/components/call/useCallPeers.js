@@ -156,7 +156,20 @@ export const useCallPeers = ({
 
   const createPeerConnection = (userId, fromName) => {
     const existing = getPeerEntry(userId);
-    if (existing?.peer) return existing.peer;
+
+    if (
+      existing?.peer &&
+      existing.peer.connectionState !== "closed" &&
+      existing.peer.connectionState !== "failed"
+    ) {
+      return existing.peer;
+    }
+
+    if (existing?.peer) {
+      try {
+        existing.peer.close();
+      } catch {}
+    }
 
     const polite = user._id.localeCompare(userId) > 0;
     const peer = getOrCreatePeer(userId, polite);

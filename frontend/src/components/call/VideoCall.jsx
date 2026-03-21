@@ -370,7 +370,11 @@ const VideoCall = forwardRef(
         for (const { userId } of participants) {
           if (!userId || String(userId) === String(user?._id)) continue;
           const entry = getPeerEntry(userId);
-          if (entry?.peer || entry?.makingOffer) continue;
+          const isHealthy =
+            entry?.peer &&
+            entry.peer.connectionState !== "failed" &&
+            entry.peer.connectionState !== "closed";
+          if (isHealthy || entry?.makingOffer) continue;
           await initiateOffer(userId, getLocalStream);
         }
       };

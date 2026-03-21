@@ -7,7 +7,6 @@ const ICE_SERVERS = {
     { urls: "stun:stun2.l.google.com:19302" },
     { urls: "stun:stun3.l.google.com:19302" },
     { urls: "stun:stun4.l.google.com:19302" },
-
   ],
   iceCandidatePoolSize: 10,
   iceTransportPolicy: "all",
@@ -22,7 +21,13 @@ export const useWebRTC = () => {
   const getOrCreatePeer = (userId, polite = false) => {
     const entry = peersRef.current.get(userId);
 
-    if (entry?.peer) return entry.peer;
+    if (
+      entry?.peer &&
+      entry.peer.connectionState !== "closed" &&
+      entry.peer.connectionState !== "failed"
+    ) {
+      return entry.peer;
+    }
 
     const peer = new RTCPeerConnection(ICE_SERVERS);
 
@@ -33,7 +38,7 @@ export const useWebRTC = () => {
       polite,
     });
 
-    return peer; // ✅ IMPORTANT
+    return peer;
   };
 
   const getPeerEntry = (userId) => peersRef.current.get(userId);
