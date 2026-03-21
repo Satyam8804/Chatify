@@ -18,9 +18,11 @@ import AddParticipant from "./AddParticipant";
 import LocalVideo from "./LocalVideo";
 import { logger } from "../../utils/logger";
 
-import { MicOff } from "lucide-react";
+import { MicOff, Wifi, WifiOff, AlertTriangle } from "lucide-react";
 import ParticipantCard from "./ParticipantCard";
 import { getAvatarColor } from "../../utils/getAvatarColor";
+
+const log = (...args) => console.log("[VideoCall]", ...args);
 
 const VideoCall = forwardRef(
   (
@@ -62,6 +64,8 @@ const VideoCall = forwardRef(
     const [swapped, setSwapped] = useState(false);
     const [selectedRemoteIndex, setSelectedRemoteIndex] = useState(0);
     const [activeSpeakerId, setActiveSpeakerId] = useState(null);
+    const [networkStatus, setNetworkStatus] = useState("connected");
+    const [networkLabel, setNetworkLabel] = useState("");
 
     const canSwap = remoteStreams.length === 1;
 
@@ -92,10 +96,8 @@ const VideoCall = forwardRef(
           if (ctx.state === "suspended") ctx.resume();
         } catch {}
       };
-
       document.addEventListener("click", resumeAudio, { once: true });
       document.addEventListener("touchstart", resumeAudio, { once: true });
-
       return () => {
         document.removeEventListener("click", resumeAudio);
         document.removeEventListener("touchstart", resumeAudio);
@@ -189,6 +191,7 @@ const VideoCall = forwardRef(
     useEffect(() => {
       if (!socket || !chatId) return;
 
+      log("useEffect init — chatId:", chatId);
       cleanedUpRef.current = false;
 
       closeAllPeers();
@@ -203,13 +206,14 @@ const VideoCall = forwardRef(
       localStreamRef.current = null;
 
       const handleDeviceChange = async () => {
+        log("Device change detected");
         try {
           const devices = await navigator.mediaDevices.enumerateDevices();
           const newCameras = devices.filter(
             (d) => d.kind === "videoinput" && d.deviceId
           );
           camerasRef.current = newCameras;
-
+          log("Cameras updated:", newCameras.length);
           const idx = newCameras.findIndex(
             (d) => d.deviceId === currentDeviceIdRef.current
           );
@@ -225,44 +229,91 @@ const VideoCall = forwardRef(
         const MAX_RETRIES = 3;
 
         const attempt = () => {
+          const connection =
+            navigator.connection ||
+            navigator.mozConnection ||
+            navigator.webkitConnection;
+
+          log(
+            `Reconnect attempt #${retryCount + 1}`,
+            `online: ${navigator.onLine}`,
+            `effectiveType: ${connection?.effectiveType}`,
+            `downlink: ${connection?.downlink}`
+          );
+
           if (!navigator.onLine) {
+            setNetworkStatus("offline");
+            setNetworkLabel("Offline");
             if (retryCount < MAX_RETRIES) {
               retryCount++;
+              log(`Device offline — retry ${retryCount}/${MAX_RETRIES} in 3s`);
               timeout = setTimeout(attempt, 3000);
+            } else {
+              log("Max retries reached while offline");
             }
             return;
           }
 
           retryCount = 0;
 
-          if (peersRef.current.size === 0) return;
+          const effectiveType = connection?.effectiveType;
+          const downlink = connection?.downlink;
+          log(
+            `Network stable — effectiveType: ${effectiveType}, downlink: ${downlink}`
+          );
 
-          const track = localStreamRef.current?.getVideoTracks()[0];
-          if (track) {
-            const constraints = getVideoConstraints();
-            track
-              .applyConstraints({
-                width: constraints.width,
-                height: constraints.height,
-                frameRate: constraints.frameRate,
-              })
-              .catch(() => {});
+          if (
+            effectiveType === "slow-2g" ||
+            effectiveType === "2g" ||
+            downlink < 1
+          ) {
+            setNetworkStatus("poor");
+            setNetworkLabel("Poor connection");
+          } else if (effectiveType === "3g" || downlink < 5) {
+            setNetworkStatus("poor");
+            setNetworkLabel("Weak connection");
+          } else {
+            setNetworkStatus("reconnecting");
+            setNetworkLabel("Reconnecting…");
           }
 
-          adaptBitrateToNetwork();
+          log("Peer map size:", peersRef.current.size);
 
-          peersRef.current.forEach(({ peer }) => {
-            if (!peer) return;
-            if (
-              peer.iceConnectionState === "disconnected" ||
-              peer.iceConnectionState === "failed" ||
-              peer.connectionState === "failed"
-            ) {
-              try {
-                peer.restartIce();
-              } catch {}
+          if (peersRef.current.size > 0) {
+            const track = localStreamRef.current?.getVideoTracks()[0];
+            if (track) {
+              const constraints = getVideoConstraints();
+              log("Applying video constraints:", constraints);
+              track
+                .applyConstraints({
+                  width: constraints.width,
+                  height: constraints.height,
+                  frameRate: constraints.frameRate,
+                })
+                .catch((e) => log("applyConstraints failed:", e));
             }
-          });
+
+            adaptBitrateToNetwork();
+
+            peersRef.current.forEach(({ peer }, uid) => {
+              if (!peer) return;
+              log(
+                `Peer ${uid} — iceState: ${peer.iceConnectionState}, connState: ${peer.connectionState}`
+              );
+              if (
+                peer.iceConnectionState === "disconnected" ||
+                peer.iceConnectionState === "failed" ||
+                peer.connectionState === "failed"
+              ) {
+                log(`Calling restartIce() for peer: ${uid}`);
+                try {
+                  peer.restartIce();
+                } catch (e) {
+                  log("restartIce failed:", e);
+                }
+              }
+            });
+          }
 
           const allGone = [...peersRef.current.values()].every(
             ({ peer }) =>
@@ -271,9 +322,14 @@ const VideoCall = forwardRef(
               peer.connectionState === "failed"
           );
 
+          log("allGone:", allGone, "— total peers:", peersRef.current.size);
+
           if (allGone && socket && chatId) {
+            log("All peers gone — emitting join-call-room");
             closeAllPeers();
             setRemoteStreams([]);
+            setNetworkStatus("reconnecting");
+            setNetworkLabel("Reconnecting…");
             socket.emit("join-call-room", { roomId: chatId });
           }
         };
@@ -281,12 +337,22 @@ const VideoCall = forwardRef(
         return () => {
           clearTimeout(timeout);
           retryCount = 0;
+          log("Network change event — waiting 3s");
           timeout = setTimeout(attempt, 3000);
         };
       })();
 
       const handleOnline = () => {
+        log("window online event fired");
+        setNetworkStatus("reconnecting");
+        setNetworkLabel("Reconnecting…");
         handleConnectionChange();
+      };
+
+      const handleOffline = () => {
+        log("window offline event fired");
+        setNetworkStatus("offline");
+        setNetworkLabel("Offline");
       };
 
       const connection =
@@ -295,17 +361,23 @@ const VideoCall = forwardRef(
         navigator.webkitConnection;
 
       const handleReconnect = () => {
+        log("Socket reconnected — emitting join-call-room");
+        setNetworkStatus("reconnecting");
+        setNetworkLabel("Reconnecting…");
         socket.emit("join-call-room", { roomId: chatId });
       };
 
       const init = async () => {
         try {
+          log("init() start");
           await getLocalStream();
+          log("Local stream acquired");
 
           const devices = await navigator.mediaDevices.enumerateDevices();
           camerasRef.current = devices.filter(
             (d) => d.kind === "videoinput" && d.deviceId
           );
+          log("Cameras found:", camerasRef.current.length);
 
           const idx = camerasRef.current.findIndex(
             (d) => d.deviceId === currentDeviceIdRef.current
@@ -319,15 +391,21 @@ const VideoCall = forwardRef(
 
           if (connection) {
             connection.addEventListener("change", handleConnectionChange);
+            log("navigator.connection change listener added");
+          } else {
+            log("navigator.connection not supported on this browser");
           }
 
           window.addEventListener("online", handleOnline);
+          window.addEventListener("offline", handleOffline);
 
+          log("Emitting join-call-room — chatId:", chatId);
           socket.emit("join-call-room", { roomId: chatId });
 
           socket.on("reconnect", handleReconnect);
 
           if (initiator?.isInitiator && initiator?.receiverIds?.length) {
+            log("Caller — emitting video-call-user to:", initiator.receiverIds);
             socket.emit("video-call-user", {
               chatId,
               receiverIds: initiator.receiverIds,
@@ -335,6 +413,8 @@ const VideoCall = forwardRef(
               callType,
             });
           }
+
+          log("init() complete");
         } catch (err) {
           logger("[VideoCall] init error:", err);
         }
@@ -343,21 +423,17 @@ const VideoCall = forwardRef(
       init();
 
       return () => {
+        log("useEffect cleanup — chatId:", chatId);
         socket.off("reconnect", handleReconnect);
-
         navigator.mediaDevices.removeEventListener(
           "devicechange",
           handleDeviceChange
         );
-
-        if (connection) {
+        if (connection)
           connection.removeEventListener("change", handleConnectionChange);
-        }
-
         window.removeEventListener("online", handleOnline);
-
+        window.removeEventListener("offline", handleOffline);
         socket.emit("leave-call-room", { roomId: chatId });
-
         closeAllPeers();
       };
     }, [socket, chatId]);
@@ -367,6 +443,7 @@ const VideoCall = forwardRef(
 
       const handleExistingParticipants = async ({ participants }) => {
         if (cleanedUpRef.current) return;
+        log("existing-participants received:", participants);
         for (const { userId } of participants) {
           if (!userId || String(userId) === String(user?._id)) continue;
           const entry = getPeerEntry(userId);
@@ -374,18 +451,36 @@ const VideoCall = forwardRef(
             entry?.peer &&
             entry.peer.connectionState !== "failed" &&
             entry.peer.connectionState !== "closed";
+          log(
+            `Participant ${userId} — healthy: ${isHealthy}, makingOffer: ${entry?.makingOffer}`
+          );
           if (isHealthy || entry?.makingOffer) continue;
+          log("Initiating offer to existing participant:", userId);
           await initiateOffer(userId, getLocalStream);
         }
+        setNetworkStatus("connected");
+        setNetworkLabel("");
       };
 
       const handleUserJoined = async ({ userId }) => {
         if (cleanedUpRef.current) return;
+        log("user-joined-call:", userId);
         if (!userId || String(userId) === String(user?._id)) return;
-        if (getPeerEntry(userId)?.peer) return;
-        if (pendingPeersRef.current.has(userId)) return;
+        const existingEntry = getPeerEntry(userId);
+        log(
+          `Existing entry for ${userId}:`,
+          existingEntry
+            ? `connState: ${existingEntry.peer?.connectionState}`
+            : "none"
+        );
+        if (existingEntry?.peer) return;
+        if (pendingPeersRef.current.has(userId)) {
+          log("Already pending offer for:", userId);
+          return;
+        }
         pendingPeersRef.current.add(userId);
         try {
+          log("Initiating offer to joined user:", userId);
           await initiateOffer(userId, getLocalStream);
         } finally {
           pendingPeersRef.current.delete(userId);
@@ -393,6 +488,7 @@ const VideoCall = forwardRef(
       };
 
       const handleUserMuted = ({ userId, isMuted }) => {
+        log("user-muted:", userId, isMuted);
         setRemoteStreams((prev) =>
           prev.map((u) => (u.userId === userId ? { ...u, isMuted } : u))
         );
@@ -400,13 +496,20 @@ const VideoCall = forwardRef(
 
       const handleOffer = async ({ offer, from, fromName }) => {
         if (cleanedUpRef.current) return;
-        if (pendingPeersRef.current.has(from)) return;
+        if (pendingPeersRef.current.has(from)) {
+          log("Ignoring offer — pending for:", from);
+          return;
+        }
+        log("webrtc-offer from:", from, "| fromName:", fromName);
 
         const stream = await getLocalStream();
         if (cleanedUpRef.current) return;
 
         const peer = createPeerConnection(from, fromName);
-        if (!peer) return;
+        if (!peer) {
+          log("createPeerConnection returned null for:", from);
+          return;
+        }
 
         let entry = getPeerEntry(from);
         if (!entry) {
@@ -416,16 +519,26 @@ const VideoCall = forwardRef(
 
         const offerCollision =
           entry.makingOffer || peer.signalingState !== "stable";
-        if (offerCollision) {
-          if (!entry.polite) return;
+        log(
+          `Offer collision check — makingOffer: ${entry.makingOffer}, signalingState: ${peer.signalingState}, polite: ${entry.polite}, collision: ${offerCollision}`
+        );
+
+        if (offerCollision && !entry.polite) {
+          log("Dropping offer — impolite peer, collision detected");
+          return;
         }
 
         addTracksIfNeeded(peer, stream);
+        log("setRemoteDescription (offer) for:", from);
         await peer.setRemoteDescription(offer);
 
         if (cleanedUpRef.current) return;
 
         if (entry?.pendingCandidates?.length) {
+          log(
+            `Flushing ${entry.pendingCandidates.length} pending ICE candidates for:`,
+            from
+          );
           for (const candidate of entry.pendingCandidates) {
             try {
               await peer.addIceCandidate(candidate);
@@ -436,6 +549,7 @@ const VideoCall = forwardRef(
 
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
+        log("Sending webrtc-answer to:", from);
 
         if (cleanedUpRef.current) return;
 
@@ -447,16 +561,21 @@ const VideoCall = forwardRef(
       };
 
       const handleAnswer = async ({ answer, from }) => {
+        log("webrtc-answer from:", from);
         const entry = getPeerEntry(from);
-        if (!entry?.peer) return;
-
+        if (!entry?.peer) {
+          log("No peer entry for answer from:", from);
+          return;
+        }
         if (entry?.makingOffer) {
           setPeerEntry(from, { ...entry, makingOffer: false });
         }
-
         try {
           if (!entry.peer.remoteDescription) {
+            log("setRemoteDescription (answer) for:", from);
             await entry.peer.setRemoteDescription(answer);
+          } else {
+            log("Remote description already set — skipping answer from:", from);
           }
         } catch (err) {
           logger("[VideoCall] failed to apply answer from", from, err);
@@ -465,8 +584,15 @@ const VideoCall = forwardRef(
 
       const handleIce = async ({ candidate, from }) => {
         if (cleanedUpRef.current) return;
+        log("ice-candidate from:", from);
         const entry = getPeerEntry(from);
         if (!entry) {
+          log(
+            "No peer entry yet — storing ICE candidate for:",
+            from,
+            "polite:",
+            user._id.localeCompare(from) > 0
+          );
           setPeerEntry(from, {
             peer: null,
             pendingCandidates: [candidate],
@@ -480,6 +606,7 @@ const VideoCall = forwardRef(
             await entry.peer.addIceCandidate(candidate);
           } catch {}
         } else {
+          log("Queuing ICE candidate — no remote description yet for:", from);
           setPeerEntry(from, {
             ...entry,
             pendingCandidates: [...(entry.pendingCandidates || []), candidate],
@@ -487,7 +614,10 @@ const VideoCall = forwardRef(
         }
       };
 
-      const handleUserLeft = ({ userId }) => handleRemovePeer(userId);
+      const handleUserLeft = ({ userId }) => {
+        log("user-left-call:", userId);
+        handleRemovePeer(userId);
+      };
 
       socket.on("existing-participants", handleExistingParticipants);
       socket.on("user-joined-call", handleUserJoined);
@@ -510,6 +640,7 @@ const VideoCall = forwardRef(
 
     const cleanup = () => {
       if (cleanedUpRef.current) return;
+      log("cleanup() called");
       cleanedUpRef.current = true;
       localStreamRef.current?.getTracks().forEach((t) => {
         try {
@@ -569,8 +700,49 @@ const VideoCall = forwardRef(
 
     const isFrontCamera = facingMode === "user";
 
+    const networkBarConfig = {
+      connected: {
+        bg: "bg-emerald-500/20",
+        text: "text-emerald-300",
+        icon: <Wifi size={11} />,
+      },
+      poor: {
+        bg: "bg-amber-500/20",
+        text: "text-amber-300",
+        icon: <AlertTriangle size={11} />,
+      },
+      reconnecting: {
+        bg: "bg-sky-500/20",
+        text: "text-sky-300",
+        icon: <Wifi size={11} />,
+      },
+      offline: {
+        bg: "bg-rose-500/20",
+        text: "text-rose-300",
+        icon: <WifiOff size={11} />,
+      },
+    }[networkStatus];
+
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
+        {networkStatus !== "connected" && (
+          <div
+            className={`absolute top-0 left-0 right-0 z-50 flex items-center justify-center gap-1.5 py-1.5 ${networkBarConfig.bg} backdrop-blur-sm`}
+          >
+            <span className={networkBarConfig.text}>
+              {networkBarConfig.icon}
+            </span>
+            <span
+              className={`text-[11px] font-medium ${networkBarConfig.text}`}
+            >
+              {networkLabel}
+            </span>
+            {networkStatus === "reconnecting" && (
+              <span className="w-2.5 h-2.5 rounded-full border border-sky-400 border-t-transparent animate-spin ml-1" />
+            )}
+          </div>
+        )}
+
         {callType === "video" && (
           <div className="flex-1 relative min-h-0 overflow-hidden">
             <div className={`absolute inset-0 ${swapped ? "hidden" : "flex"}`}>
