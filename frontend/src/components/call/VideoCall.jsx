@@ -55,6 +55,7 @@ const VideoCall = forwardRef(
     const cameraIndexRef = useRef(0);
     const cleanupRef = useRef(null);
     const hadConnectionRef = useRef(false);
+    const knownPeerIdsRef = useRef(new Set());
 
     const [remoteStreams, setRemoteStreams] = useState([]);
     const [isMuted, setIsMuted] = useState(false);
@@ -112,13 +113,39 @@ const VideoCall = forwardRef(
     }, []);
 
     useEffect(() => {
-      const handleVisibility = () => {
+      const handleVisibility = async () => {
         if (document.visibilityState === "visible") {
           document.querySelectorAll("audio").forEach((el) => {
             el.play().catch(() => {});
           });
+
+          // re-acquire camera if track ended while screen was off
+          const videoTrack = localStreamRef.current?.getVideoTracks()[0];
+          if (
+            videoTrack &&
+            (videoTrack.readyState === "ended" || !videoTrack.enabled)
+          ) {
+            log("Camera track ended after screen wake — re-acquiring stream");
+            try {
+              const newStream = await getLocalStream(true);
+
+              peersRef.current.forEach(({ peer }) => {
+                if (!peer || peer.connectionState === "closed") return;
+                const sender = peer
+                  .getSenders()
+                  .find((s) => s.track?.kind === "video");
+                const newTrack = newStream?.getVideoTracks()[0];
+                if (sender && newTrack) {
+                  sender.replaceTrack(newTrack).catch(() => {});
+                }
+              });
+            } catch (e) {
+              log("Failed to re-acquire stream after wake:", e);
+            }
+          }
         }
       };
+
       document.addEventListener("visibilitychange", handleVisibility);
       return () =>
         document.removeEventListener("visibilitychange", handleVisibility);
@@ -525,9 +552,11 @@ const VideoCall = forwardRef(
           log("existing-participants empty — scheduling retry in 3s");
           setTimeout(() => {
             if (!cleanedUpRef.current && socket) {
-              if (hadConnectionRef.current) {
-                const allKnownUserIds = Array.from(peersRef.current.keys());
-                allKnownUserIds.forEach((userId) => {
+              if (
+                hadConnectionRef.current &&
+                knownPeerIdsRef.current.size > 0
+              ) {
+                knownPeerIdsRef.current.forEach((userId) => {
                   log("Pinging user to rejoin:", userId);
                   socket.emit("ping-rejoin", { to: userId, chatId });
                 });
@@ -540,6 +569,7 @@ const VideoCall = forwardRef(
         }
 
         for (const { userId } of others) {
+          knownPeerIdsRef.current.add(userId);
           const entry = getPeerEntry(userId);
 
           const isHealthy =
@@ -760,6 +790,7 @@ const VideoCall = forwardRef(
       if (cleanedUpRef.current) return;
       log("cleanup() called");
       cleanedUpRef.current = true;
+      knownPeerIdsRef.current.clear();
       localStreamRef.current?.getTracks().forEach((t) => {
         try {
           t.stop();
@@ -839,7 +870,7 @@ const VideoCall = forwardRef(
                         <button
                           onClick={() => {
                             setConnectionFailed(false);
-                            hadConnectionRef.current = false; 
+                            hadConnectionRef.current = false;
                             socket.emit("join-call-room", { roomId: chatId });
                           }}
                           className="text-xs font-semibold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 px-4 py-2 rounded-lg transition-colors"
