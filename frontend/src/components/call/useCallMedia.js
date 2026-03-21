@@ -1,3 +1,4 @@
+import { useRef } from "react";
 
 export const useCallMedia = ({
   localVideoRef,
@@ -20,6 +21,8 @@ export const useCallMedia = ({
   socket,
   chatId,
 }) => {
+  const gettingStreamRef = useRef(false);
+
   const getVideoConstraints = (deviceId = null) => {
     const connection =
       navigator.connection ||
@@ -55,43 +58,53 @@ export const useCallMedia = ({
   const getLocalStream = async (forceNew = false) => {
     if (localStreamRef.current && !forceNew) return localStreamRef.current;
 
-    if (forceNew && localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((t) => {
-        try {
-          t.stop();
-        } catch {}
+    if (gettingStreamRef.current) {
+      await new Promise((r) => setTimeout(r, 200));
+      return localStreamRef.current;
+    }
+
+    gettingStreamRef.current = true;
+
+    try {
+      if (forceNew && localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((t) => {
+          try {
+            t.stop();
+          } catch {}
+        });
+        localStreamRef.current = null;
+      }
+
+      const isAudio = callType === "audio";
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: isAudio ? false : getVideoConstraints(),
       });
-      localStreamRef.current = null;
-    }
 
-    const isAudio = callType === "audio";
-
-    console.log("CallType :", callType);
-
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: isAudio ? false : getVideoConstraints(),
-    });
-
-    if (!isAudio) {
-      const videoTrack = stream.getVideoTracks()[0];
-      currentDeviceIdRef.current = videoTrack?.getSettings()?.deviceId ?? null;
-    }
-
-    localStreamRef.current = stream;
-
-    if (!isAudio) {
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-        localVideoRef.current.play().catch(() => {});
+      if (!isAudio) {
+        const videoTrack = stream.getVideoTracks()[0];
+        currentDeviceIdRef.current =
+          videoTrack?.getSettings()?.deviceId ?? null;
       }
-      if (localVideoMainRef.current) {
-        localVideoMainRef.current.srcObject = stream;
-        localVideoMainRef.current.play().catch(() => {});
-      }
-    }
 
-    return stream;
+      localStreamRef.current = stream;
+
+      if (!isAudio) {
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+          localVideoRef.current.play().catch(() => {});
+        }
+        if (localVideoMainRef.current) {
+          localVideoMainRef.current.srcObject = stream;
+          localVideoMainRef.current.play().catch(() => {});
+        }
+      }
+
+      return stream;
+    } finally {
+      gettingStreamRef.current = false;
+    }
   };
 
   const toggleMute = () => {
@@ -116,8 +129,49 @@ export const useCallMedia = ({
 
     // 🔥 REQUIRED (this is what you're missing)
     socket.emit("mute-state", {
-      roomId: chatId,
+      chatId,
       isMuted: muted,
+    });
+  };
+
+  // Add this function after toggleVideo
+  const adaptBitrateToNetwork = () => {
+    const connection =
+      navigator.connection ||
+      navigator.mozConnection ||
+      navigator.webkitConnection;
+
+    if (!connection) return; // can't detect — do nothing
+
+    const { effectiveType, downlink } = connection;
+
+    const isSlow =
+      effectiveType === "slow-2g" || effectiveType === "2g" || downlink < 1;
+    const isMedium = effectiveType === "3g" || (downlink >= 1 && downlink < 5);
+
+    // ✅ Only reduce on slow/medium network — don't touch good connections
+    if (!isSlow && !isMedium) return;
+
+    const maxBitrate = isSlow ? 100_000 : 250_000; // bits/sec
+    const maxFramerate = isSlow ? 10 : 20;
+    const scaleDown = isSlow ? 4 : 2; // e.g. 720p → 180p or 360p
+
+    peersRef.current.forEach(({ peer }) => {
+      if (!peer || peer.connectionState === "closed") return;
+
+      const videoSender = peer
+        .getSenders()
+        .find((s) => s.track?.kind === "video");
+      if (!videoSender) return;
+
+      const params = videoSender.getParameters();
+      if (!params.encodings?.length) return;
+
+      params.encodings[0].maxBitrate = maxBitrate;
+      params.encodings[0].maxFramerate = maxFramerate;
+      params.encodings[0].scaleResolutionDownBy = scaleDown;
+
+      videoSender.setParameters(params).catch(() => {});
     });
   };
 
@@ -235,5 +289,6 @@ export const useCallMedia = ({
     toggleVideo,
     switchCamera,
     getVideoConstraints,
+    adaptBitrateToNetwork,
   };
 };

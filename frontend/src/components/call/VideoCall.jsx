@@ -88,12 +88,8 @@ const VideoCall = forwardRef(
         try {
           const AudioCtx = window.AudioContext || window.webkitAudioContext;
           if (!AudioCtx) return;
-
           const ctx = new AudioCtx();
-
-          if (ctx.state === "suspended") {
-            ctx.resume();
-          }
+          if (ctx.state === "suspended") ctx.resume();
         } catch {}
       };
 
@@ -147,6 +143,7 @@ const VideoCall = forwardRef(
       toggleVideo,
       switchCamera,
       getVideoConstraints,
+      adaptBitrateToNetwork,
     } = useCallMedia({
       localVideoRef,
       localVideoMainRef,
@@ -224,16 +221,25 @@ const VideoCall = forwardRef(
 
       const handleConnectionChange = (() => {
         let timeout;
-        return () => {
-          clearTimeout(timeout);
-          timeout = setTimeout(() => {
-            if (peersRef.current.size === 0) return;
+        let retryCount = 0;
+        const MAX_RETRIES = 3;
 
-            const track = localStreamRef.current?.getVideoTracks()[0];
-            if (!track) return;
+        const attempt = () => {
+          if (!navigator.onLine) {
+            if (retryCount < MAX_RETRIES) {
+              retryCount++;
+              timeout = setTimeout(attempt, 3000);
+            }
+            return;
+          }
 
+          retryCount = 0;
+
+          if (peersRef.current.size === 0) return;
+
+          const track = localStreamRef.current?.getVideoTracks()[0];
+          if (track) {
             const constraints = getVideoConstraints();
-
             track
               .applyConstraints({
                 width: constraints.width,
@@ -241,16 +247,53 @@ const VideoCall = forwardRef(
                 frameRate: constraints.frameRate,
               })
               .catch(() => {});
-          }, 2000);
+          }
+
+          adaptBitrateToNetwork();
+
+          peersRef.current.forEach(({ peer }) => {
+            if (!peer) return;
+            if (
+              peer.iceConnectionState === "disconnected" ||
+              peer.iceConnectionState === "failed" ||
+              peer.connectionState === "failed"
+            ) {
+              try {
+                peer.restartIce();
+              } catch {}
+            }
+          });
+
+          const allGone = [...peersRef.current.values()].every(
+            ({ peer }) =>
+              !peer ||
+              peer.connectionState === "closed" ||
+              peer.connectionState === "failed"
+          );
+
+          if (allGone && socket && chatId) {
+            closeAllPeers();
+            setRemoteStreams([]);
+            socket.emit("join-call-room", { roomId: chatId });
+          }
+        };
+
+        return () => {
+          clearTimeout(timeout);
+          retryCount = 0;
+          timeout = setTimeout(attempt, 3000);
         };
       })();
+
+      const handleOnline = () => {
+        handleConnectionChange();
+      };
 
       const connection =
         navigator.connection ||
         navigator.mozConnection ||
         navigator.webkitConnection;
 
-      // ✅ FIX: define once in correct scope
       const handleReconnect = () => {
         socket.emit("join-call-room", { roomId: chatId });
       };
@@ -278,13 +321,12 @@ const VideoCall = forwardRef(
             connection.addEventListener("change", handleConnectionChange);
           }
 
+          window.addEventListener("online", handleOnline);
+
           socket.emit("join-call-room", { roomId: chatId });
 
-          // ✅ FIX: prevent duplicate listeners
-          socket.off("reconnect");
           socket.on("reconnect", handleReconnect);
 
-          // ✅ caller notify
           if (initiator?.isInitiator && initiator?.receiverIds?.length) {
             socket.emit("video-call-user", {
               chatId,
@@ -312,6 +354,8 @@ const VideoCall = forwardRef(
           connection.removeEventListener("change", handleConnectionChange);
         }
 
+        window.removeEventListener("online", handleOnline);
+
         socket.emit("leave-call-room", { roomId: chatId });
 
         closeAllPeers();
@@ -322,6 +366,7 @@ const VideoCall = forwardRef(
       if (!socket) return;
 
       const handleExistingParticipants = async ({ participants }) => {
+        if (cleanedUpRef.current) return;
         for (const { userId } of participants) {
           if (!userId || String(userId) === String(user?._id)) continue;
           const entry = getPeerEntry(userId);
@@ -331,6 +376,7 @@ const VideoCall = forwardRef(
       };
 
       const handleUserJoined = async ({ userId }) => {
+        if (cleanedUpRef.current) return;
         if (!userId || String(userId) === String(user?._id)) return;
         if (getPeerEntry(userId)?.peer) return;
         if (pendingPeersRef.current.has(userId)) return;
@@ -349,22 +395,31 @@ const VideoCall = forwardRef(
       };
 
       const handleOffer = async ({ offer, from, fromName }) => {
+        if (cleanedUpRef.current) return;
+        if (pendingPeersRef.current.has(from)) return;
+
         const stream = await getLocalStream();
+        if (cleanedUpRef.current) return;
+
         const peer = createPeerConnection(from, fromName);
         if (!peer) return;
+
         let entry = getPeerEntry(from);
         if (!entry) {
           getOrCreatePeer(from);
           entry = getPeerEntry(from);
         }
+
         const offerCollision =
           entry.makingOffer || peer.signalingState !== "stable";
-
         if (offerCollision) {
           if (!entry.polite) return;
         }
+
         addTracksIfNeeded(peer, stream);
         await peer.setRemoteDescription(offer);
+
+        if (cleanedUpRef.current) return;
 
         if (entry?.pendingCandidates?.length) {
           for (const candidate of entry.pendingCandidates) {
@@ -377,6 +432,9 @@ const VideoCall = forwardRef(
 
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
+
+        if (cleanedUpRef.current) return;
+
         socket.emit("webrtc-answer", {
           answer: peer.localDescription,
           to: from,
@@ -388,7 +446,6 @@ const VideoCall = forwardRef(
         const entry = getPeerEntry(from);
         if (!entry?.peer) return;
 
-        // reset makingOffer safely
         if (entry?.makingOffer) {
           setPeerEntry(from, { ...entry, makingOffer: false });
         }
@@ -403,13 +460,14 @@ const VideoCall = forwardRef(
       };
 
       const handleIce = async ({ candidate, from }) => {
+        if (cleanedUpRef.current) return;
         const entry = getPeerEntry(from);
         if (!entry) {
           setPeerEntry(from, {
             peer: null,
             pendingCandidates: [candidate],
             makingOffer: false,
-            polite: true,
+            polite: user._id.localeCompare(from) > 0,
           });
           return;
         }
@@ -670,16 +728,11 @@ const VideoCall = forwardRef(
                   ref={(el) => {
                     if (el && u.stream) {
                       el.srcObject = u.stream;
-
                       el.muted = false;
                       el.volume = 1;
-
-                      // 🔥 CRITICAL FIX
                       const playPromise = el.play();
-
                       if (playPromise !== undefined) {
                         playPromise.catch(() => {
-                          console.warn("🔇 autoplay blocked, retrying...");
                           setTimeout(() => {
                             el.play().catch(() => {});
                           }, 500);

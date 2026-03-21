@@ -16,7 +16,8 @@ export const useCallPeers = ({
 }) => {
   const sharedAudioContextRef = useRef(null);
   const animationFramesRef = useRef(new Map());
-  const audioNodesRef = useRef(new Map()); // ✅ FIX: missing ref
+
+  const audioNodesRef = useRef(new Map());
 
   const getAudioContext = () => {
     if (
@@ -153,12 +154,11 @@ export const useCallPeers = ({
     });
   };
 
-  const createPeerConnection = (userId) => {
+  const createPeerConnection = (userId, fromName) => {
     const existing = getPeerEntry(userId);
     if (existing?.peer) return existing.peer;
 
     const polite = user._id.localeCompare(userId) > 0;
-
     const peer = getOrCreatePeer(userId, polite);
     if (!peer) return null;
 
@@ -173,20 +173,19 @@ export const useCallPeers = ({
     };
 
     peer.ontrack = (e) => {
-      console.log("🎥 TRACK RECEIVED:", e.streams);
       const incomingStream = e.streams?.[0];
       if (!incomingStream) return;
 
-      const { fName, avatar, lName } = getUserMeta(userId);
+      const meta = getUserMeta(userId);
+      const fName = meta.fName !== userId ? meta.fName : fromName ?? userId;
+      const { lName, avatar } = meta;
 
       setupSpeakingDetection(userId, incomingStream);
 
       setRemoteStreams((prev) => {
         const exists = prev.find((s) => s.userId === userId);
-
         if (exists) {
           if (exists.stream === incomingStream) return prev;
-
           return prev.map((s) =>
             s.userId === userId
               ? {
@@ -200,7 +199,6 @@ export const useCallPeers = ({
               : s
           );
         }
-
         return [
           ...prev,
           {
@@ -228,7 +226,6 @@ export const useCallPeers = ({
     };
 
     peer.oniceconnectionstatechange = () => {
-      console.log("ICE STATE:", peer.iceConnectionState);
       if (peer.iceConnectionState === "disconnected") {
         setTimeout(() => {
           if (peer.iceConnectionState === "disconnected") {
@@ -238,7 +235,6 @@ export const useCallPeers = ({
           }
         }, 3000);
       }
-
       if (peer.iceConnectionState === "failed") {
         try {
           peer.restartIce();
@@ -323,6 +319,10 @@ export const useCallPeers = ({
         } catch {}
       });
       audioNodes.clear();
+
+      try {
+        sharedAudioContextRef.current?.close(); // ✅ add this
+      } catch {}
     };
   }, []);
 
