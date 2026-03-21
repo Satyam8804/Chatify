@@ -5,6 +5,7 @@ import {
   forwardRef,
   useImperativeHandle,
   useMemo,
+  useCallback,
 } from "react";
 
 import { useSocket } from "../../context/socketContext";
@@ -53,6 +54,7 @@ const VideoCall = forwardRef(
     const camerasRef = useRef([]);
     const cameraIndexRef = useRef(0);
     const cleanupRef = useRef(null);
+    const hadConnectionRef = useRef(false);
 
     const [remoteStreams, setRemoteStreams] = useState([]);
     const [isMuted, setIsMuted] = useState(false);
@@ -65,8 +67,14 @@ const VideoCall = forwardRef(
     const [selectedRemoteIndex, setSelectedRemoteIndex] = useState(0);
     const [activeSpeakerId, setActiveSpeakerId] = useState(null);
     const [connectionFailed, setConnectionFailed] = useState(false);
-
+    const [networkStatus, setNetworkStatus] = useState("connected");
+    const [networkLabel, setNetworkLabel] = useState("");
     const canSwap = remoteStreams.length === 1;
+
+    const wrappedOnConnected = useCallback(() => {
+      hadConnectionRef.current = true;
+      onConnected?.();
+    }, [onConnected]);
 
     useEffect(() => {
       facingModeRef.current = facingMode;
@@ -188,7 +196,7 @@ const VideoCall = forwardRef(
       isMutedRef,
       isVideoOffRef,
       setRemoteStreams,
-      onConnected,
+      wrappedOnConnected,
     });
 
     useEffect(() => {
@@ -246,6 +254,8 @@ const VideoCall = forwardRef(
           );
 
           if (!navigator.onLine) {
+            setNetworkStatus("offline");
+            setNetworkLabel("Offline");
             if (retryCount < MAX_RETRIES) {
               retryCount++;
               log(`Device offline — retry ${retryCount}/${MAX_RETRIES} in 3s`);
@@ -263,6 +273,21 @@ const VideoCall = forwardRef(
           log(
             `Network stable — effectiveType: ${effectiveType}, downlink: ${downlink}`
           );
+
+          if (
+            effectiveType === "slow-2g" ||
+            effectiveType === "2g" ||
+            downlink < 1
+          ) {
+            setNetworkStatus("poor");
+            setNetworkLabel("Poor connection");
+          } else if (effectiveType === "3g" || downlink < 5) {
+            setNetworkStatus("poor");
+            setNetworkLabel("Weak connection");
+          } else {
+            setNetworkStatus("reconnecting");
+            setNetworkLabel("Reconnecting…");
+          }
 
           log("Peer map size:", peersRef.current.size);
 
@@ -327,11 +352,15 @@ const VideoCall = forwardRef(
 
       const handleOnline = () => {
         log("window online event fired");
+        setNetworkStatus("reconnecting");
+        setNetworkLabel("Reconnecting…");
         handleConnectionChange();
       };
 
       const handleOffline = () => {
         log("window offline event fired");
+        setNetworkStatus("offline");
+        setNetworkLabel("Offline");
       };
 
       const connection =
@@ -360,6 +389,15 @@ const VideoCall = forwardRef(
       };
 
       socket.on("user-joined-call", handleUserJoinedEarly);
+
+      const handlePingRejoin = ({ from, chatId: pingChatId }) => {
+        if (cleanedUpRef.current) return;
+        if (pingChatId !== chatId) return;
+        log("ping-rejoin received from:", from, "— rejoining call room");
+        socket.emit("join-call-room", { roomId: chatId });
+      };
+
+      socket.on("ping-rejoin", handlePingRejoin);
 
       const init = async () => {
         try {
@@ -456,6 +494,7 @@ const VideoCall = forwardRef(
 
       return () => {
         clearInterval(cleanupRef.watchdog);
+        socket.off("ping-rejoin", handlePingRejoin);
         socket.off("reconnect", handleReconnect);
         socket.off("user-joined-call", handleUserJoinedEarly);
         navigator.mediaDevices.removeEventListener(
@@ -486,6 +525,13 @@ const VideoCall = forwardRef(
           log("existing-participants empty — scheduling retry in 3s");
           setTimeout(() => {
             if (!cleanedUpRef.current && socket) {
+              if (hadConnectionRef.current) {
+                const allKnownUserIds = Array.from(peersRef.current.keys());
+                allKnownUserIds.forEach((userId) => {
+                  log("Pinging user to rejoin:", userId);
+                  socket.emit("ping-rejoin", { to: userId, chatId });
+                });
+              }
               log("Retrying join-call-room after empty participants");
               socket.emit("join-call-room", { roomId: chatId });
             }
@@ -520,6 +566,8 @@ const VideoCall = forwardRef(
         }
 
         setConnectionFailed(false);
+        setNetworkStatus("connected");
+        setNetworkLabel("");
       };
 
       const handleUserMuted = ({ userId, isMuted }) => {
@@ -880,15 +928,43 @@ const VideoCall = forwardRef(
           </div>
         )}
 
-        <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pt-4 pb-8 bg-gradient-to-b from-slate-950/70 to-transparent">
-          <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[10px] font-semibold tracking-[1.8px] uppercase text-slate-400">
-              Live
-            </span>
-          </div>
+        {networkStatus !== "connected" &&
+          (() => {
+            const cfg = {
+              poor: {
+                bg: "bg-amber-500/90",
+                icon: <AlertTriangle size={11} />,
+              },
+              reconnecting: { bg: "bg-sky-500/90", icon: <Wifi size={11} /> },
+              offline: { bg: "bg-rose-600/90", icon: <WifiOff size={11} /> },
+            }[networkStatus];
+            return (
+              <div
+                className={`absolute top-0 left-0 right-0 z-50 flex items-center justify-center gap-1.5 py-1 ${cfg.bg} backdrop-blur-sm`}
+              >
+                <span className="text-white">{cfg.icon}</span>
+                <span className="text-[11px] font-medium text-white">
+                  {networkLabel}
+                </span>
+                {networkStatus === "reconnecting" && (
+                  <span className="w-2 h-2 rounded-full border border-white border-t-transparent animate-spin ml-1" />
+                )}
+              </div>
+            );
+          })()}
 
-          <NetworkBar />
+        <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pt-4 pb-8 bg-gradient-to-b from-slate-950/70 to-transparent">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[10px] font-semibold tracking-[1.8px] uppercase text-slate-400">
+                Live
+              </span>
+            </div>
+            <div className="bg-slate-900/70 border border-white/10 rounded-full px-2.5 py-1.5 backdrop-blur-md">
+              <NetworkBar />
+            </div>
+          </div>
 
           <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
             <span className="text-[10px] text-slate-400">

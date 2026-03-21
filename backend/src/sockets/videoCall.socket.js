@@ -72,6 +72,16 @@ export const videoCallSocket = (io, socket) => {
     });
   });
 
+  socket.on("ping-rejoin", ({ to, chatId }) => {
+    if (!to) return;
+    onlineUsers.get(to)?.forEach((socketId) => {
+      io.to(socketId).emit("ping-rejoin", {
+        from: socket.userId,
+        chatId,
+      });
+    });
+  });
+
   socket.on("video-call-user", ({ chatId, receiverIds, isGroup, callType }) => {
     if (!receiverIds?.length) return;
 

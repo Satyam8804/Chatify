@@ -10,7 +10,6 @@ import api from "../../api/axios.js";
 import { lazy, Suspense } from "react";
 import Loader from "../../utils/Loader";
 import SidebarSkeleton from "../../utils/SidebarSkeleton.jsx";
-import NetworkBar from "../common/NetworkBar.jsx";
 
 const Sidebar = lazy(() => import("./Sidebar.jsx"));
 const ChatWindow = lazy(() => import("./ChatWindow.jsx"));
@@ -353,7 +352,6 @@ const ChatLayout = () => {
                     : `Calling ${callTargetName}…`}
                 </span>
               </div>
-              <NetworkBar />
             </div>
 
             <button
