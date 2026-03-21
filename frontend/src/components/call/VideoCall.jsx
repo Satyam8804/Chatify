@@ -541,10 +541,9 @@ const VideoCall = forwardRef(
 
         for (const { userId } of others) {
           const entry = getPeerEntry(userId);
+
           const isHealthy =
-            entry?.peer &&
-            entry.peer.connectionState !== "failed" &&
-            entry.peer.connectionState !== "closed";
+            entry?.peer && entry.peer.connectionState === "connected"; // ✅ was: !== "failed" && !== "closed"
 
           log(
             `Participant ${userId} — healthy: ${isHealthy}, makingOffer: ${
@@ -840,6 +839,7 @@ const VideoCall = forwardRef(
                         <button
                           onClick={() => {
                             setConnectionFailed(false);
+                            hadConnectionRef.current = false; 
                             socket.emit("join-call-room", { roomId: chatId });
                           }}
                           className="text-xs font-semibold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 px-4 py-2 rounded-lg transition-colors"
