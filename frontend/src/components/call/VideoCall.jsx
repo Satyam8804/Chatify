@@ -412,6 +412,48 @@ const VideoCall = forwardRef(
             });
           }
 
+          // watchdog — if no remote stream after 8s, rejoin
+          let attempt = 0;
+          const MAX_WATCHDOG_RETRIES = 5;
+
+          const watchdog = setInterval(() => {
+            if (cleanedUpRef.current) {
+              clearInterval(watchdog);
+              return;
+            }
+
+            const hasRemote =
+              peersRef.current.size > 0 &&
+              [...peersRef.current.values()].some(
+                ({ peer }) =>
+                  peer &&
+                  peer.connectionState !== "failed" &&
+                  peer.connectionState !== "closed"
+              );
+
+            if (hasRemote) {
+              log("Watchdog — peer connected, clearing watchdog");
+              clearInterval(watchdog);
+              return;
+            }
+
+            attempt++;
+            log(
+              `Watchdog — no peer connected after 8s, retry ${attempt}/${MAX_WATCHDOG_RETRIES}`
+            );
+
+            if (attempt >= MAX_WATCHDOG_RETRIES) {
+              log("Watchdog — max retries reached, stopping");
+              clearInterval(watchdog);
+              return;
+            }
+
+            socket.emit("join-call-room", { roomId: chatId });
+          }, 8000);
+
+          // store so cleanup can clear it
+          cleanupRef.watchdog = watchdog;
+
           log("init() complete");
         } catch (err) {
           logger("[VideoCall] init error:", err);
@@ -421,7 +463,7 @@ const VideoCall = forwardRef(
       init();
 
       return () => {
-        log("useEffect cleanup — chatId:", chatId);
+        clearInterval(cleanupRef.watchdog); // ✅ add this
         socket.off("reconnect", handleReconnect);
         navigator.mediaDevices.removeEventListener(
           "devicechange",
