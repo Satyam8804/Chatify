@@ -195,6 +195,12 @@ export const useCallPeers = ({
       if (entry?.makingOffer) return;
       if (peer.signalingState !== "stable") return;
 
+      // debounce — ignore if fired within 1s of last offer
+      const now = Date.now();
+      const lastOffer = peer._lastOfferTime || 0;
+      if (now - lastOffer < 1000) return;
+      peer._lastOfferTime = now;
+
       try {
         setPeerEntry(userId, { ...getPeerEntry(userId), makingOffer: true });
         const offer = await peer.createOffer();

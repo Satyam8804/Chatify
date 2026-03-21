@@ -420,10 +420,7 @@ const VideoCall = forwardRef(
             const hasRemote =
               peersRef.current.size > 0 &&
               [...peersRef.current.values()].some(
-                ({ peer }) =>
-                  peer &&
-                  peer.connectionState !== "failed" &&
-                  peer.connectionState !== "closed"
+                ({ peer }) => peer && peer.connectionState === "connected" // ✅ was: !== "failed" && !== "closed"
               );
 
             if (hasRemote) {

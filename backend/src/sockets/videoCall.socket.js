@@ -30,7 +30,7 @@ const routeToUser = (io, userId, roomId, event, data) => {
 
 export const videoCallSocket = (io, socket) => {
   socket.on("join-call-room", ({ roomId }) => {
-    if (!roomId || socket.rooms.has(roomId)) return;
+    if (!roomId) return;
 
     const existingParticipants = [];
     const room = io.sockets.adapter.rooms.get(roomId);
@@ -38,7 +38,7 @@ export const videoCallSocket = (io, socket) => {
     if (room) {
       room.forEach((socketId) => {
         const s = io.sockets.sockets.get(socketId);
-        if (s?.userId) {
+        if (s?.userId && s.id !== socket.id) {
           existingParticipants.push({
             userId: s.userId,
             name: s.user?.fName,
@@ -48,16 +48,17 @@ export const videoCallSocket = (io, socket) => {
       });
     }
 
-    socket.join(roomId);
+    if (!socket.rooms.has(roomId)) {
+      socket.join(roomId);
+      socket.to(roomId).emit("user-joined-call", {
+        userId: socket.userId,
+        name: socket.user?.fName,
+        avatar: socket.user?.avatar,
+      });
+    }
 
     socket.emit("existing-participants", {
       participants: existingParticipants,
-    });
-
-    socket.to(roomId).emit("user-joined-call", {
-      userId: socket.userId,
-      name: socket.user?.fName,
-      avatar: socket.user?.avatar,
     });
   });
 
