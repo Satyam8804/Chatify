@@ -171,6 +171,7 @@ export const useCallPeers = ({
         existing.peer.onicecandidate = null;
         existing.peer.onconnectionstatechange = null;
         existing.peer.oniceconnectionstatechange = null;
+        existing.peer.onnegotiationneeded = null;
         existing.peer.close();
       } catch {}
     }
@@ -186,6 +187,30 @@ export const useCallPeers = ({
           to: userId,
           roomId: chatId,
         });
+      }
+    };
+
+    peer.onnegotiationneeded = async () => {
+      const entry = getPeerEntry(userId);
+      if (entry?.makingOffer) return;
+      if (peer.signalingState !== "stable") return;
+
+      try {
+        setPeerEntry(userId, { ...getPeerEntry(userId), makingOffer: true });
+        const offer = await peer.createOffer();
+        if (peer.signalingState !== "stable") return;
+        await peer.setLocalDescription(offer);
+        socket.emit("webrtc-offer", {
+          offer: peer.localDescription,
+          to: userId,
+          fromName: user?.fName,
+          roomId: chatId,
+        });
+      } catch (err) {
+        console.warn("[useCallPeers] onnegotiationneeded offer error:", err);
+      } finally {
+        const latest = getPeerEntry(userId);
+        if (latest) setPeerEntry(userId, { ...latest, makingOffer: false });
       }
     };
 

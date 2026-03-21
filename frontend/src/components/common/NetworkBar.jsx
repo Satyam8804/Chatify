@@ -75,7 +75,7 @@ const NetworkBar = () => {
       {barConfig.map(({ level, height }) => (
         <div
           key={level}
-          className={`w-[4px] rounded-sm transition-colors duration-500 ${height} ${getBarColor(level)}`}
+          className={`w-[4px]  transition-colors duration-500 ${height} ${getBarColor(level)}`}
         />
       ))}
     </div>

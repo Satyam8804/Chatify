@@ -336,17 +336,18 @@ const ChatLayout = () => {
           className="fixed inset-0 z-[100] bg-slate-950 flex flex-col"
           style={{ height: "100dvh" }}
         >
-          {/* Header */}
           <div className="flex items-center justify-between px-5 py-3 bg-slate-900 border-b border-white/5 shrink-0">
             <div className="flex items-center gap-3">
-              {" "}
               <div className="flex items-center gap-2.5">
                 <span
-                  className={`w-2 h-2 rounded-full animate-pulse ${
+                  className={`w-2 h-2 rounded-full animate-pulse shrink-0 ${
                     callConnected ? "bg-emerald-400" : "bg-amber-400"
                   }`}
                 />
-                <span className="text-sm font-medium text-slate-300">
+                <span
+                  className="text-sm font-medium text-slate-300 font-mono tabular-nums"
+                  style={{ minWidth: "6.5rem" }}
+                >
                   {callConnected
                     ? formatDuration(callDuration)
                     : `Calling ${callTargetName}…`}
@@ -357,7 +358,7 @@ const ChatLayout = () => {
 
             <button
               onClick={endCall}
-              className="text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg transition-colors"
+              className="text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg transition-colors shrink-0"
             >
               End Call
             </button>
