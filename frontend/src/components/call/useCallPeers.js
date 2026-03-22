@@ -127,18 +127,29 @@ export const useCallPeers = ({
     const senders = peer.getSenders();
 
     stream.getTracks().forEach((track) => {
-      const alreadyAdded = senders.some((s) => s.track?.kind === track.kind);
+      const existingSender = senders.find((s) => s.track?.kind === track.kind);
 
-      if (!alreadyAdded) {
-        try {
-          const sender = peer.addTrack(track, stream);
-          if (track.kind === "audio" && isMutedRef.current)
-            sender.track.enabled = false;
-          if (track.kind === "video" && isVideoOffRef.current)
-            sender.track.enabled = false;
-        } catch (err) {
-          console.warn("[useCallPeers] addTrack failed:", err);
+      if (existingSender) {
+        // sender exists — but replace track if it's dead or a different track
+        if (
+          existingSender.track?.readyState === "ended" ||
+          existingSender.track?.id !== track.id
+        ) {
+          existingSender.replaceTrack(track).catch((err) => {
+            console.warn("[useCallPeers] replaceTrack failed:", err);
+          });
         }
+        return;
+      }
+
+      try {
+        const sender = peer.addTrack(track, stream);
+        if (track.kind === "audio" && isMutedRef.current)
+          sender.track.enabled = false;
+        if (track.kind === "video" && isVideoOffRef.current)
+          sender.track.enabled = false;
+      } catch (err) {
+        console.warn("[useCallPeers] addTrack failed:", err);
       }
     });
   };
