@@ -209,6 +209,7 @@ export const useCallPeers = ({
     peer.ontrack = (e) => {
       const incomingStream = e.streams?.[0];
       if (!incomingStream) return;
+      log("🎥 ontrack fired — kind:", e.track.kind, "streamId:", incomingStream.id);
 
       const meta = getUserMeta(userId);
       const fName = meta.fName !== userId ? meta.fName : (fromName ?? userId);
