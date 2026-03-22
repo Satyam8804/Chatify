@@ -293,73 +293,108 @@ export const useCallPeers = ({
   };
 
   const initiateOffer = async (userId, getLocalStream) => {
-  if (!getLocalStream) return;
+    if (!getLocalStream) return;
 
-  let peer = createPeerConnection(userId);
-  if (!peer) return;
+    let peer = createPeerConnection(userId);
+    if (!peer) return;
 
-  const stream = await getLocalStream();
-  if (!stream || stream.getTracks().length === 0) {
-    console.warn("❌ No local tracks available");
-    return;
-  }
+    const stream = await getLocalStream();
+    if (!stream || stream.getTracks().length === 0) {
+      console.warn("❌ No local tracks available");
+      return;
+    }
 
-  let entry = getPeerEntry(userId);
-  if (!entry) {
-    getOrCreatePeer(userId);
-    entry = getPeerEntry(userId);
-  }
-  if (!entry) return;
+    let entry = getPeerEntry(userId);
+    if (!entry) {
+      getOrCreatePeer(userId);
+      entry = getPeerEntry(userId);
+    }
+    if (!entry) return;
 
-  if (peer.signalingState === "have-local-offer") {
-    try {
-      console.warn("⚠️ Peer stuck in have-local-offer — rolling back");
-      await peer.setLocalDescription({ type: "rollback" });
-      setPeerEntry(userId, { ...(getPeerEntry(userId) || {}), makingOffer: false });
-    } catch (e) {
-      console.warn("❌ Rollback failed — closing peer, next retry will reconnect");
+    if (peer.signalingState === "have-local-offer") {
       try {
-        peer.ontrack = null;
-        peer.onicecandidate = null;
-        peer.onconnectionstatechange = null;
-        peer.oniceconnectionstatechange = null;
-        peer.onnegotiationneeded = null;
+        console.warn("⚠️ Peer stuck in have-local-offer — rolling back");
+        await peer.setLocalDescription({ type: "rollback" });
+        setPeerEntry(userId, {
+          ...(getPeerEntry(userId) || {}),
+          makingOffer: false,
+        });
+        // re-fetch entry and peer after rollback
+        entry = getPeerEntry(userId);
+        peer = entry?.peer;
+        if (!peer || peer.signalingState !== "stable") return;
+      } catch (e) {
+        console.warn("❌ Rollback failed — closing peer");
+        try {
+          peer.ontrack = null;
+          peer.onicecandidate = null;
+          peer.onconnectionstatechange = null;
+          peer.oniceconnectionstatechange = null;
+          peer.onnegotiationneeded = null;
+          peer.close();
+        } catch {}
+        removePeer(userId);
+        return;
+      }
+    }
+
+    if (peer.signalingState !== "stable") {
+      console.warn("⚠️ Peer not stable:", peer.signalingState);
+      return;
+    }
+
+    // ✅ set makingOffer BEFORE addTracksIfNeeded
+    // so onnegotiationneeded is blocked while we manually create the offer
+    setPeerEntry(userId, {
+      ...(getPeerEntry(userId) || {}),
+      makingOffer: true,
+    });
+
+    addTracksIfNeeded(peer, stream);
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    // check peer is still stable after async gap
+    if (peer.signalingState !== "stable") {
+      console.warn(
+        "⚠️ Peer state changed during track add:",
+        peer.signalingState
+      );
+      setPeerEntry(userId, {
+        ...(getPeerEntry(userId) || {}),
+        makingOffer: false,
+      });
+      return;
+    }
+
+    try {
+      const offer = await peer.createOffer();
+      if (peer.signalingState !== "stable") {
+        setPeerEntry(userId, {
+          ...(getPeerEntry(userId) || {}),
+          makingOffer: false,
+        });
+        return;
+      }
+      await peer.setLocalDescription(offer);
+      socket.emit("webrtc-offer", {
+        offer: peer.localDescription,
+        to: userId,
+        fromName: user?.fName,
+        roomId: chatId,
+      });
+    } catch (err) {
+      console.error("❌ offer error:", err);
+      try {
         peer.close();
       } catch {}
       removePeer(userId);
-      return;
+    } finally {
+      const latest = getPeerEntry(userId);
+      if (latest)
+        setPeerEntry(userId, { ...(latest || {}), makingOffer: false });
     }
-  }
-
-  if (peer.signalingState !== "stable") {
-    console.warn("⚠️ Peer not stable after rollback:", peer.signalingState);
-    return;
-  }
-
-  setPeerEntry(userId, { ...(entry || {}), makingOffer: true });
-
-  addTracksIfNeeded(peer, stream);
-
-  await new Promise((r) => setTimeout(r, 0));
-
-  try {
-    const offer = await peer.createOffer();
-    await peer.setLocalDescription(offer);
-    socket.emit("webrtc-offer", {
-      offer: peer.localDescription,
-      to: userId,
-      fromName: user?.fName,
-      roomId: chatId,
-    });
-  } catch (err) {
-    console.error("❌ offer error:", err);
-    try { peer.close(); } catch {}
-    removePeer(userId);
-  } finally {
-    const latest = getPeerEntry(userId);
-    if (latest) setPeerEntry(userId, { ...(latest || {}), makingOffer: false });
-  }
-};
+  };
 
   useEffect(() => {
     const frames = animationFramesRef.current;
