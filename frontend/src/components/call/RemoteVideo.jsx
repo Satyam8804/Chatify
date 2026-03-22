@@ -5,26 +5,26 @@ const RemoteVideo = ({ stream }) => {
 
   useEffect(() => {
     if (!ref.current || !stream) return;
-    console.log(
-      "[RemoteVideo] setting srcObject — streamId:",
-      stream.id,
-      "videoTracks:",
-      stream.getVideoTracks().length,
-      "trackState:",
-      stream.getVideoTracks()[0]?.readyState
-    );
-    ref.current.srcObject = stream;
-    const playPromise = ref.current.play();
+
+    const video = ref.current;
+    video.srcObject = stream;
+
+    // cancel any in-flight play before starting new one
+    video.pause();
+    video.load();
+
+    const playPromise = video.play();
     if (playPromise !== undefined) {
-      playPromise
-        .then(() => console.log("[RemoteVideo] playing"))
-        .catch((e) => {
-          console.warn("[RemoteVideo] play failed:", e);
-          setTimeout(() => {
-            ref.current?.play().catch(() => {});
-          }, 500);
-        });
+      playPromise.catch((e) => {
+        if (e.name === "AbortError") return; // expected during remount, ignore
+        setTimeout(() => { video.play().catch(() => {}); }, 500);
+      });
     }
+
+    return () => {
+      video.pause();
+      video.srcObject = null;
+    };
   }, [stream]);
 
   return (
