@@ -855,32 +855,22 @@ const VideoCall = forwardRef(
         }
       };
 
-      const handleUserLeft = ({ userId }) => {
-        log("user-left-call:", userId);
-        handleRemovePeer(userId);
-        emptyParticipantsRetryRef.current = 0;
+      const handleUserLeft = (userId) => {
+        console.log("User maybe left:", userId);
 
-        clearTimeout(userLeftTimerRef.current);
-        userLeftTimerRef.current = setTimeout(() => {
-          if (
-            peersRef.current.size === 0 &&
-            socket &&
-            chatId &&
-            !cleanedUpRef.current
-          ) {
-            log("All peers gone after user-left — rejoining call room");
-            const videoTrack = localStreamRef.current?.getVideoTracks()[0];
-            if (
-              videoTrack &&
-              videoTrack.readyState !== "ended" &&
-              localVideoRef.current
-            ) {
-              localVideoRef.current.srcObject = localStreamRef.current;
-              localVideoRef.current.play().catch(() => {});
-            }
-            socket.emit("join-call-room", { roomId: chatId });
+        setTimeout(() => {
+          const entry = getPeerEntry(userId);
+          if (!entry?.peer) return;
+
+          const state = entry.peer.connectionState;
+
+          if (state === "disconnected" || state === "failed") {
+            console.log("Removing peer:", userId);
+            removePeer(userId);
+          } else {
+            console.log("Recovered, not removing:", userId);
           }
-        }, 2000);
+        }, 5000); // wait 5 seconds
       };
 
       socket.on("existing-participants", handleExistingParticipants);
