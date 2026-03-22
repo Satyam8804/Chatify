@@ -479,9 +479,30 @@ const VideoCall = forwardRef(
         navigator.mozConnection ||
         navigator.webkitConnection;
 
-      const handleReconnect = () => {
-        log("Socket reconnected — emitting join-call-room");
+      const handleReconnect = async () => {
+        log("Socket reconnected — rejoining + renegotiating");
+
         socket.emit("join-call-room", { roomId: chatId });
+
+        // 🔥 FORCE renegotiation
+        peersRef.current.forEach(async ({ peer }, userId) => {
+          if (!peer || peer.connectionState === "closed") return;
+
+          try {
+            const offer = await peer.createOffer();
+
+            await peer.setLocalDescription(offer);
+
+            socket.emit("webrtc-offer", {
+              offer: peer.localDescription,
+              to: userId,
+              fromName: user?.fName,
+              roomId: chatId,
+            });
+          } catch (err) {
+            log("Reconnect renegotiation failed:", err);
+          }
+        });
       };
 
       const handleUserJoinedEarly = async ({ userId }) => {
