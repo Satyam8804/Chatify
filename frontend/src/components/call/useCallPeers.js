@@ -240,27 +240,13 @@ export const useCallPeers = ({
       }
 
       setRemoteStreams((prev) => {
-        const exists = prev.find((s) => s.userId === userId);
-        if (exists) {
-          if (exists.stream === incomingStream) return prev;
-          return prev.map((s) =>
-            s.userId === userId
-              ? {
-                  ...s,
-                  stream: incomingStream,
-                  fName,
-                  lName,
-                  avatar,
-                  isMuted: !incomingStream.getAudioTracks()[0]?.enabled,
-                }
-              : s
-          );
-        }
+        const updated = prev.filter((s) => s.userId !== userId);
+
         return [
-          ...prev,
+          ...updated,
           {
             userId,
-            stream: incomingStream,
+            stream: new MediaStream(incomingStream.getTracks()), // 🔥 better
             fName,
             lName,
             avatar,
