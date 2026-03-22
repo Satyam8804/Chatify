@@ -1,13 +1,12 @@
 import { useRef, useEffect } from "react";
 
-const RemoteVideo = ({ stream, streamId }) => {
+const RemoteVideo = ({ stream }) => {
   const videoRef = useRef(null);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !stream) return;
 
-    // ✅ Only set srcObject
     if (video.srcObject !== stream) {
       video.srcObject = stream;
     }
@@ -18,7 +17,6 @@ const RemoteVideo = ({ stream, streamId }) => {
   return (
     <div className="relative w-full h-full bg-slate-900 overflow-hidden">
       <video
-        key={streamId} // ✅ now valid
         ref={videoRef}
         autoPlay
         playsInline
