@@ -1,22 +1,36 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useCallback } from "react";
 
 const RemoteVideo = ({ stream }) => {
-  const ref = useRef(null);
+  const videoRef = useRef(null);
+  const streamRef = useRef(stream);
+  streamRef.current = stream;
+
+  const setVideoRef = useCallback((el) => {
+    if (!el) return;
+    videoRef.current = el;
+    if (streamRef.current) {
+      el.srcObject = streamRef.current;
+      el.pause();
+      el.load();
+      el.play().catch((e) => {
+        if (e.name === "AbortError") return;
+        setTimeout(() => { el.play().catch(() => {}); }, 500);
+      });
+    }
+  }, []);
 
   useEffect(() => {
-    if (!ref.current || !stream) return;
+    const video = videoRef.current;
+    if (!video || !stream) return;
 
-    const video = ref.current;
     video.srcObject = stream;
-
-    // cancel any in-flight play before starting new one
     video.pause();
     video.load();
 
     const playPromise = video.play();
     if (playPromise !== undefined) {
       playPromise.catch((e) => {
-        if (e.name === "AbortError") return; // expected during remount, ignore
+        if (e.name === "AbortError") return;
         setTimeout(() => { video.play().catch(() => {}); }, 500);
       });
     }
@@ -30,7 +44,7 @@ const RemoteVideo = ({ stream }) => {
   return (
     <div className="relative w-full h-full bg-slate-900 overflow-hidden">
       <video
-        ref={ref}
+        ref={setVideoRef}
         autoPlay
         playsInline
         muted={false}
