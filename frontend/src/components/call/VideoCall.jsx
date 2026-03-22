@@ -19,7 +19,7 @@ import AddParticipant from "./AddParticipant";
 import LocalVideo from "./LocalVideo";
 import NetworkBar from "../common/NetworkBar";
 import { logger } from "../../utils/logger";
-import { MicOff } from "lucide-react";
+import { MicOff, Wifi, WifiOff, AlertTriangle } from "lucide-react";
 import ParticipantCard from "./ParticipantCard";
 import { getAvatarColor } from "../../utils/getAvatarColor";
 
@@ -56,6 +56,7 @@ const VideoCall = forwardRef(
     const cleanupRef = useRef(null);
     const hadConnectionRef = useRef(false);
     const knownPeerIdsRef = useRef(new Set());
+    const emptyParticipantsRetryRef = useRef(0);
 
     const [remoteStreams, setRemoteStreams] = useState([]);
     const [isMuted, setIsMuted] = useState(false);
@@ -231,6 +232,7 @@ const VideoCall = forwardRef(
 
       log("useEffect init — chatId:", chatId);
       cleanedUpRef.current = false;
+      emptyParticipantsRetryRef.current = 0;
 
       closeAllPeers();
       setRemoteStreams([]);
@@ -267,7 +269,7 @@ const VideoCall = forwardRef(
         let retryCount = 0;
         const MAX_RETRIES = 3;
 
-        const attempt = () => {
+        const attempt = async () => {
           const connection =
             navigator.connection ||
             navigator.mozConnection ||
@@ -314,6 +316,39 @@ const VideoCall = forwardRef(
           } else {
             setNetworkStatus("reconnecting");
             setNetworkLabel("Reconnecting…");
+          }
+
+          // restore local video if track died during network switch
+          const videoTrack = localStreamRef.current?.getVideoTracks()[0];
+          if (!videoTrack || videoTrack.readyState === "ended") {
+            log("Local video track dead — re-acquiring stream");
+            try {
+              const newStream = await getLocalStream(true);
+              peersRef.current.forEach(({ peer }) => {
+                if (!peer || peer.connectionState === "closed") return;
+                const sender = peer
+                  .getSenders()
+                  .find((s) => s.track?.kind === "video");
+                const newTrack = newStream?.getVideoTracks()[0];
+                if (sender && newTrack)
+                  sender.replaceTrack(newTrack).catch(() => {});
+              });
+            } catch (e) {
+              log("Failed to re-acquire stream:", e);
+            }
+          } else {
+            // restore local video element srcObject if it went black
+            if (localVideoRef.current && !localVideoRef.current.srcObject) {
+              localVideoRef.current.srcObject = localStreamRef.current;
+              localVideoRef.current.play().catch(() => {});
+            }
+            if (
+              localVideoMainRef.current &&
+              !localVideoMainRef.current.srcObject
+            ) {
+              localVideoMainRef.current.srcObject = localStreamRef.current;
+              localVideoMainRef.current.play().catch(() => {});
+            }
           }
 
           log("Peer map size:", peersRef.current.size);
@@ -381,6 +416,14 @@ const VideoCall = forwardRef(
         log("window online event fired");
         setNetworkStatus("reconnecting");
         setNetworkLabel("Reconnecting…");
+
+        // restore local video immediately on network back
+        const videoTrack = localStreamRef.current?.getVideoTracks()[0];
+        if (videoTrack && localVideoRef.current) {
+          localVideoRef.current.srcObject = localStreamRef.current;
+          localVideoRef.current.play().catch(() => {});
+        }
+
         handleConnectionChange();
       };
 
@@ -550,6 +593,11 @@ const VideoCall = forwardRef(
 
         if (others.length === 0) {
           log("existing-participants empty — scheduling retry in 3s");
+
+          // stagger: polite peer waits longer to avoid both sides retrying simultaneously
+          const isPolite = user._id.localeCompare(chatId) > 0;
+          const delay = isPolite ? 4000 : 2000;
+
           setTimeout(() => {
             if (!cleanedUpRef.current && socket) {
               if (
@@ -564,7 +612,7 @@ const VideoCall = forwardRef(
               log("Retrying join-call-room after empty participants");
               socket.emit("join-call-room", { roomId: chatId });
             }
-          }, 3000);
+          }, delay);
           return;
         }
 
@@ -764,6 +812,16 @@ const VideoCall = forwardRef(
             !cleanedUpRef.current
           ) {
             log("All peers gone after user-left — rejoining call room");
+
+            // restore local video before rejoining
+            const videoTrack = localStreamRef.current?.getVideoTracks()[0];
+            if (videoTrack && videoTrack.readyState !== "ended") {
+              if (localVideoRef.current) {
+                localVideoRef.current.srcObject = localStreamRef.current;
+                localVideoRef.current.play().catch(() => {});
+              }
+            }
+
             socket.emit("join-call-room", { roomId: chatId });
           }
         }, 2000);
