@@ -295,16 +295,39 @@ export const useCallPeers = ({
     }
 
     let entry = getPeerEntry(userId);
-
     if (!entry) {
       getOrCreatePeer(userId);
       entry = getPeerEntry(userId);
     }
-
     if (!entry) return;
 
+    // if stuck in have-local-offer with no answer coming, rollback and retry
+    if (peer.signalingState === "have-local-offer") {
+      try {
+        console.warn("⚠️ Peer stuck in have-local-offer — rolling back");
+        await peer.setLocalDescription({ type: "rollback" });
+        setPeerEntry(userId, {
+          ...(getPeerEntry(userId) || {}),
+          makingOffer: false,
+        });
+      } catch (e) {
+        console.warn("❌ Rollback failed — recreating peer");
+        // rollback failed, force close and recreate
+        try {
+          peer.ontrack = null;
+          peer.onicecandidate = null;
+          peer.onconnectionstatechange = null;
+          peer.oniceconnectionstatechange = null;
+          peer.onnegotiationneeded = null;
+          peer.close();
+        } catch {}
+        createPeerConnection(userId);
+        return initiateOffer(userId, getLocalStream);
+      }
+    }
+
     if (peer.signalingState !== "stable") {
-      console.warn("⚠️ Peer not stable:", peer.signalingState);
+      console.warn("⚠️ Peer not stable after rollback:", peer.signalingState);
       return;
     }
 
