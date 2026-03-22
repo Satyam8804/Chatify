@@ -293,78 +293,73 @@ export const useCallPeers = ({
   };
 
   const initiateOffer = async (userId, getLocalStream) => {
-    if (!getLocalStream) return;
+  if (!getLocalStream) return;
 
-    const peer = createPeerConnection(userId);
-    if (!peer) return;
+  let peer = createPeerConnection(userId);
+  if (!peer) return;
 
-    const stream = await getLocalStream();
+  const stream = await getLocalStream();
+  if (!stream || stream.getTracks().length === 0) {
+    console.warn("❌ No local tracks available");
+    return;
+  }
 
-    if (!stream || stream.getTracks().length === 0) {
-      console.warn("❌ No local tracks available");
-      return;
-    }
+  let entry = getPeerEntry(userId);
+  if (!entry) {
+    getOrCreatePeer(userId);
+    entry = getPeerEntry(userId);
+  }
+  if (!entry) return;
 
-    let entry = getPeerEntry(userId);
-    if (!entry) {
-      getOrCreatePeer(userId);
-      entry = getPeerEntry(userId);
-    }
-    if (!entry) return;
-
-    // if stuck in have-local-offer with no answer coming, rollback and retry
-    if (peer.signalingState === "have-local-offer") {
-      try {
-        console.warn("⚠️ Peer stuck in have-local-offer — rolling back");
-        await peer.setLocalDescription({ type: "rollback" });
-        setPeerEntry(userId, {
-          ...(getPeerEntry(userId) || {}),
-          makingOffer: false,
-        });
-      } catch (e) {
-        console.warn("❌ Rollback failed — recreating peer");
-        // rollback failed, force close and recreate
-        try {
-          peer.ontrack = null;
-          peer.onicecandidate = null;
-          peer.onconnectionstatechange = null;
-          peer.oniceconnectionstatechange = null;
-          peer.onnegotiationneeded = null;
-          peer.close();
-        } catch {}
-        createPeerConnection(userId);
-        return initiateOffer(userId, getLocalStream);
-      }
-    }
-
-    if (peer.signalingState !== "stable") {
-      console.warn("⚠️ Peer not stable after rollback:", peer.signalingState);
-      return;
-    }
-
-    setPeerEntry(userId, { ...(entry || {}), makingOffer: true });
-
-    addTracksIfNeeded(peer, stream);
-
-    await new Promise((r) => setTimeout(r, 0));
-
+  if (peer.signalingState === "have-local-offer") {
     try {
-      const offer = await peer.createOffer();
-      await peer.setLocalDescription(offer);
-
-      socket.emit("webrtc-offer", {
-        offer: peer.localDescription,
-        to: userId,
-        fromName: user?.fName,
-        roomId: chatId,
-      });
-    } catch (err) {
-      console.error("❌ offer error:", err);
-    } finally {
-      const latest = getPeerEntry(userId);
-      setPeerEntry(userId, { ...(latest || {}), makingOffer: false });
+      console.warn("⚠️ Peer stuck in have-local-offer — rolling back");
+      await peer.setLocalDescription({ type: "rollback" });
+      setPeerEntry(userId, { ...(getPeerEntry(userId) || {}), makingOffer: false });
+    } catch (e) {
+      console.warn("❌ Rollback failed — closing peer, next retry will reconnect");
+      try {
+        peer.ontrack = null;
+        peer.onicecandidate = null;
+        peer.onconnectionstatechange = null;
+        peer.oniceconnectionstatechange = null;
+        peer.onnegotiationneeded = null;
+        peer.close();
+      } catch {}
+      removePeer(userId);
+      return;
     }
-  };
+  }
+
+  if (peer.signalingState !== "stable") {
+    console.warn("⚠️ Peer not stable after rollback:", peer.signalingState);
+    return;
+  }
+
+  setPeerEntry(userId, { ...(entry || {}), makingOffer: true });
+
+  addTracksIfNeeded(peer, stream);
+
+  await new Promise((r) => setTimeout(r, 0));
+
+  try {
+    const offer = await peer.createOffer();
+    await peer.setLocalDescription(offer);
+    socket.emit("webrtc-offer", {
+      offer: peer.localDescription,
+      to: userId,
+      fromName: user?.fName,
+      roomId: chatId,
+    });
+  } catch (err) {
+    console.error("❌ offer error:", err);
+    try { peer.close(); } catch {}
+    removePeer(userId);
+  } finally {
+    const latest = getPeerEntry(userId);
+    if (latest) setPeerEntry(userId, { ...(latest || {}), makingOffer: false });
+  }
+};
 
   useEffect(() => {
     const frames = animationFramesRef.current;
