@@ -25,6 +25,45 @@ import { getAvatarColor } from "../../utils/getAvatarColor";
 
 const log = (...args) => console.log("[VideoCall]", ...args);
 
+const startWatchdog = ({ cleanedUpRef, peersRef, setConnectionFailed, socket, chatId, cleanupRef }) => {
+  clearInterval(cleanupRef.watchdog);
+  let watchdogAttempt = 0;
+  const MAX_WATCHDOG_RETRIES = 5;
+
+  const watchdog = setInterval(() => {
+    if (cleanedUpRef.current) {
+      clearInterval(watchdog);
+      return;
+    }
+
+    const hasRemote =
+      peersRef.current.size > 0 &&
+      [...peersRef.current.values()].some(
+        ({ peer }) => peer && peer.connectionState === "connected"
+      );
+
+    if (hasRemote) {
+      log("Watchdog — peer connected, clearing watchdog");
+      clearInterval(watchdog);
+      return;
+    }
+
+    watchdogAttempt++;
+    log(`Watchdog — no peer connected after 8s, retry ${watchdogAttempt}/${MAX_WATCHDOG_RETRIES}`);
+
+    if (watchdogAttempt >= MAX_WATCHDOG_RETRIES) {
+      log("Watchdog — max retries reached, stopping");
+      setConnectionFailed(true);
+      clearInterval(watchdog);
+      return;
+    }
+
+    socket.emit("join-call-room", { roomId: chatId });
+  }, 8000);
+
+  cleanupRef.watchdog = watchdog;
+};
+
 const VideoCall = forwardRef(
   (
     { chatId, onEndCall, onConnected, chats, initiator, callType = "video" },
@@ -57,6 +96,7 @@ const VideoCall = forwardRef(
     const hadConnectionRef = useRef(false);
     const knownPeerIdsRef = useRef(new Set());
     const emptyParticipantsRetryRef = useRef(0);
+    const userLeftTimerRef = useRef(null);
 
     const [remoteStreams, setRemoteStreams] = useState([]);
     const [isMuted, setIsMuted] = useState(false);
@@ -71,6 +111,7 @@ const VideoCall = forwardRef(
     const [connectionFailed, setConnectionFailed] = useState(false);
     const [networkStatus, setNetworkStatus] = useState("connected");
     const [networkLabel, setNetworkLabel] = useState("");
+
     const canSwap = remoteStreams.length === 1;
 
     const wrappedOnConnected = useCallback(() => {
@@ -78,9 +119,7 @@ const VideoCall = forwardRef(
       onConnected?.();
     }, [onConnected]);
 
-    useEffect(() => {
-      facingModeRef.current = facingMode;
-    }, [facingMode]);
+    useEffect(() => { facingModeRef.current = facingMode; }, [facingMode]);
 
     useEffect(() => {
       if (swapped) {
@@ -116,29 +155,18 @@ const VideoCall = forwardRef(
     useEffect(() => {
       const handleVisibility = async () => {
         if (document.visibilityState === "visible") {
-          document.querySelectorAll("audio").forEach((el) => {
-            el.play().catch(() => {});
-          });
+          document.querySelectorAll("audio").forEach((el) => { el.play().catch(() => {}); });
 
-          // re-acquire camera if track ended while screen was off
           const videoTrack = localStreamRef.current?.getVideoTracks()[0];
-          if (
-            videoTrack &&
-            (videoTrack.readyState === "ended" || !videoTrack.enabled)
-          ) {
+          if (videoTrack && (videoTrack.readyState === "ended" || !videoTrack.enabled)) {
             log("Camera track ended after screen wake — re-acquiring stream");
             try {
               const newStream = await getLocalStream(true);
-
               peersRef.current.forEach(({ peer }) => {
                 if (!peer || peer.connectionState === "closed") return;
-                const sender = peer
-                  .getSenders()
-                  .find((s) => s.track?.kind === "video");
+                const sender = peer.getSenders().find((s) => s.track?.kind === "video");
                 const newTrack = newStream?.getVideoTracks()[0];
-                if (sender && newTrack) {
-                  sender.replaceTrack(newTrack).catch(() => {});
-                }
+                if (sender && newTrack) sender.replaceTrack(newTrack).catch(() => {});
               });
             } catch (e) {
               log("Failed to re-acquire stream after wake:", e);
@@ -146,17 +174,13 @@ const VideoCall = forwardRef(
           }
         }
       };
-
       document.addEventListener("visibilitychange", handleVisibility);
-      return () =>
-        document.removeEventListener("visibilitychange", handleVisibility);
+      return () => document.removeEventListener("visibilitychange", handleVisibility);
     }, []);
 
     useEffect(() => {
       setSelectedRemoteIndex((prev) =>
-        remoteStreams.length === 0
-          ? 0
-          : Math.min(prev, remoteStreams.length - 1)
+        remoteStreams.length === 0 ? 0 : Math.min(prev, remoteStreams.length - 1)
       );
     }, [remoteStreams.length]);
 
@@ -170,10 +194,7 @@ const VideoCall = forwardRef(
     }, [remoteStreams.length]);
 
     useEffect(() => {
-      if (!remoteStreams.length) {
-        setActiveSpeakerId(null);
-        return;
-      }
+      if (!remoteStreams.length) { setActiveSpeakerId(null); return; }
       const speakingUser = remoteStreams.find((u) => u.isSpeaking);
       setActiveSpeakerId(speakingUser ? speakingUser.userId : null);
     }, [remoteStreams]);
@@ -186,25 +207,10 @@ const VideoCall = forwardRef(
       getVideoConstraints,
       adaptBitrateToNetwork,
     } = useCallMedia({
-      localVideoRef,
-      localVideoMainRef,
-      localStreamRef,
-      currentDeviceIdRef,
-      camerasRef,
-      cameraIndexRef,
-      facingModeRef,
-      isMutedRef,
-      isVideoOffRef,
-      switchingRef,
-      peersRef,
-      setIsMuted,
-      setIsVideoOff,
-      setFacingMode,
-      setIsSwitching,
-      facingMode,
-      callType,
-      socket,
-      chatId,
+      localVideoRef, localVideoMainRef, localStreamRef, currentDeviceIdRef,
+      camerasRef, cameraIndexRef, facingModeRef, isMutedRef, isVideoOffRef,
+      switchingRef, peersRef, setIsMuted, setIsVideoOff, setFacingMode,
+      setIsSwitching, facingMode, callType, socket, chatId,
     });
 
     const {
@@ -213,18 +219,8 @@ const VideoCall = forwardRef(
       createPeerConnection,
       initiateOffer,
     } = useCallPeers({
-      socket,
-      user,
-      chatId,
-      chats,
-      getOrCreatePeer,
-      getPeerEntry,
-      removePeer,
-      setPeerEntry,
-      isMutedRef,
-      isVideoOffRef,
-      setRemoteStreams,
-      wrappedOnConnected,
+      socket, user, chatId, chats, getOrCreatePeer, getPeerEntry, removePeer,
+      setPeerEntry, isMutedRef, isVideoOffRef, setRemoteStreams, wrappedOnConnected,
     });
 
     useEffect(() => {
@@ -239,25 +235,18 @@ const VideoCall = forwardRef(
       setInvitedUsers(new Set());
       setConnectionFailed(false);
 
-      localStreamRef.current?.getTracks().forEach((t) => {
-        try {
-          t.stop();
-        } catch {}
-      });
+      // FIX: stop tracks on re-init (chatId change)
+      localStreamRef.current?.getTracks().forEach((t) => { try { t.stop(); } catch {} });
       localStreamRef.current = null;
 
       const handleDeviceChange = async () => {
         log("Device change detected");
         try {
           const devices = await navigator.mediaDevices.enumerateDevices();
-          const newCameras = devices.filter(
-            (d) => d.kind === "videoinput" && d.deviceId
-          );
+          const newCameras = devices.filter((d) => d.kind === "videoinput" && d.deviceId);
           camerasRef.current = newCameras;
           log("Cameras updated:", newCameras.length);
-          const idx = newCameras.findIndex(
-            (d) => d.deviceId === currentDeviceIdRef.current
-          );
+          const idx = newCameras.findIndex((d) => d.deviceId === currentDeviceIdRef.current);
           cameraIndexRef.current = idx === -1 ? 0 : idx;
         } catch (err) {
           logger("[VideoCall] handleDeviceChange error:", err);
@@ -270,17 +259,9 @@ const VideoCall = forwardRef(
         const MAX_RETRIES = 3;
 
         const attempt = async () => {
-          const connection =
-            navigator.connection ||
-            navigator.mozConnection ||
-            navigator.webkitConnection;
+          const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
 
-          log(
-            `Reconnect attempt #${retryCount + 1}`,
-            `online: ${navigator.onLine}`,
-            `effectiveType: ${connection?.effectiveType}`,
-            `downlink: ${connection?.downlink}`
-          );
+          log(`Reconnect attempt #${retryCount + 1}`, `online: ${navigator.onLine}`, `effectiveType: ${connection?.effectiveType}`, `downlink: ${connection?.downlink}`);
 
           if (!navigator.onLine) {
             setNetworkStatus("offline");
@@ -299,15 +280,9 @@ const VideoCall = forwardRef(
 
           const effectiveType = connection?.effectiveType;
           const downlink = connection?.downlink;
-          log(
-            `Network stable — effectiveType: ${effectiveType}, downlink: ${downlink}`
-          );
+          log(`Network stable — effectiveType: ${effectiveType}, downlink: ${downlink}`);
 
-          if (
-            effectiveType === "slow-2g" ||
-            effectiveType === "2g" ||
-            downlink < 1
-          ) {
+          if (effectiveType === "slow-2g" || effectiveType === "2g" || downlink < 1) {
             setNetworkStatus("poor");
             setNetworkLabel("Poor connection");
           } else if (effectiveType === "3g" || downlink < 5) {
@@ -318,7 +293,6 @@ const VideoCall = forwardRef(
             setNetworkLabel("Reconnecting…");
           }
 
-          // restore local video if track died during network switch
           const videoTrack = localStreamRef.current?.getVideoTracks()[0];
           if (!videoTrack || videoTrack.readyState === "ended") {
             log("Local video track dead — re-acquiring stream");
@@ -326,26 +300,19 @@ const VideoCall = forwardRef(
               const newStream = await getLocalStream(true);
               peersRef.current.forEach(({ peer }) => {
                 if (!peer || peer.connectionState === "closed") return;
-                const sender = peer
-                  .getSenders()
-                  .find((s) => s.track?.kind === "video");
+                const sender = peer.getSenders().find((s) => s.track?.kind === "video");
                 const newTrack = newStream?.getVideoTracks()[0];
-                if (sender && newTrack)
-                  sender.replaceTrack(newTrack).catch(() => {});
+                if (sender && newTrack) sender.replaceTrack(newTrack).catch(() => {});
               });
             } catch (e) {
               log("Failed to re-acquire stream:", e);
             }
           } else {
-            // restore local video element srcObject if it went black
             if (localVideoRef.current && !localVideoRef.current.srcObject) {
               localVideoRef.current.srcObject = localStreamRef.current;
               localVideoRef.current.play().catch(() => {});
             }
-            if (
-              localVideoMainRef.current &&
-              !localVideoMainRef.current.srcObject
-            ) {
+            if (localVideoMainRef.current && !localVideoMainRef.current.srcObject) {
               localVideoMainRef.current.srcObject = localStreamRef.current;
               localVideoMainRef.current.play().catch(() => {});
             }
@@ -357,43 +324,23 @@ const VideoCall = forwardRef(
             const track = localStreamRef.current?.getVideoTracks()[0];
             if (track) {
               const constraints = getVideoConstraints();
-              log("Applying video constraints:", constraints);
-              track
-                .applyConstraints({
-                  width: constraints.width,
-                  height: constraints.height,
-                  frameRate: constraints.frameRate,
-                })
-                .catch((e) => log("applyConstraints failed:", e));
+              track.applyConstraints({ width: constraints.width, height: constraints.height, frameRate: constraints.frameRate }).catch((e) => log("applyConstraints failed:", e));
             }
 
             adaptBitrateToNetwork();
 
             peersRef.current.forEach(({ peer }, uid) => {
               if (!peer) return;
-              log(
-                `Peer ${uid} — iceState: ${peer.iceConnectionState}, connState: ${peer.connectionState}`
-              );
-              if (
-                peer.iceConnectionState === "disconnected" ||
-                peer.iceConnectionState === "failed" ||
-                peer.connectionState === "failed"
-              ) {
+              log(`Peer ${uid} — iceState: ${peer.iceConnectionState}, connState: ${peer.connectionState}`);
+              if (peer.iceConnectionState === "disconnected" || peer.iceConnectionState === "failed" || peer.connectionState === "failed") {
                 log(`Calling restartIce() for peer: ${uid}`);
-                try {
-                  peer.restartIce();
-                } catch (e) {
-                  log("restartIce failed:", e);
-                }
+                try { peer.restartIce(); } catch (e) { log("restartIce failed:", e); }
               }
             });
           }
 
           const allGone = [...peersRef.current.values()].every(
-            ({ peer }) =>
-              !peer ||
-              peer.connectionState === "closed" ||
-              peer.connectionState === "failed"
+            ({ peer }) => !peer || peer.connectionState === "closed" || peer.connectionState === "failed"
           );
 
           log("allGone:", allGone, "— total peers:", peersRef.current.size);
@@ -416,14 +363,11 @@ const VideoCall = forwardRef(
         log("window online event fired");
         setNetworkStatus("reconnecting");
         setNetworkLabel("Reconnecting…");
-
-        // restore local video immediately on network back
         const videoTrack = localStreamRef.current?.getVideoTracks()[0];
         if (videoTrack && localVideoRef.current) {
           localVideoRef.current.srcObject = localStreamRef.current;
           localVideoRef.current.play().catch(() => {});
         }
-
         handleConnectionChange();
       };
 
@@ -433,10 +377,7 @@ const VideoCall = forwardRef(
         setNetworkLabel("Offline");
       };
 
-      const connection =
-        navigator.connection ||
-        navigator.mozConnection ||
-        navigator.webkitConnection;
+      const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
 
       const handleReconnect = () => {
         log("Socket reconnected — emitting join-call-room");
@@ -445,6 +386,7 @@ const VideoCall = forwardRef(
 
       const handleUserJoinedEarly = async ({ userId }) => {
         if (cleanedUpRef.current) return;
+        clearTimeout(userLeftTimerRef.current);
         log("user-joined-call (early handler):", userId);
         if (!userId || String(userId) === String(user?._id)) return;
         const existingEntry = getPeerEntry(userId);
@@ -458,8 +400,6 @@ const VideoCall = forwardRef(
         }
       };
 
-      socket.on("user-joined-call", handleUserJoinedEarly);
-
       const handlePingRejoin = ({ from, chatId: pingChatId }) => {
         if (cleanedUpRef.current) return;
         if (pingChatId !== chatId) return;
@@ -467,6 +407,7 @@ const VideoCall = forwardRef(
         socket.emit("join-call-room", { roomId: chatId });
       };
 
+      socket.on("user-joined-call", handleUserJoinedEarly);
       socket.on("ping-rejoin", handlePingRejoin);
 
       const init = async () => {
@@ -476,20 +417,13 @@ const VideoCall = forwardRef(
           log("Local stream acquired");
 
           const devices = await navigator.mediaDevices.enumerateDevices();
-          camerasRef.current = devices.filter(
-            (d) => d.kind === "videoinput" && d.deviceId
-          );
+          camerasRef.current = devices.filter((d) => d.kind === "videoinput" && d.deviceId);
           log("Cameras found:", camerasRef.current.length);
 
-          const idx = camerasRef.current.findIndex(
-            (d) => d.deviceId === currentDeviceIdRef.current
-          );
+          const idx = camerasRef.current.findIndex((d) => d.deviceId === currentDeviceIdRef.current);
           cameraIndexRef.current = idx === -1 ? 0 : idx;
 
-          navigator.mediaDevices.addEventListener(
-            "devicechange",
-            handleDeviceChange
-          );
+          navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
 
           if (connection) {
             connection.addEventListener("change", handleConnectionChange);
@@ -503,7 +437,6 @@ const VideoCall = forwardRef(
 
           log("Emitting join-call-room — chatId:", chatId);
           socket.emit("join-call-room", { roomId: chatId });
-
           socket.on("reconnect", handleReconnect);
 
           if (initiator?.isInitiator && initiator?.receiverIds?.length) {
@@ -516,43 +449,7 @@ const VideoCall = forwardRef(
             });
           }
 
-          let watchdogAttempt = 0;
-          const MAX_WATCHDOG_RETRIES = 5;
-
-          const watchdog = setInterval(() => {
-            if (cleanedUpRef.current) {
-              clearInterval(watchdog);
-              return;
-            }
-
-            const hasRemote =
-              peersRef.current.size > 0 &&
-              [...peersRef.current.values()].some(
-                ({ peer }) => peer && peer.connectionState === "connected" // ✅ was: !== "failed" && !== "closed"
-              );
-
-            if (hasRemote) {
-              log("Watchdog — peer connected, clearing watchdog");
-              clearInterval(watchdog);
-              return;
-            }
-
-            watchdogAttempt++;
-            log(
-              `Watchdog — no peer connected after 8s, retry ${watchdogAttempt}/${MAX_WATCHDOG_RETRIES}`
-            );
-
-            if (watchdogAttempt >= MAX_WATCHDOG_RETRIES) {
-              log("Watchdog — max retries reached, stopping");
-              setConnectionFailed(true);
-              clearInterval(watchdog);
-              return;
-            }
-
-            socket.emit("join-call-room", { roomId: chatId });
-          }, 8000);
-
-          cleanupRef.watchdog = watchdog;
+          startWatchdog({ cleanedUpRef, peersRef, setConnectionFailed, socket, chatId, cleanupRef });
 
           log("init() complete");
         } catch (err) {
@@ -564,17 +461,17 @@ const VideoCall = forwardRef(
 
       return () => {
         clearInterval(cleanupRef.watchdog);
+        clearTimeout(userLeftTimerRef.current);
         socket.off("ping-rejoin", handlePingRejoin);
         socket.off("reconnect", handleReconnect);
         socket.off("user-joined-call", handleUserJoinedEarly);
-        navigator.mediaDevices.removeEventListener(
-          "devicechange",
-          handleDeviceChange
-        );
-        if (connection)
-          connection.removeEventListener("change", handleConnectionChange);
+        navigator.mediaDevices.removeEventListener("devicechange", handleDeviceChange);
+        if (connection) connection.removeEventListener("change", handleConnectionChange);
         window.removeEventListener("online", handleOnline);
         window.removeEventListener("offline", handleOffline);
+        // FIX: stop tracks on cleanup
+        localStreamRef.current?.getTracks().forEach((t) => { try { t.stop(); } catch {} });
+        localStreamRef.current = null;
         socket.emit("leave-call-room", { roomId: chatId });
         closeAllPeers();
       };
@@ -592,18 +489,22 @@ const VideoCall = forwardRef(
         );
 
         if (others.length === 0) {
-          log("existing-participants empty — scheduling retry in 3s");
+          emptyParticipantsRetryRef.current += 1;
 
-          // stagger: polite peer waits longer to avoid both sides retrying simultaneously
+          if (emptyParticipantsRetryRef.current > 10) {
+            log("Too many empty retries — stopping");
+            setConnectionFailed(true);
+            return;
+          }
+
+          log(`existing-participants empty — retry ${emptyParticipantsRetryRef.current}/10`);
+
           const isPolite = user._id.localeCompare(chatId) > 0;
           const delay = isPolite ? 4000 : 2000;
 
           setTimeout(() => {
             if (!cleanedUpRef.current && socket) {
-              if (
-                hadConnectionRef.current &&
-                knownPeerIdsRef.current.size > 0
-              ) {
+              if (hadConnectionRef.current && knownPeerIdsRef.current.size > 0) {
                 knownPeerIdsRef.current.forEach((userId) => {
                   log("Pinging user to rejoin:", userId);
                   socket.emit("ping-rejoin", { to: userId, chatId });
@@ -619,22 +520,14 @@ const VideoCall = forwardRef(
         for (const { userId } of others) {
           knownPeerIdsRef.current.add(userId);
           const entry = getPeerEntry(userId);
+          const isHealthy = entry?.peer && entry.peer.connectionState === "connected";
 
-          const isHealthy =
-            entry?.peer && entry.peer.connectionState === "connected"; // ✅ was: !== "failed" && !== "closed"
-
-          log(
-            `Participant ${userId} — healthy: ${isHealthy}, makingOffer: ${
-              entry?.makingOffer
-            }, pendingCandidates: ${entry?.pendingCandidates?.length ?? 0}`
-          );
+          log(`Participant ${userId} — healthy: ${isHealthy}, makingOffer: ${entry?.makingOffer}, pendingCandidates: ${entry?.pendingCandidates?.length ?? 0}`);
 
           if (isHealthy || entry?.makingOffer) continue;
 
           if (entry?.pendingCandidates?.length && !entry?.peer) {
-            log(
-              `Pre-creating peer for ${userId} — has ${entry.pendingCandidates.length} pending candidates`
-            );
+            log(`Pre-creating peer for ${userId} — has ${entry.pendingCandidates.length} pending candidates`);
             createPeerConnection(userId);
           }
 
@@ -642,6 +535,7 @@ const VideoCall = forwardRef(
           await initiateOffer(userId, getLocalStream);
         }
 
+        emptyParticipantsRetryRef.current = 0;
         setConnectionFailed(false);
         setNetworkStatus("connected");
         setNetworkLabel("");
@@ -675,11 +569,8 @@ const VideoCall = forwardRef(
           entry = getPeerEntry(from);
         }
 
-        const offerCollision =
-          entry.makingOffer || peer.signalingState !== "stable";
-        log(
-          `Offer collision check — makingOffer: ${entry.makingOffer}, signalingState: ${peer.signalingState}, polite: ${entry.polite}, collision: ${offerCollision}`
-        );
+        const offerCollision = entry.makingOffer || peer.signalingState !== "stable";
+        log(`Offer collision check — makingOffer: ${entry.makingOffer}, signalingState: ${peer.signalingState}, polite: ${entry.polite}, collision: ${offerCollision}`);
 
         if (offerCollision) {
           if (!entry.polite) {
@@ -689,11 +580,7 @@ const VideoCall = forwardRef(
           try {
             log("Polite rollback — rolling back local offer for:", from);
             await peer.setLocalDescription({ type: "rollback" });
-            setPeerEntry(from, {
-              ...getPeerEntry(from),
-              makingOffer: false,
-              pendingCandidates: [],
-            });
+            setPeerEntry(from, { ...getPeerEntry(from), makingOffer: false, pendingCandidates: [] });
           } catch (e) {
             log("Rollback failed — recreating peer fresh for:", from);
             try {
@@ -716,11 +603,7 @@ const VideoCall = forwardRef(
               const answer = await peer.createAnswer();
               await peer.setLocalDescription(answer);
               if (cleanedUpRef.current) return;
-              socket.emit("webrtc-answer", {
-                answer: peer.localDescription,
-                to: from,
-                roomId: chatId,
-              });
+              socket.emit("webrtc-answer", { answer: peer.localDescription, to: from, roomId: chatId });
             } catch (err) {
               log("Fresh peer offer handling failed:", err);
             }
@@ -736,14 +619,9 @@ const VideoCall = forwardRef(
 
         const latestEntry = getPeerEntry(from);
         if (latestEntry?.pendingCandidates?.length) {
-          log(
-            `Flushing ${latestEntry.pendingCandidates.length} pending ICE candidates for:`,
-            from
-          );
+          log(`Flushing ${latestEntry.pendingCandidates.length} pending ICE candidates for:`, from);
           for (const candidate of latestEntry.pendingCandidates) {
-            try {
-              await peer.addIceCandidate(candidate);
-            } catch {}
+            try { await peer.addIceCandidate(candidate); } catch {}
           }
           setPeerEntry(from, { ...latestEntry, pendingCandidates: [] });
         }
@@ -754,38 +632,23 @@ const VideoCall = forwardRef(
 
         if (cleanedUpRef.current) return;
 
-        socket.emit("webrtc-answer", {
-          answer: peer.localDescription,
-          to: from,
-          roomId: chatId,
-        });
+        socket.emit("webrtc-answer", { answer: peer.localDescription, to: from, roomId: chatId });
       };
 
       const handleAnswer = async ({ answer, from }) => {
         log("webrtc-answer from:", from);
         const entry = getPeerEntry(from);
-        if (!entry?.peer) {
-          log("No peer entry for answer from:", from);
-          return;
-        }
-        if (entry?.makingOffer) {
-          setPeerEntry(from, { ...entry, makingOffer: false });
-        }
+        if (!entry?.peer) { log("No peer entry for answer from:", from); return; }
+        if (entry?.makingOffer) setPeerEntry(from, { ...entry, makingOffer: false });
         try {
           if (!entry.peer.remoteDescription) {
             log("setRemoteDescription (answer) for:", from);
             await entry.peer.setRemoteDescription(answer);
-
             const latest = getPeerEntry(from);
             if (latest?.pendingCandidates?.length) {
-              log(
-                `Flushing ${latest.pendingCandidates.length} pending candidates after answer for:`,
-                from
-              );
+              log(`Flushing ${latest.pendingCandidates.length} pending candidates after answer for:`, from);
               for (const candidate of latest.pendingCandidates) {
-                try {
-                  await entry.peer.addIceCandidate(candidate);
-                } catch {}
+                try { await entry.peer.addIceCandidate(candidate); } catch {}
               }
               setPeerEntry(from, { ...latest, pendingCandidates: [] });
             }
@@ -802,12 +665,7 @@ const VideoCall = forwardRef(
         log("ice-candidate from:", from);
         const entry = getPeerEntry(from);
         if (!entry) {
-          log(
-            "No peer entry yet — storing ICE candidate for:",
-            from,
-            "polite:",
-            user._id.localeCompare(from) > 0
-          );
+          log("No peer entry yet — storing ICE candidate for:", from, "polite:", user._id.localeCompare(from) > 0);
           setPeerEntry(from, {
             peer: null,
             pendingCandidates: [candidate],
@@ -817,40 +675,27 @@ const VideoCall = forwardRef(
           return;
         }
         if (entry.peer?.remoteDescription) {
-          try {
-            await entry.peer.addIceCandidate(candidate);
-          } catch {}
+          try { await entry.peer.addIceCandidate(candidate); } catch {}
         } else {
           log("Queuing ICE candidate — no remote description yet for:", from);
-          setPeerEntry(from, {
-            ...entry,
-            pendingCandidates: [...(entry.pendingCandidates || []), candidate],
-          });
+          setPeerEntry(from, { ...entry, pendingCandidates: [...(entry.pendingCandidates || []), candidate] });
         }
       };
 
       const handleUserLeft = ({ userId }) => {
         log("user-left-call:", userId);
         handleRemovePeer(userId);
+        emptyParticipantsRetryRef.current = 0;
 
-        setTimeout(() => {
-          if (
-            peersRef.current.size === 0 &&
-            socket &&
-            chatId &&
-            !cleanedUpRef.current
-          ) {
+        clearTimeout(userLeftTimerRef.current);
+        userLeftTimerRef.current = setTimeout(() => {
+          if (peersRef.current.size === 0 && socket && chatId && !cleanedUpRef.current) {
             log("All peers gone after user-left — rejoining call room");
-
-            // restore local video before rejoining
             const videoTrack = localStreamRef.current?.getVideoTracks()[0];
-            if (videoTrack && videoTrack.readyState !== "ended") {
-              if (localVideoRef.current) {
-                localVideoRef.current.srcObject = localStreamRef.current;
-                localVideoRef.current.play().catch(() => {});
-              }
+            if (videoTrack && videoTrack.readyState !== "ended" && localVideoRef.current) {
+              localVideoRef.current.srcObject = localStreamRef.current;
+              localVideoRef.current.play().catch(() => {});
             }
-
             socket.emit("join-call-room", { roomId: chatId });
           }
         }, 2000);
@@ -877,22 +722,32 @@ const VideoCall = forwardRef(
       if (cleanedUpRef.current) return;
       log("cleanup() called");
       cleanedUpRef.current = true;
+
+      clearTimeout(userLeftTimerRef.current);
+      clearInterval(cleanupRef.watchdog);
+
       knownPeerIdsRef.current.clear();
-      localStreamRef.current?.getTracks().forEach((t) => {
-        try {
-          t.stop();
-        } catch {}
-      });
+      hadConnectionRef.current = false;
+      emptyParticipantsRetryRef.current = 0;
+      pendingPeersRef.current.clear();
+
+      localStreamRef.current?.getTracks().forEach((t) => { try { t.stop(); } catch {} });
       currentDeviceIdRef.current = null;
       camerasRef.current = [];
       cameraIndexRef.current = 0;
+
       closeAllPeers();
+
       localStreamRef.current = null;
       if (localVideoRef.current) localVideoRef.current.srcObject = null;
       if (localVideoMainRef.current) localVideoMainRef.current.srcObject = null;
+
       setRemoteStreams([]);
       setSwapped(false);
       setSelectedRemoteIndex(0);
+      setConnectionFailed(false);
+      setNetworkStatus("connected");
+      setNetworkLabel("");
     };
 
     cleanupRef.current = cleanup;
@@ -911,9 +766,7 @@ const VideoCall = forwardRef(
         ...Array.from(invitedUsers),
       ]);
       if (callChat?.isGroupChat) {
-        return (callChat?.users || []).filter(
-          (u) => !alreadyInCall.has(String(u._id))
-        );
+        return (callChat?.users || []).filter((u) => !alreadyInCall.has(String(u._id)));
       }
       const allUsers = new Map();
       (chats || []).forEach((c) => {
@@ -925,16 +778,20 @@ const VideoCall = forwardRef(
     }, [callChat, chats, remoteStreams, invitedUsers, user?._id]);
 
     const handleInvite = (inviteeId) => {
-      socket.emit("invite-to-call", {
-        chatId,
-        inviteeIds: [inviteeId],
-        callType,
-      });
+      socket.emit("invite-to-call", { chatId, inviteeIds: [inviteeId], callType });
       setInvitedUsers((prev) => new Set(prev).add(inviteeId));
       setShowAddParticipant(false);
     };
 
     const isFrontCamera = facingMode === "user";
+
+    // FIX: guard against undefined cfg if networkStatus is unexpected value
+    const networkCfgMap = {
+      poor:         { bg: "bg-amber-500/90",  icon: <AlertTriangle size={11} /> },
+      reconnecting: { bg: "bg-sky-500/90",    icon: <Wifi size={11} /> },
+      offline:      { bg: "bg-rose-600/90",   icon: <WifiOff size={11} /> },
+    };
+    const networkCfg = networkCfgMap[networkStatus];
 
     return (
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
@@ -943,21 +800,18 @@ const VideoCall = forwardRef(
             <div className={`absolute inset-0 ${swapped ? "hidden" : "flex"}`}>
               {remoteStreams.length === 0 ? (
                 <div className="relative w-full h-full">
-                  <LocalVideo
-                    videoRef={localVideoRef}
-                    isFrontCamera={isFrontCamera}
-                    isVideoOff={isVideoOff}
-                  />
+                  <LocalVideo videoRef={localVideoRef} isFrontCamera={isFrontCamera} isVideoOff={isVideoOff} />
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950/60">
                     {connectionFailed ? (
                       <>
-                        <p className="text-sm font-medium text-slate-300">
-                          Unable to connect
-                        </p>
+                        <p className="text-sm font-medium text-slate-300">Unable to connect</p>
                         <button
                           onClick={() => {
                             setConnectionFailed(false);
                             hadConnectionRef.current = false;
+                            emptyParticipantsRetryRef.current = 0;
+                            // FIX: restart watchdog on retry
+                            startWatchdog({ cleanedUpRef, peersRef, setConnectionFailed, socket, chatId, cleanupRef });
                             socket.emit("join-call-room", { roomId: chatId });
                           }}
                           className="text-xs font-semibold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 px-4 py-2 rounded-lg transition-colors"
@@ -968,22 +822,15 @@ const VideoCall = forwardRef(
                     ) : (
                       <>
                         <div className="w-10 h-10 rounded-full border-2 border-sky-500/20 border-t-sky-400 animate-spin" />
-                        <p className="text-xs font-medium text-slate-400 tracking-wide">
-                          Connecting…
-                        </p>
+                        <p className="text-xs font-medium text-slate-400 tracking-wide">Connecting…</p>
                       </>
                     )}
                   </div>
                 </div>
               ) : remoteStreams.length === 1 ? (
-                <div
-                  className="relative w-full h-full cursor-pointer"
-                  onClick={() => canSwap && setSwapped(true)}
-                >
+                <div className="relative w-full h-full cursor-pointer" onClick={() => canSwap && setSwapped(true)}>
                   <RemoteVideo stream={remoteStreams[0].stream} />
-                  <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">
-                    {remoteStreams[0].fName}
-                  </span>
+                  <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">{remoteStreams[0].fName}</span>
                   {remoteStreams[0].isMuted && (
                     <span className="absolute bottom-3 right-3 z-10 bg-black/70 backdrop-blur-md p-1.5 rounded-full border border-white/10">
                       <MicOff size={14} className="text-white" />
@@ -991,32 +838,11 @@ const VideoCall = forwardRef(
                   )}
                 </div>
               ) : (
-                <div
-                  className={`w-full h-full p-1 grid gap-1 ${
-                    remoteStreams.length === 2
-                      ? "grid-cols-2"
-                      : remoteStreams.length === 3
-                      ? "grid-cols-2 grid-rows-2"
-                      : remoteStreams.length === 4
-                      ? "grid-cols-2 grid-rows-2"
-                      : remoteStreams.length <= 6
-                      ? "grid-cols-3 grid-rows-2"
-                      : "grid-cols-3 grid-rows-3"
-                  }`}
-                >
+                <div className={`w-full h-full p-1 grid gap-1 ${remoteStreams.length === 2 ? "grid-cols-2" : remoteStreams.length === 3 ? "grid-cols-2 grid-rows-2" : remoteStreams.length === 4 ? "grid-cols-2 grid-rows-2" : remoteStreams.length <= 6 ? "grid-cols-3 grid-rows-2" : "grid-cols-3 grid-rows-3"}`}>
                   {remoteStreams.map(({ userId, stream, name, isMuted }, i) => (
-                    <div
-                      key={userId}
-                      className={`relative overflow-hidden rounded-xl ${
-                        remoteStreams.length === 3 && i === 0
-                          ? "col-span-2"
-                          : ""
-                      }`}
-                    >
+                    <div key={userId} className={`relative overflow-hidden rounded-xl ${remoteStreams.length === 3 && i === 0 ? "col-span-2" : ""}`}>
                       <RemoteVideo stream={stream} />
-                      <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">
-                        {name}
-                      </span>
+                      <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">{name}</span>
                       {isMuted && (
                         <span className="absolute bottom-2 right-2 z-10 bg-black/70 backdrop-blur-md p-1.5 rounded-full border border-white/10">
                           <MicOff size={12} className="text-white" />
@@ -1029,14 +855,8 @@ const VideoCall = forwardRef(
             </div>
 
             <div className={`absolute inset-0 ${swapped ? "block" : "hidden"}`}>
-              <LocalVideo
-                videoRef={localVideoMainRef}
-                isFrontCamera={isFrontCamera}
-                isVideoOff={isVideoOff}
-              />
-              <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">
-                You
-              </span>
+              <LocalVideo videoRef={localVideoMainRef} isFrontCamera={isFrontCamera} isVideoOff={isVideoOff} />
+              <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">You</span>
               {isMuted && (
                 <span className="absolute bottom-3 right-3 z-10 bg-black/70 backdrop-blur-md p-1.5 rounded-full border border-white/10">
                   <MicOff size={14} className="text-white" />
@@ -1046,74 +866,41 @@ const VideoCall = forwardRef(
           </div>
         )}
 
-        {networkStatus !== "connected" &&
-          (() => {
-            const cfg = {
-              poor: {
-                bg: "bg-amber-500/90",
-                icon: <AlertTriangle size={11} />,
-              },
-              reconnecting: { bg: "bg-sky-500/90", icon: <Wifi size={11} /> },
-              offline: { bg: "bg-rose-600/90", icon: <WifiOff size={11} /> },
-            }[networkStatus];
-            return (
-              <div
-                className={`absolute top-0 left-0 right-0 z-50 flex items-center justify-center gap-1.5 py-1 ${cfg.bg} backdrop-blur-sm`}
-              >
-                <span className="text-white">{cfg.icon}</span>
-                <span className="text-[11px] font-medium text-white">
-                  {networkLabel}
-                </span>
-                {networkStatus === "reconnecting" && (
-                  <span className="w-2 h-2 rounded-full border border-white border-t-transparent animate-spin ml-1" />
-                )}
-              </div>
-            );
-          })()}
+        {networkStatus !== "connected" && networkCfg && (
+          <div className={`absolute top-0 left-0 right-0 z-50 flex items-center justify-center gap-1.5 py-1 ${networkCfg.bg} backdrop-blur-sm`}>
+            <span className="text-white">{networkCfg.icon}</span>
+            <span className="text-[11px] font-medium text-white">{networkLabel}</span>
+            {networkStatus === "reconnecting" && (
+              <span className="w-2 h-2 rounded-full border border-white border-t-transparent animate-spin ml-1" />
+            )}
+          </div>
+        )}
 
         <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pt-4 pb-8 bg-gradient-to-b from-slate-950/70 to-transparent">
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-[10px] font-semibold tracking-[1.8px] uppercase text-slate-400">
-                Live
-              </span>
+              <span className="text-[10px] font-semibold tracking-[1.8px] uppercase text-slate-400">Live</span>
             </div>
             <div className="bg-slate-900/70 border border-white/10 rounded-full px-2.5 py-1.5 backdrop-blur-md">
               <NetworkBar />
             </div>
           </div>
-
           <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
-            <span className="text-[10px] text-slate-400">
-              {remoteStreams.length + 1} participants
-            </span>
+            <span className="text-[10px] text-slate-400">{remoteStreams.length + 1} participants</span>
           </div>
         </div>
 
         {callType === "video" && (
           <div
             onClick={() => canSwap && setSwapped((p) => !p)}
-            className={`absolute top-14 right-3 z-20 w-24 h-32 sm:w-28 sm:h-40 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-900 ${
-              canSwap
-                ? "cursor-pointer active:scale-95 transition-transform"
-                : ""
-            }`}
+            className={`absolute top-14 right-3 z-20 w-24 h-32 sm:w-28 sm:h-40 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-900 ${canSwap ? "cursor-pointer active:scale-95 transition-transform" : ""}`}
           >
             {swapped ? (
-              remoteStreams[selectedRemoteIndex] && (
-                <RemoteVideo
-                  stream={remoteStreams[selectedRemoteIndex].stream}
-                />
-              )
+              remoteStreams[selectedRemoteIndex] && <RemoteVideo stream={remoteStreams[selectedRemoteIndex].stream} />
             ) : (
-              <LocalVideo
-                videoRef={localVideoRef}
-                isFrontCamera={isFrontCamera}
-                isVideoOff={isVideoOff}
-              />
+              <LocalVideo videoRef={localVideoRef} isFrontCamera={isFrontCamera} isVideoOff={isVideoOff} />
             )}
-
             {swapped
               ? remoteStreams[selectedRemoteIndex]?.isMuted && (
                   <span className="absolute bottom-2 right-2 z-10 bg-black/70 backdrop-blur-md p-1 rounded-full border border-white/10">
@@ -1125,7 +912,6 @@ const VideoCall = forwardRef(
                     <MicOff size={10} className="text-white" />
                   </span>
                 )}
-
             <span className="absolute bottom-1.5 left-0 right-0 text-center text-[9px] text-white/30 font-medium z-10">
               {swapped ? remoteStreams[selectedRemoteIndex]?.fName : "You"}
             </span>
@@ -1134,53 +920,36 @@ const VideoCall = forwardRef(
 
         {callType === "audio" && (
           <div className="flex-1 flex flex-col items-center justify-center px-4 py-6">
-            <div
-              style={{
-                position: "absolute",
-                width: 0,
-                height: 0,
-                overflow: "hidden",
-              }}
-            >
-              {remoteStreams.map((u) => (
-                <audio
-                  key={u.userId}
-                  autoPlay
-                  playsInline
-                  ref={(el) => {
-                    if (el && u.stream) {
-                      try {
-                        el.srcObject = u.stream;
-                        el.muted = false;
-                        el.volume = 1;
-                        const playPromise = el.play();
-                        if (playPromise !== undefined) {
-                          playPromise.catch(() => {
-                            setTimeout(() => {
-                              el.play().catch(() => {});
-                            }, 500);
-                          });
+            <div style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}>
+              {remoteStreams
+                .filter((u) => u && u.userId)
+                .map((u) => (
+                  <audio
+                    key={`${u.userId}-${u.stream?.id ?? "no-stream"}`}
+                    autoPlay
+                    playsInline
+                    ref={(el) => {
+                      if (el && u.stream) {
+                        try {
+                          el.srcObject = u.stream;
+                          el.muted = false;
+                          el.volume = 1;
+                          const playPromise = el.play();
+                          if (playPromise !== undefined) {
+                            playPromise.catch(() => {
+                              setTimeout(() => { el.play().catch(() => {}); }, 500);
+                            });
+                          }
+                        } catch (e) {
+                          console.warn("[AudioCall] ref error:", e);
                         }
-                      } catch (e) {
-                        console.warn("[AudioCall] ref error:", e);
                       }
-                    }
-                  }}
-                />
-              ))}
+                    }}
+                  />
+                ))}
             </div>
 
-            <div
-              className={`grid w-full gap-3 ${
-                remoteStreams.length === 0
-                  ? "grid-cols-1 max-w-[160px]"
-                  : remoteStreams.length + 1 <= 2
-                  ? "grid-cols-2 max-w-xs"
-                  : remoteStreams.length + 1 <= 4
-                  ? "grid-cols-2 max-w-sm"
-                  : "grid-cols-3 max-w-md"
-              }`}
-            >
+            <div className={`grid w-full gap-3 ${remoteStreams.length === 0 ? "grid-cols-1 max-w-[160px]" : remoteStreams.length + 1 <= 2 ? "grid-cols-2 max-w-xs" : remoteStreams.length + 1 <= 4 ? "grid-cols-2 max-w-sm" : "grid-cols-3 max-w-md"}`}>
               <ParticipantCard
                 isSelf
                 user={user}
@@ -1189,16 +958,12 @@ const VideoCall = forwardRef(
                 isSpeaking={activeSpeakerId === user?._id}
               />
               {remoteStreams
-                .filter((u) => u && u.userId) // ✅ filter invalid entries
+                .filter((u) => u && u.userId)
                 .map((u) => (
                   <ParticipantCard
                     key={u.userId}
                     color={getAvatarColor(u?.fName || u.userId)}
-                    user={{
-                      fName: u.fName || "...",
-                      lName: u.lName,
-                      avatar: u.avatar,
-                    }}
+                    user={{ fName: u.fName || "...", lName: u.lName, avatar: u.avatar }}
                     isMuted={u.isMuted}
                     isSpeaking={activeSpeakerId === u.userId}
                   />
@@ -1206,17 +971,15 @@ const VideoCall = forwardRef(
             </div>
 
             <p className="text-xs mt-6 text-slate-500 tracking-wide">
-              {remoteStreams.length === 0
-                ? connectionFailed
-                  ? "Unable to connect"
-                  : "Connecting…"
-                : "Connected"}
+              {remoteStreams.length === 0 ? (connectionFailed ? "Unable to connect" : "Connecting…") : "Connected"}
             </p>
 
             {connectionFailed && remoteStreams.length === 0 && (
               <button
                 onClick={() => {
                   setConnectionFailed(false);
+                  emptyParticipantsRetryRef.current = 0;
+                  startWatchdog({ cleanedUpRef, peersRef, setConnectionFailed, socket, chatId, cleanupRef });
                   socket.emit("join-call-room", { roomId: chatId });
                 }}
                 className="mt-3 text-xs font-semibold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 px-4 py-2 rounded-lg transition-colors"

@@ -111,50 +111,44 @@ export const useCallMedia = ({
     if (!localStreamRef.current) return;
 
     const tracks = localStreamRef.current.getAudioTracks();
-
     tracks.forEach((t) => {
       t.enabled = !t.enabled;
     });
 
     const muted = !tracks[0]?.enabled;
-
     isMutedRef.current = muted;
     setIsMuted(muted);
 
-    // ✅ update peer senders
     peersRef.current.forEach(({ peer }) => {
       const sender = peer.getSenders().find((s) => s.track?.kind === "audio");
       if (sender?.track) sender.track.enabled = !muted;
     });
 
-    // 🔥 REQUIRED (this is what you're missing)
+    // FIX: was sending chatId, backend expects roomId
     socket.emit("mute-state", {
-      chatId,
+      roomId: chatId,
       isMuted: muted,
     });
   };
 
-  // Add this function after toggleVideo
   const adaptBitrateToNetwork = () => {
     const connection =
       navigator.connection ||
       navigator.mozConnection ||
       navigator.webkitConnection;
 
-    if (!connection) return; // can't detect — do nothing
+    if (!connection) return;
 
     const { effectiveType, downlink } = connection;
-
     const isSlow =
       effectiveType === "slow-2g" || effectiveType === "2g" || downlink < 1;
     const isMedium = effectiveType === "3g" || (downlink >= 1 && downlink < 5);
 
-    // ✅ Only reduce on slow/medium network — don't touch good connections
     if (!isSlow && !isMedium) return;
 
-    const maxBitrate = isSlow ? 100_000 : 250_000; // bits/sec
+    const maxBitrate = isSlow ? 100_000 : 250_000;
     const maxFramerate = isSlow ? 10 : 20;
-    const scaleDown = isSlow ? 4 : 2; // e.g. 720p → 180p or 360p
+    const scaleDown = isSlow ? 4 : 2;
 
     peersRef.current.forEach(({ peer }) => {
       if (!peer || peer.connectionState === "closed") return;

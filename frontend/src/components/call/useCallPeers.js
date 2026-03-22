@@ -36,11 +36,7 @@ export const useCallPeers = ({
     for (const chat of chats || []) {
       const u = chat?.users?.find((usr) => String(usr._id) === String(userId));
       if (u) {
-        return {
-          fName: u.fName,
-          lName: u.lName ?? null,
-          avatar: u.avatar ?? null,
-        };
+        return { fName: u.fName, lName: u.lName ?? null, avatar: u.avatar ?? null };
       }
     }
     return { fName: userId, lName: null, avatar: null };
@@ -58,19 +54,13 @@ export const useCallPeers = ({
 
     const prevNodes = audioNodesRef.current.get(userId);
     if (prevNodes) {
-      try {
-        prevNodes.source?.disconnect();
-      } catch {}
-      try {
-        prevNodes.analyser?.disconnect();
-      } catch {}
+      try { prevNodes.source?.disconnect(); } catch {}
+      try { prevNodes.analyser?.disconnect(); } catch {}
       audioNodesRef.current.delete(userId);
     }
 
     const audioContext = getAudioContext();
-    const source = audioContext.createMediaStreamSource(
-      new MediaStream([audioTrack])
-    );
+    const source = audioContext.createMediaStreamSource(new MediaStream([audioTrack]));
     const analyser = audioContext.createAnalyser();
     analyser.fftSize = 512;
     source.connect(analyser);
@@ -110,12 +100,8 @@ export const useCallPeers = ({
 
     const nodes = audioNodesRef.current.get(userId);
     if (nodes) {
-      try {
-        nodes.source?.disconnect();
-      } catch {}
-      try {
-        nodes.analyser?.disconnect();
-      } catch {}
+      try { nodes.source?.disconnect(); } catch {}
+      try { nodes.analyser?.disconnect(); } catch {}
       audioNodesRef.current.delete(userId);
     }
 
@@ -130,7 +116,6 @@ export const useCallPeers = ({
       const existingSender = senders.find((s) => s.track?.kind === track.kind);
 
       if (existingSender) {
-        // sender exists — but replace track if it's dead or a different track
         if (
           existingSender.track?.readyState === "ended" ||
           existingSender.track?.id !== track.id
@@ -191,13 +176,15 @@ export const useCallPeers = ({
     };
 
     peer.onnegotiationneeded = async () => {
+      // FIX: guard closed peer
+      if (peer.connectionState === "closed") return;
       const entry = getPeerEntry(userId);
       if (entry?.makingOffer) return;
       if (peer.signalingState !== "stable") return;
 
       const now = Date.now();
       const lastOffer = peer._lastOfferTime || 0;
-      if (now - lastOffer < 1000) return;
+      if (now - lastOffer < 2000) return;
       peer._lastOfferTime = now;
 
       try {
@@ -224,10 +211,13 @@ export const useCallPeers = ({
       if (!incomingStream) return;
 
       const meta = getUserMeta(userId);
-      const fName = meta.fName !== userId ? meta.fName : fromName ?? userId;
+      const fName = meta.fName !== userId ? meta.fName : (fromName ?? userId);
       const { lName, avatar } = meta;
 
-      setupSpeakingDetection(userId, incomingStream);
+      // FIX: only setup speaking detection on audio track, not on every track event
+      if (e.track.kind === "audio") {
+        setupSpeakingDetection(userId, incomingStream);
+      }
 
       setRemoteStreams((prev) => {
         const exists = prev.find((s) => s.userId === userId);
@@ -235,28 +225,13 @@ export const useCallPeers = ({
           if (exists.stream === incomingStream) return prev;
           return prev.map((s) =>
             s.userId === userId
-              ? {
-                  ...s,
-                  stream: incomingStream,
-                  fName,
-                  lName,
-                  avatar,
-                  isMuted: !incomingStream.getAudioTracks()[0]?.enabled,
-                }
+              ? { ...s, stream: incomingStream, fName, lName, avatar, isMuted: !incomingStream.getAudioTracks()[0]?.enabled }
               : s
           );
         }
         return [
           ...prev,
-          {
-            userId,
-            stream: incomingStream,
-            fName,
-            lName,
-            avatar,
-            isSpeaking: false,
-            isMuted: !incomingStream.getAudioTracks()[0]?.enabled,
-          },
+          { userId, stream: incomingStream, fName, lName, avatar, isSpeaking: false, isMuted: !incomingStream.getAudioTracks()[0]?.enabled },
         ];
       });
 
@@ -264,10 +239,7 @@ export const useCallPeers = ({
     };
 
     peer.onconnectionstatechange = () => {
-      if (
-        peer.connectionState === "failed" ||
-        peer.connectionState === "closed"
-      ) {
+      if (peer.connectionState === "failed" || peer.connectionState === "closed") {
         handleRemovePeer(userId);
       }
     };
@@ -276,16 +248,12 @@ export const useCallPeers = ({
       if (peer.iceConnectionState === "disconnected") {
         setTimeout(() => {
           if (peer.iceConnectionState === "disconnected") {
-            try {
-              peer.restartIce();
-            } catch {}
+            try { peer.restartIce(); } catch {}
           }
         }, 3000);
       }
       if (peer.iceConnectionState === "failed") {
-        try {
-          peer.restartIce();
-        } catch {}
+        try { peer.restartIce(); } catch {}
       }
     };
 
@@ -315,11 +283,7 @@ export const useCallPeers = ({
       try {
         console.warn("⚠️ Peer stuck in have-local-offer — rolling back");
         await peer.setLocalDescription({ type: "rollback" });
-        setPeerEntry(userId, {
-          ...(getPeerEntry(userId) || {}),
-          makingOffer: false,
-        });
-        // re-fetch entry and peer after rollback
+        setPeerEntry(userId, { ...(getPeerEntry(userId) || {}), makingOffer: false });
         entry = getPeerEntry(userId);
         peer = entry?.peer;
         if (!peer || peer.signalingState !== "stable") return;
@@ -343,37 +307,22 @@ export const useCallPeers = ({
       return;
     }
 
-    // ✅ set makingOffer BEFORE addTracksIfNeeded
-    // so onnegotiationneeded is blocked while we manually create the offer
-    setPeerEntry(userId, {
-      ...(getPeerEntry(userId) || {}),
-      makingOffer: true,
-    });
+    setPeerEntry(userId, { ...(getPeerEntry(userId) || {}), makingOffer: true });
 
     addTracksIfNeeded(peer, stream);
 
     await new Promise((r) => setTimeout(r, 0));
 
-    // check peer is still stable after async gap
     if (peer.signalingState !== "stable") {
-      console.warn(
-        "⚠️ Peer state changed during track add:",
-        peer.signalingState
-      );
-      setPeerEntry(userId, {
-        ...(getPeerEntry(userId) || {}),
-        makingOffer: false,
-      });
+      console.warn("⚠️ Peer state changed during track add:", peer.signalingState);
+      setPeerEntry(userId, { ...(getPeerEntry(userId) || {}), makingOffer: false });
       return;
     }
 
     try {
       const offer = await peer.createOffer();
       if (peer.signalingState !== "stable") {
-        setPeerEntry(userId, {
-          ...(getPeerEntry(userId) || {}),
-          makingOffer: false,
-        });
+        setPeerEntry(userId, { ...(getPeerEntry(userId) || {}), makingOffer: false });
         return;
       }
       await peer.setLocalDescription(offer);
@@ -385,14 +334,11 @@ export const useCallPeers = ({
       });
     } catch (err) {
       console.error("❌ offer error:", err);
-      try {
-        peer.close();
-      } catch {}
+      try { peer.close(); } catch {}
       removePeer(userId);
     } finally {
       const latest = getPeerEntry(userId);
-      if (latest)
-        setPeerEntry(userId, { ...(latest || {}), makingOffer: false });
+      if (latest) setPeerEntry(userId, { ...(latest || {}), makingOffer: false });
     }
   };
 
@@ -405,18 +351,12 @@ export const useCallPeers = ({
       frames.clear();
 
       audioNodes.forEach(({ source, analyser }) => {
-        try {
-          source?.disconnect();
-        } catch {}
-        try {
-          analyser?.disconnect();
-        } catch {}
+        try { source?.disconnect(); } catch {}
+        try { analyser?.disconnect(); } catch {}
       });
       audioNodes.clear();
 
-      try {
-        sharedAudioContextRef.current?.close();
-      } catch {}
+      try { sharedAudioContextRef.current?.close(); } catch {}
     };
   }, []);
 
