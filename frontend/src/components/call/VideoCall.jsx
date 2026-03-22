@@ -761,10 +761,19 @@ const VideoCall = forwardRef(
             addTracksIfNeeded(peer, stream);
 
             try {
+              // 🚨 IMPORTANT GUARD
+              if (peer.signalingState !== "have-remote-offer") {
+                log("❌ Skipping answer — wrong state:", peer.signalingState);
+                return;
+              }
+
               await peer.setRemoteDescription(offer);
+
               const answer = await peer.createAnswer();
               await peer.setLocalDescription(answer);
+
               if (cleanedUpRef.current) return;
+
               socket.emit("webrtc-answer", {
                 answer: peer.localDescription,
                 to: from,
@@ -1050,9 +1059,7 @@ const VideoCall = forwardRef(
                   className="relative w-full h-full cursor-pointer"
                   onClick={() => canSwap && setSwapped(true)}
                 >
-                  <RemoteVideo
-                    stream={remoteStreams[0].stream}
-                  />
+                  <RemoteVideo stream={remoteStreams[0].stream} />
                   <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">
                     {remoteStreams[0].fName}
                   </span>
@@ -1085,7 +1092,7 @@ const VideoCall = forwardRef(
                           : ""
                       }`}
                     >
-                      <RemoteVideo stream={stream}  />
+                      <RemoteVideo stream={stream} />
                       <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">
                         {name}
                       </span>
