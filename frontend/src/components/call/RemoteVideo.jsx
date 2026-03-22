@@ -1,50 +1,25 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect } from "react";
 
-const RemoteVideo = ({ stream }) => {
+const RemoteVideo = ({ stream, streamId }) => {
   const videoRef = useRef(null);
-  const streamRef = useRef(stream);
-  streamRef.current = stream;
-
-  const setVideoRef = useCallback((el) => {
-    if (!el) return;
-    videoRef.current = el;
-    if (streamRef.current) {
-      el.srcObject = streamRef.current;
-      el.pause();
-      el.load();
-      el.play().catch((e) => {
-        if (e.name === "AbortError") return;
-        setTimeout(() => { el.play().catch(() => {}); }, 500);
-      });
-    }
-  }, []);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !stream) return;
 
-    video.srcObject = stream;
-    video.pause();
-    video.load();
-
-    const playPromise = video.play();
-    if (playPromise !== undefined) {
-      playPromise.catch((e) => {
-        if (e.name === "AbortError") return;
-        setTimeout(() => { video.play().catch(() => {}); }, 500);
-      });
+    // ✅ Only set srcObject
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
     }
 
-    return () => {
-      video.pause();
-      video.srcObject = null;
-    };
+    video.play().catch(() => {});
   }, [stream]);
 
   return (
     <div className="relative w-full h-full bg-slate-900 overflow-hidden">
       <video
-        ref={setVideoRef}
+        key={streamId} // ✅ now valid
+        ref={videoRef}
         autoPlay
         playsInline
         muted={false}

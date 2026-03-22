@@ -1052,7 +1052,7 @@ const VideoCall = forwardRef(
                 >
                   <RemoteVideo
                     stream={remoteStreams[0].stream}
-                    key={remoteStreams[0].stream?.id}
+                    streamId={remoteStreams[0].streamId}
                   />
                   <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">
                     {remoteStreams[0].fName}
@@ -1086,7 +1086,7 @@ const VideoCall = forwardRef(
                           : ""
                       }`}
                     >
-                      <RemoteVideo stream={stream} key={stream?.id} />
+                      <RemoteVideo stream={stream} streamId={stream?.id} />
                       <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">
                         {name}
                       </span>
@@ -1164,7 +1164,7 @@ const VideoCall = forwardRef(
             {swapped ? (
               remoteStreams[selectedRemoteIndex] && (
                 <RemoteVideo
-                  key={remoteStreams[selectedRemoteIndex]?.stream?.id}
+                  streamId={remoteStreams[selectedRemoteIndex]?.stream?.id}
                   stream={remoteStreams[selectedRemoteIndex].stream}
                 />
               )

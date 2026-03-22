@@ -246,7 +246,8 @@ export const useCallPeers = ({
           ...updated,
           {
             userId,
-            stream: new MediaStream(incomingStream.getTracks()), // 🔥 better
+            stream: new MediaStream(incomingStream.getTracks()),
+            streamId: incomingStream.id + "-" + Date.now(), // 🔥 KEY FIX
             fName,
             lName,
             avatar,
