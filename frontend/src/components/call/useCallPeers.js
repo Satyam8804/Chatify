@@ -274,10 +274,15 @@ export const useCallPeers = ({
     };
 
     peer.onconnectionstatechange = () => {
-      if (
-        peer.connectionState === "failed" ||
-        peer.connectionState === "closed"
-      ) {
+      const state = peer.connectionState;
+      console.log("Connection state:", state);
+
+      if (state === "failed") {
+        console.log("Connection failed — waiting for ICE recovery");
+        // ❌ do nothing here
+      }
+
+      if (state === "closed") {
         handleRemovePeer(userId);
       }
     };
