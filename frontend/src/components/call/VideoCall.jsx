@@ -663,7 +663,7 @@ const VideoCall = forwardRef(
         const stream = await getLocalStream();
         if (cleanedUpRef.current) return;
 
-        const peer = createPeerConnection(from, fromName);
+        let peer = createPeerConnection(from, fromName);
         if (!peer) {
           log("createPeerConnection returned null for:", from);
           return;
@@ -695,7 +695,35 @@ const VideoCall = forwardRef(
               pendingCandidates: [],
             });
           } catch (e) {
-            log("Rollback failed:", e);
+            log("Rollback failed — recreating peer fresh for:", from);
+            try {
+              peer.ontrack = null;
+              peer.onicecandidate = null;
+              peer.onconnectionstatechange = null;
+              peer.oniceconnectionstatechange = null;
+              peer.onnegotiationneeded = null;
+              peer.close();
+            } catch {}
+            removePeer(from);
+
+            peer = createPeerConnection(from, fromName);
+            if (!peer) return;
+
+            addTracksIfNeeded(peer, stream);
+
+            try {
+              await peer.setRemoteDescription(offer);
+              const answer = await peer.createAnswer();
+              await peer.setLocalDescription(answer);
+              if (cleanedUpRef.current) return;
+              socket.emit("webrtc-answer", {
+                answer: peer.localDescription,
+                to: from,
+                roomId: chatId,
+              });
+            } catch (err) {
+              log("Fresh peer offer handling failed:", err);
+            }
             return;
           }
         }
@@ -706,17 +734,18 @@ const VideoCall = forwardRef(
 
         if (cleanedUpRef.current) return;
 
-        if (entry?.pendingCandidates?.length) {
+        const latestEntry = getPeerEntry(from);
+        if (latestEntry?.pendingCandidates?.length) {
           log(
-            `Flushing ${entry.pendingCandidates.length} pending ICE candidates for:`,
+            `Flushing ${latestEntry.pendingCandidates.length} pending ICE candidates for:`,
             from
           );
-          for (const candidate of entry.pendingCandidates) {
+          for (const candidate of latestEntry.pendingCandidates) {
             try {
               await peer.addIceCandidate(candidate);
             } catch {}
           }
-          setPeerEntry(from, { ...entry, pendingCandidates: [] });
+          setPeerEntry(from, { ...latestEntry, pendingCandidates: [] });
         }
 
         const answer = await peer.createAnswer();
@@ -1120,16 +1149,20 @@ const VideoCall = forwardRef(
                   playsInline
                   ref={(el) => {
                     if (el && u.stream) {
-                      el.srcObject = u.stream;
-                      el.muted = false;
-                      el.volume = 1;
-                      const playPromise = el.play();
-                      if (playPromise !== undefined) {
-                        playPromise.catch(() => {
-                          setTimeout(() => {
-                            el.play().catch(() => {});
-                          }, 500);
-                        });
+                      try {
+                        el.srcObject = u.stream;
+                        el.muted = false;
+                        el.volume = 1;
+                        const playPromise = el.play();
+                        if (playPromise !== undefined) {
+                          playPromise.catch(() => {
+                            setTimeout(() => {
+                              el.play().catch(() => {});
+                            }, 500);
+                          });
+                        }
+                      } catch (e) {
+                        console.warn("[AudioCall] ref error:", e);
                       }
                     }
                   }}
@@ -1155,15 +1188,21 @@ const VideoCall = forwardRef(
                 color={getAvatarColor(activeSpeakerId || user?.fName)}
                 isSpeaking={activeSpeakerId === user?._id}
               />
-              {remoteStreams.map((u) => (
-                <ParticipantCard
-                  key={u.userId}
-                  color={getAvatarColor(activeSpeakerId || u?.fName)}
-                  user={{ fName: u.fName, lName: u.lName, avatar: u.avatar }}
-                  isMuted={u.isMuted}
-                  isSpeaking={activeSpeakerId === u.userId}
-                />
-              ))}
+              {remoteStreams
+                .filter((u) => u && u.userId) // ✅ filter invalid entries
+                .map((u) => (
+                  <ParticipantCard
+                    key={u.userId}
+                    color={getAvatarColor(u?.fName || u.userId)}
+                    user={{
+                      fName: u.fName || "...",
+                      lName: u.lName,
+                      avatar: u.avatar,
+                    }}
+                    isMuted={u.isMuted}
+                    isSpeaking={activeSpeakerId === u.userId}
+                  />
+                ))}
             </div>
 
             <p className="text-xs mt-6 text-slate-500 tracking-wide">
