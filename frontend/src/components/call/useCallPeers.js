@@ -273,64 +273,11 @@ export const useCallPeers = ({
       wrappedOnConnected?.();
     };
 
-    peer._isRestartingIce = false;
-
-    peer.oniceconnectionstatechange = async () => {
+    peer.oniceconnectionstatechange = () => {
       const state = peer.iceConnectionState;
       console.log("ICE state:", state);
 
-      if (
-        (state === "disconnected" || state === "failed") &&
-        !peer._isRestartingIce
-      ) {
-        peer._isRestartingIce = true;
-
-        console.log("Restarting ICE + renegotiation");
-
-        try {
-          const offer = await peer.createOffer({ iceRestart: true });
-
-          await peer.setLocalDescription(offer);
-
-          socket.emit("webrtc-offer", {
-            offer: peer.localDescription,
-            to: userId,
-            fromName: user?.fName,
-            roomId: chatId,
-          });
-        } catch (err) {
-          console.warn("ICE restart offer failed:", err);
-        }
-
-        // 🔥 reset after some time
-        setTimeout(() => {
-          peer._isRestartingIce = false;
-        }, 5000);
-      }
-    };
-
-    peer.oniceconnectionstatechange = async () => {
-      const state = peer.iceConnectionState;
-      console.log("ICE state:", state);
-
-      if (state === "disconnected" || state === "failed") {
-        console.log("Restarting ICE + renegotiation");
-
-        try {
-          const offer = await peer.createOffer({ iceRestart: true });
-
-          await peer.setLocalDescription(offer);
-
-          socket.emit("webrtc-offer", {
-            offer: peer.localDescription,
-            to: userId,
-            fromName: user?.fName,
-            roomId: chatId,
-          });
-        } catch (err) {
-          console.warn("ICE restart offer failed:", err);
-        }
-      }
+      // ❌ DO NOTHING HERE
     };
 
     return peer;
