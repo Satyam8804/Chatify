@@ -5,8 +5,15 @@ const RemoteVideo = ({ stream }) => {
 
   useEffect(() => {
     if (!ref.current || !stream) return;
-    if (ref.current.srcObject !== stream) ref.current.srcObject = stream;
-    ref.current.play().catch(() => {});
+
+    ref.current.srcObject = stream; // always reassign, don't skip
+
+    const playPromise = ref.current.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        setTimeout(() => { ref.current?.play().catch(() => {}); }, 500);
+      });
+    }
   }, [stream]);
 
   return (
@@ -15,6 +22,7 @@ const RemoteVideo = ({ stream }) => {
         ref={ref}
         autoPlay
         playsInline
+        muted={false}
         className="w-full h-full object-contain transform-gpu"
       />
     </div>
