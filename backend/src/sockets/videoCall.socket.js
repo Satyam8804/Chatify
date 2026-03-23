@@ -193,13 +193,4 @@ export const videoCallSocket = (io, socket) => {
     });
   });
 
-  socket.on("leave-call-room", ({ roomId }) => {
-    if (!roomId) return;
-
-    socket.leave(roomId);
-
-    socket.to(roomId).emit("user-left-call", {
-      userId: socket.userId,
-    });
-  });
 };

@@ -261,57 +261,66 @@ export const useCallPeers = ({
       wrappedOnConnected?.();
     };
 
-    peer.oniceconnectionstatechange = async () => {
+    peer.oniceconnectionstatechange = () => {
       const state = peer.iceConnectionState;
       console.log("ICE state:", state);
 
-      // ✅ When connection is back → re-apply bitrate
-      if (state === "connected") {
-        console.log("✅ ICE connected — applying bitrate tuning");
+      if (state === "connected") return;
 
-        try {
-          adaptBitrateToNetwork?.();
-        } catch (e) {
-          console.warn("Bitrate adaptation failed:", e);
-        }
-
-        return;
-      }
-
-      // ✅ Ignore temporary network fluctuation
       if (state === "disconnected") {
-        console.log("⚠️ ICE disconnected — temporary, waiting...");
-        return;
+        clearTimeout(peer._disconnectTimer);
+
+        peer._disconnectTimer = setTimeout(async () => {
+          if (peer.iceConnectionState === "disconnected") {
+            console.log("🔄 Restart ICE (disconnected)");
+
+            try {
+              if (peer.signalingState !== "stable") {
+                try {
+                  await peer.setLocalDescription({ type: "rollback" });
+                } catch {}
+              }
+
+              const offer = await peer.createOffer({ iceRestart: true });
+              await peer.setLocalDescription(offer);
+
+              socket.emit("webrtc-offer", {
+                offer: peer.localDescription,
+                to: userId,
+                fromName: user?.fName,
+                roomId: chatId,
+              });
+            } catch (e) {
+              console.warn("ICE restart failed:", e);
+            }
+          }
+        }, 3000);
       }
 
       if (state === "failed") {
-        console.log("🔄 ICE failed — forcing restart");
+        console.log("🔄 Restart ICE (failed)");
 
-        try {
-          // ✅ FORCE reset if stuck
-          if (peer.signalingState !== "stable") {
-            console.log("⚠️ Forcing rollback before ICE restart");
-
-            try {
-              await peer.setLocalDescription({ type: "rollback" });
-            } catch (e) {
-              console.warn("Rollback failed:", e);
+        (async () => {
+          try {
+            if (peer.signalingState !== "stable") {
+              try {
+                await peer.setLocalDescription({ type: "rollback" });
+              } catch {}
             }
+
+            const offer = await peer.createOffer({ iceRestart: true });
+            await peer.setLocalDescription(offer);
+
+            socket.emit("webrtc-offer", {
+              offer: peer.localDescription,
+              to: userId,
+              fromName: user?.fName,
+              roomId: chatId,
+            });
+          } catch (e) {
+            console.warn("ICE restart failed:", e);
           }
-
-          const offer = await peer.createOffer({ iceRestart: true });
-
-          await peer.setLocalDescription(offer);
-
-          socket.emit("webrtc-offer", {
-            offer: peer.localDescription,
-            to: userId,
-            fromName: user?.fName,
-            roomId: chatId,
-          });
-        } catch (e) {
-          console.warn("ICE restart failed:", e);
-        }
+        })();
       }
     };
 

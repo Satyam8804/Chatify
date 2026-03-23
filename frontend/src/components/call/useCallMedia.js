@@ -77,19 +77,36 @@ export const useCallMedia = ({
 
       const isAudio = callType === "audio";
 
+      const videoConstraints = isAudio ? false : getVideoConstraints();
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: isAudio ? false : getVideoConstraints(),
+        video: videoConstraints,
       });
 
+      // 🔥 APPLY CONSTRAINTS (IMPORTANT)
       if (!isAudio) {
         const videoTrack = stream.getVideoTracks()[0];
-        currentDeviceIdRef.current =
-          videoTrack?.getSettings()?.deviceId ?? null;
+
+        if (videoTrack && videoConstraints) {
+          try {
+            await videoTrack.applyConstraints({
+              width: videoConstraints.width,
+              height: videoConstraints.height,
+              frameRate: videoConstraints.frameRate,
+            });
+          } catch (e) {
+            console.warn("applyConstraints failed:", e);
+          }
+
+          currentDeviceIdRef.current =
+            videoTrack.getSettings()?.deviceId ?? null;
+        }
       }
 
       localStreamRef.current = stream;
 
+      // UI attach
       if (!isAudio) {
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
