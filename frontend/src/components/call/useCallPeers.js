@@ -284,17 +284,19 @@ export const useCallPeers = ({
         return;
       }
 
-      // ❌ DO NOT handle "checking" / "new" → let WebRTC do its job
-
-      // ✅ Only restart when truly failed
       if (state === "failed") {
-        console.log("🔄 ICE failed — restarting with renegotiation");
+        console.log("🔄 ICE failed — forcing restart");
 
         try {
-          // 🔥 VERY IMPORTANT GUARD
+          // ✅ FORCE reset if stuck
           if (peer.signalingState !== "stable") {
-            console.log("Skip ICE restart — not stable:", peer.signalingState);
-            return;
+            console.log("⚠️ Forcing rollback before ICE restart");
+
+            try {
+              await peer.setLocalDescription({ type: "rollback" });
+            } catch (e) {
+              console.warn("Rollback failed:", e);
+            }
           }
 
           const offer = await peer.createOffer({ iceRestart: true });
@@ -303,7 +305,7 @@ export const useCallPeers = ({
 
           socket.emit("webrtc-offer", {
             offer: peer.localDescription,
-            to: userId, // ✅ correct peer id
+            to: userId,
             fromName: user?.fName,
             roomId: chatId,
           });
