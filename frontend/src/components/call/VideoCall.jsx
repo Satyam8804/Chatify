@@ -251,7 +251,6 @@ const VideoCall = forwardRef(
       callType,
       socket,
       chatId,
-    
     });
 
     const {
@@ -272,7 +271,7 @@ const VideoCall = forwardRef(
       isVideoOffRef,
       setRemoteStreams,
       wrappedOnConnected,
-      adaptBitrateToNetwork
+      adaptBitrateToNetwork,
     });
 
     useEffect(() => {
@@ -1191,7 +1190,9 @@ const VideoCall = forwardRef(
                   className="relative w-full h-full cursor-pointer"
                   onClick={() => canSwap && setSwapped(true)}
                 >
-                  <RemoteVideo stream={remoteStreams[0].stream} />
+                  {remoteStreams[0]?.stream && (
+                    <RemoteVideo stream={remoteStreams[0].stream} />
+                  )}
                   <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">
                     {remoteStreams[0].fName}
                   </span>
@@ -1302,7 +1303,7 @@ const VideoCall = forwardRef(
             {swapped ? (
               remoteStreams[selectedRemoteIndex] && (
                 <RemoteVideo
-                  stream={remoteStreams[selectedRemoteIndex].stream}
+                  stream={remoteStreams[selectedRemoteIndex]?.stream}
                 />
               )
             ) : (
