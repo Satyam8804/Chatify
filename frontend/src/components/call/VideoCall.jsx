@@ -67,7 +67,9 @@ const startWatchdog = ({
       return;
     }
 
-    joinRoom();
+    if (!cleanedUpRef.current) {
+      joinRoom();
+    }
   }, 8000);
 
   cleanupRef.watchdog = watchdog;
@@ -110,6 +112,7 @@ const VideoCall = forwardRef(
     const knownPeerIdsRef = useRef(new Set());
     const emptyParticipantsRetryRef = useRef(0);
     const userLeftTimerRef = useRef(null);
+    const activeVideoRef = swapped ? localVideoMainRef : localVideoRef;
 
     const [remoteStreams, setRemoteStreams] = useState([]);
     const [isMuted, setIsMuted] = useState(false);
@@ -149,6 +152,20 @@ const VideoCall = forwardRef(
       }, 1000);
     }, [socket, chatId]);
 
+    useEffect(() => {
+      const interval = setInterval(() => {
+        const video = localVideoRef.current || localVideoMainRef.current;
+
+        if (!video) return;
+
+        if (video.paused) {
+          video.play().catch(() => {});
+        }
+      }, 4000);
+
+      return () => clearInterval(interval);
+    }, []);
+
     const wrappedOnConnected = useCallback(() => {
       hadConnectionRef.current = true;
       onConnected?.();
@@ -159,18 +176,28 @@ const VideoCall = forwardRef(
     }, [facingMode]);
 
     useEffect(() => {
-      if (swapped) {
-        if (localVideoMainRef.current && localStreamRef.current) {
-          localVideoMainRef.current.srcObject = localStreamRef.current;
-          localVideoMainRef.current.play().catch(() => {});
-        }
-      } else {
-        if (localVideoRef.current && localStreamRef.current) {
-          localVideoRef.current.srcObject = localStreamRef.current;
-          localVideoRef.current.play().catch(() => {});
-        }
+      const activeVideo = swapped
+        ? localVideoMainRef.current
+        : localVideoRef.current;
+
+      const inactiveVideo = swapped
+        ? localVideoRef.current
+        : localVideoMainRef.current;
+
+      if (!activeVideo || !localStreamRef.current) return;
+
+      // ✅ attach ONLY to active video
+      activeVideo.srcObject = localStreamRef.current;
+      activeVideo.muted = true;
+      activeVideo.playsInline = true;
+      activeVideo.autoplay = true;
+      activeVideo.play().catch(() => {});
+
+      // ❗ detach inactive video (VERY IMPORTANT)
+      if (inactiveVideo) {
+        inactiveVideo.srcObject = null;
       }
-    }, [swapped, isSwitching]);
+    }, [swapped]);
 
     useEffect(() => {
       const resumeAudio = () => {
@@ -283,27 +310,24 @@ const VideoCall = forwardRef(
       chatId,
     });
 
-    const {
-      addTracksIfNeeded,
-      createPeerConnection,
-      initiateOffer,
-    } = useCallPeers({
-      socket,
-      user,
-      chatId,
-      chats,
-      getLocalStream,
-      getOrCreatePeer,
-      getPeerEntry,
-      removePeer,
-      setPeerEntry,
-      isMutedRef,
-      isVideoOffRef,
-      setRemoteStreams,
-      wrappedOnConnected,
-      adaptBitrateToNetwork,
-      peersRef
-    });
+    const { addTracksIfNeeded, createPeerConnection, initiateOffer } =
+      useCallPeers({
+        socket,
+        user,
+        chatId,
+        chats,
+        getLocalStream,
+        getOrCreatePeer,
+        getPeerEntry,
+        removePeer,
+        setPeerEntry,
+        isMutedRef,
+        isVideoOffRef,
+        setRemoteStreams,
+        wrappedOnConnected,
+        adaptBitrateToNetwork,
+        peersRef,
+      });
 
     useEffect(() => {
       if (!socket || !chatId) return;
@@ -443,7 +467,9 @@ const VideoCall = forwardRef(
                 .catch((e) => log("applyConstraints failed:", e));
             }
 
-            adaptBitrateToNetwork();
+            if (networkStatus !== "poor") {
+              adaptBitrateToNetwork();
+            }
 
             peersRef.current.forEach(({ peer }, uid) => {
               if (!peer) return;
@@ -468,7 +494,9 @@ const VideoCall = forwardRef(
           );
 
           if (allGone) {
-            console.log("All peers gone — waiting for ICE recovery (no rejoin)");
+            console.log(
+              "All peers gone — waiting for ICE recovery (no rejoin)"
+            );
           }
         };
 
@@ -519,7 +547,7 @@ const VideoCall = forwardRef(
 
         pendingPeersRef.current.add(userId);
         try {
-          await initiateOffer(userId, getLocalStream);
+          await initiateOffer(userId);
         } finally {
           pendingPeersRef.current.delete(userId);
         }
@@ -699,7 +727,7 @@ const VideoCall = forwardRef(
           }
 
           log("Initiating offer to existing participant:", userId);
-          await initiateOffer(userId, getLocalStream);
+          await initiateOffer(userId);
         }
 
         emptyParticipantsRetryRef.current = 0;
@@ -724,7 +752,7 @@ const VideoCall = forwardRef(
         const stream = await getLocalStream();
         if (cleanedUpRef.current) return;
 
-        let peer = createPeerConnection(from, fromName);
+        let peer = createPeerConnection(from);
         if (!peer) return;
 
         let entry = getPeerEntry(from);
@@ -757,7 +785,7 @@ const VideoCall = forwardRef(
 
             removePeer(from);
 
-            peer = createPeerConnection(from, fromName);
+            peer = createPeerConnection(from);
             if (!peer) return;
           }
         }
@@ -900,7 +928,9 @@ const VideoCall = forwardRef(
       cleanedUpRef.current = true;
 
       clearTimeout(userLeftTimerRef.current);
-      clearInterval(cleanupRef.watchdog);
+      if (cleanupRef.watchdog) {
+        clearInterval(cleanupRef.watchdog);
+      }
 
       knownPeerIdsRef.current.clear();
       hadConnectionRef.current = false;

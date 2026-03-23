@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useCallback } from "react";
 
 export const useCallPeers = ({
   socket,
@@ -9,17 +9,14 @@ export const useCallPeers = ({
   getOrCreatePeer,
   getPeerEntry,
   setPeerEntry,
-  peersRef,
+
   isMutedRef,
   isVideoOffRef,
   setRemoteStreams,
   wrappedOnConnected,
 }) => {
-  const reconnectTimerRef = useRef(null);
+  const lastRestartRef = useRef({});
 
-  // =========================
-  // 🧠 USER META
-  // =========================
   const getUserMeta = (userId) => {
     for (const chat of chats || []) {
       const u = chat?.users?.find((usr) => String(usr._id) === String(userId));
@@ -60,6 +57,19 @@ export const useCallPeers = ({
     async (userId, peer) => {
       if (!socket?.connected || !peer) return;
 
+      const now = Date.now();
+
+      // ✅ cooldown (VERY IMPORTANT)
+      if (
+        lastRestartRef.current[userId] &&
+        now - lastRestartRef.current[userId] < 5000
+      ) {
+        console.log("⏳ Skipping ICE restart (cooldown)");
+        return;
+      }
+
+      lastRestartRef.current[userId] = now;
+
       const entry = getPeerEntry(userId);
       if (entry?.makingOffer || entry?.restarting) return;
 
@@ -79,8 +89,8 @@ export const useCallPeers = ({
           to: userId,
           roomId: chatId,
         });
-      } catch (err) {
-        console.log("❌ ICE restart failed, forcing renegotiation");
+      } catch {
+        console.log("❌ ICE restart failed → fallback");
 
         try {
           const offer = await peer.createOffer();
@@ -135,10 +145,13 @@ export const useCallPeers = ({
       const meta = getUserMeta(userId);
 
       setRemoteStreams((prev) => {
-        const updated = prev.filter((s) => s.userId !== userId);
+        const existing = prev.find((p) => p.userId === userId);
+
+        // 🔥 prevent unnecessary re-render
+        if (existing && existing.stream === stream) return prev;
 
         return [
-          ...updated,
+          ...prev.filter((p) => p.userId !== userId),
           {
             userId,
             stream,
@@ -148,7 +161,6 @@ export const useCallPeers = ({
           },
         ];
       });
-
       wrappedOnConnected?.();
     };
 
@@ -177,7 +189,7 @@ export const useCallPeers = ({
             console.log("🔄 ICE recovery triggered");
             restartIce(userId, peer);
           }
-        }, 2000);
+        }, 4000);
       }
 
       if (state === "failed") {
@@ -219,7 +231,6 @@ export const useCallPeers = ({
       }
     }
   };
-
 
   return {
     createPeerConnection,

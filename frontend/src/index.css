@@ -85,3 +85,9 @@ body {
 .dark .shimmer {
   background: linear-gradient(90deg, #1e293b 25%, #334155 37%, #1e293b 63%);
 }
+
+video {
+  transform: translateZ(0);
+  background: black;
+  will-change: transform;
+}

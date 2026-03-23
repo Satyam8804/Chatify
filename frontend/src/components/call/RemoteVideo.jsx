@@ -7,15 +7,37 @@ const RemoteVideo = ({ stream }) => {
     const video = videoRef.current;
     if (!video || !stream) return;
 
+    // ✅ avoid reassigning same stream
     if (video.srcObject !== stream) {
       video.srcObject = stream;
     }
 
-    video.play().catch(() => {});
+    // ✅ ensure playback starts only when ready
+    const handleLoaded = () => {
+      if (video.paused) {
+        video.play().catch(() => {});
+      }
+    };
+
+    video.onloadedmetadata = handleLoaded;
+
+    // fallback (some browsers skip event)
+    if (video.readyState >= 2 && video.paused) {
+      video.play().catch(() => {});
+    }
+
+    return () => {
+      // 🔥 cleanup (IMPORTANT)
+      video.onloadedmetadata = null;
+
+      if (video.srcObject === stream) {
+        video.srcObject = null;
+      }
+    };
   }, [stream]);
 
   return (
-    <div className="relative w-full h-full bg-slate-900 overflow-hidden">
+    <div className="relative w-full h-full bg-black flex items-center justify-center">
       <video
         ref={videoRef}
         autoPlay
