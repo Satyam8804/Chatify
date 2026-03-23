@@ -29,11 +29,11 @@ const startWatchdog = ({
   cleanedUpRef,
   peersRef,
   setConnectionFailed,
-  socket,
-  chatId,
+  joinRoom,
   cleanupRef,
 }) => {
   clearInterval(cleanupRef.watchdog);
+
   let watchdogAttempt = 0;
   const MAX_WATCHDOG_RETRIES = 5;
 
@@ -67,7 +67,7 @@ const startWatchdog = ({
       return;
     }
 
-    socket.emit("join-call-room", { roomId: chatId });
+    joinRoom();
   }, 8000);
 
   cleanupRef.watchdog = watchdog;
@@ -80,6 +80,7 @@ const VideoCall = forwardRef(
   ) => {
     const { socket } = useSocket();
     const { user } = useAuth();
+
     const {
       peersRef,
       getOrCreatePeer,
@@ -103,6 +104,9 @@ const VideoCall = forwardRef(
     const cameraIndexRef = useRef(0);
     const cleanupRef = useRef(null);
     const hadConnectionRef = useRef(false);
+    const hasCalledRef = useRef(false);
+    const lastJoinRef = useRef(0);
+    const joinInFlightRef = useRef(false);
     const knownPeerIdsRef = useRef(new Set());
     const emptyParticipantsRetryRef = useRef(0);
     const userLeftTimerRef = useRef(null);
@@ -122,6 +126,28 @@ const VideoCall = forwardRef(
     const [networkLabel, setNetworkLabel] = useState("");
 
     const canSwap = remoteStreams.length === 1;
+
+    const safeJoinRoom = useCallback(() => {
+      if (!socket || !chatId || cleanedUpRef.current) return;
+
+      const now = Date.now();
+
+      if (joinInFlightRef.current) return;
+      if (now - lastJoinRef.current < 3000) {
+        log("🚫 join-call-room skipped (throttled)");
+        return;
+      }
+
+      lastJoinRef.current = now;
+      joinInFlightRef.current = true;
+
+      log("✅ join-call-room");
+      socket.emit("join-call-room", { roomId: chatId });
+
+      setTimeout(() => {
+        joinInFlightRef.current = false;
+      }, 1000);
+    }, [socket, chatId]);
 
     const wrappedOnConnected = useCallback(() => {
       hadConnectionRef.current = true;
@@ -155,8 +181,10 @@ const VideoCall = forwardRef(
           if (ctx.state === "suspended") ctx.resume();
         } catch {}
       };
+
       document.addEventListener("click", resumeAudio, { once: true });
       document.addEventListener("touchstart", resumeAudio, { once: true });
+
       return () => {
         document.removeEventListener("click", resumeAudio);
         document.removeEventListener("touchstart", resumeAudio);
@@ -184,8 +212,9 @@ const VideoCall = forwardRef(
                   .getSenders()
                   .find((s) => s.track?.kind === "video");
                 const newTrack = newStream?.getVideoTracks()[0];
-                if (sender && newTrack)
+                if (sender && newTrack) {
                   sender.replaceTrack(newTrack).catch(() => {});
+                }
               });
             } catch (e) {
               log("Failed to re-acquire stream after wake:", e);
@@ -193,6 +222,7 @@ const VideoCall = forwardRef(
           }
         }
       };
+
       document.addEventListener("visibilitychange", handleVisibility);
       return () =>
         document.removeEventListener("visibilitychange", handleVisibility);
@@ -254,7 +284,6 @@ const VideoCall = forwardRef(
     });
 
     const {
-      handleRemovePeer,
       addTracksIfNeeded,
       createPeerConnection,
       initiateOffer,
@@ -273,6 +302,7 @@ const VideoCall = forwardRef(
       setRemoteStreams,
       wrappedOnConnected,
       adaptBitrateToNetwork,
+      peersRef
     });
 
     useEffect(() => {
@@ -377,8 +407,9 @@ const VideoCall = forwardRef(
                   .getSenders()
                   .find((s) => s.track?.kind === "video");
                 const newTrack = newStream?.getVideoTracks()[0];
-                if (sender && newTrack)
+                if (sender && newTrack) {
                   sender.replaceTrack(newTrack).catch(() => {});
+                }
               });
             } catch (e) {
               log("Failed to re-acquire stream:", e);
@@ -437,9 +468,7 @@ const VideoCall = forwardRef(
           );
 
           if (allGone) {
-            console.log(
-              "All peers gone — waiting for ICE recovery (no rejoin)"
-            );
+            console.log("All peers gone — waiting for ICE recovery (no rejoin)");
           }
         };
 
@@ -477,7 +506,9 @@ const VideoCall = forwardRef(
       const handleUserJoinedEarly = async ({ userId }) => {
         if (cleanedUpRef.current) return;
         clearTimeout(userLeftTimerRef.current);
+
         log("user-joined-call (early handler):", userId);
+
         if (!userId || String(userId) === String(user?._id)) return;
 
         knownPeerIdsRef.current.add(userId);
@@ -529,10 +560,16 @@ const VideoCall = forwardRef(
           window.addEventListener("offline", handleOffline);
 
           log("Emitting join-call-room — chatId:", chatId);
-          socket.emit("join-call-room", { roomId: chatId });
+          safeJoinRoom();
 
-          if (initiator?.isInitiator && initiator?.receiverIds?.length) {
-            log("Caller — emitting video-call-user to:", initiator.receiverIds);
+          if (
+            initiator?.isInitiator &&
+            initiator?.receiverIds?.length &&
+            !hasCalledRef.current &&
+            socket?.connected
+          ) {
+            hasCalledRef.current = true;
+
             socket.emit("video-call-user", {
               chatId,
               receiverIds: initiator.receiverIds,
@@ -545,8 +582,7 @@ const VideoCall = forwardRef(
             cleanedUpRef,
             peersRef,
             setConnectionFailed,
-            socket,
-            chatId,
+            joinRoom: safeJoinRoom,
             cleanupRef,
           });
 
@@ -562,12 +598,16 @@ const VideoCall = forwardRef(
         clearInterval(cleanupRef.watchdog);
         clearTimeout(userLeftTimerRef.current);
         socket.off("user-joined-call", handleUserJoinedEarly);
+
         navigator.mediaDevices.removeEventListener(
           "devicechange",
           handleDeviceChange
         );
-        if (connection)
+
+        if (connection) {
           connection.removeEventListener("change", handleConnectionChange);
+        }
+
         window.removeEventListener("online", handleOnline);
         window.removeEventListener("offline", handleOffline);
 
@@ -578,10 +618,14 @@ const VideoCall = forwardRef(
         });
         localStreamRef.current = null;
 
+        hasCalledRef.current = false;
+        lastJoinRef.current = 0;
+        joinInFlightRef.current = false;
+
         socket.emit("leave-call-room", { roomId: chatId });
         closeAllPeers();
       };
-    }, [socket, chatId, callType, getLocalStream, getVideoConstraints]);
+    }, [socket, chatId]);
 
     useEffect(() => {
       if (!socket) return;
@@ -612,10 +656,10 @@ const VideoCall = forwardRef(
 
           setTimeout(() => {
             if (!cleanedUpRef.current && socket) {
-              log("Retrying join-call-room after empty participants");
-              socket.emit("join-call-room", { roomId: chatId });
+              safeJoinRoom();
             }
           }, delay);
+
           return;
         }
 
@@ -680,11 +724,13 @@ const VideoCall = forwardRef(
         const stream = await getLocalStream();
         if (cleanedUpRef.current) return;
 
-        const peer = createPeerConnection(from, fromName);
+        let peer = createPeerConnection(from, fromName);
         if (!peer) return;
 
         let entry = getPeerEntry(from);
-        if (!entry) return;
+        if (!entry) {
+          return;
+        }
 
         const offerCollision =
           entry.makingOffer || peer.signalingState !== "stable";
@@ -711,8 +757,8 @@ const VideoCall = forwardRef(
 
             removePeer(from);
 
-            const recreated = createPeerConnection(from, fromName);
-            if (!recreated) return;
+            peer = createPeerConnection(from, fromName);
+            if (!peer) return;
           }
         }
 
@@ -845,6 +891,7 @@ const VideoCall = forwardRef(
       removePeer,
       setPeerEntry,
       addTracksIfNeeded,
+      safeJoinRoom,
     ]);
 
     const cleanup = () => {
@@ -881,6 +928,10 @@ const VideoCall = forwardRef(
       setConnectionFailed(false);
       setNetworkStatus("connected");
       setNetworkLabel("");
+
+      hasCalledRef.current = false;
+      lastJoinRef.current = 0;
+      joinInFlightRef.current = false;
     };
 
     cleanupRef.current = cleanup;
@@ -898,11 +949,13 @@ const VideoCall = forwardRef(
         ...remoteStreams.map((s) => String(s.userId)),
         ...Array.from(invitedUsers),
       ]);
+
       if (callChat?.isGroupChat) {
         return (callChat?.users || []).filter(
           (u) => !alreadyInCall.has(String(u._id))
         );
       }
+
       const allUsers = new Map();
       (chats || []).forEach((c) => {
         (c.users || []).forEach((u) => {
@@ -958,11 +1011,10 @@ const VideoCall = forwardRef(
                               cleanedUpRef,
                               peersRef,
                               setConnectionFailed,
-                              socket,
-                              chatId,
+                              joinRoom: safeJoinRoom,
                               cleanupRef,
                             });
-                            socket.emit("join-call-room", { roomId: chatId });
+                            safeJoinRoom();
                           }}
                           className="text-xs font-semibold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 px-4 py-2 rounded-lg transition-colors"
                         >
@@ -1078,6 +1130,7 @@ const VideoCall = forwardRef(
               <NetworkBar />
             </div>
           </div>
+
           <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
             <span className="text-[10px] text-slate-400">
               {remoteStreams.length + 1} participants
@@ -1107,6 +1160,7 @@ const VideoCall = forwardRef(
                 isVideoOff={isVideoOff}
               />
             )}
+
             {swapped
               ? remoteStreams[selectedRemoteIndex]?.isMuted && (
                   <span className="absolute bottom-2 right-2 z-10 bg-black/70 backdrop-blur-md p-1 rounded-full border border-white/10">
@@ -1118,6 +1172,7 @@ const VideoCall = forwardRef(
                     <MicOff size={10} className="text-white" />
                   </span>
                 )}
+
             <span className="absolute bottom-1.5 left-0 right-0 text-center text-[9px] text-white/30 font-medium z-10">
               {swapped ? remoteStreams[selectedRemoteIndex]?.fName : "You"}
             </span>
@@ -1182,6 +1237,7 @@ const VideoCall = forwardRef(
                 color={getAvatarColor(activeSpeakerId || user?.fName)}
                 isSpeaking={activeSpeakerId === user?._id}
               />
+
               {remoteStreams
                 .filter((u) => u && u.userId)
                 .map((u) => (
@@ -1216,11 +1272,10 @@ const VideoCall = forwardRef(
                     cleanedUpRef,
                     peersRef,
                     setConnectionFailed,
-                    socket,
-                    chatId,
+                    joinRoom: safeJoinRoom,
                     cleanupRef,
                   });
-                  socket.emit("join-call-room", { roomId: chatId });
+                  safeJoinRoom();
                 }}
                 className="mt-3 text-xs font-semibold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 px-4 py-2 rounded-lg transition-colors"
               >
