@@ -420,11 +420,10 @@ const VideoCall = forwardRef(
                 `Peer ${uid} — iceState: ${peer.iceConnectionState}, connState: ${peer.connectionState}`
               );
               if (
-                peer.iceConnectionState === "disconnected" ||
                 peer.iceConnectionState === "failed" ||
                 peer.connectionState === "failed"
               ) {
-                log(`Calling restartIce() for peer: ${uid}`);
+                log(`Peer ${uid} failed — ICE restart handled in peer`);
               }
             });
           }
@@ -436,11 +435,17 @@ const VideoCall = forwardRef(
               peer.connectionState === "failed"
           );
 
-          log("allGone:", allGone, "— total peers:", peersRef.current.size);
+          console.log(
+            "allGone:",
+            allGone,
+            "— total peers:",
+            peersRef.current.size
+          );
 
-          if (allGone && socket && chatId) {
-            log("All peers gone — emitting join-call-room");
-            socket.emit("join-call-room", { roomId: chatId });
+          if (allGone) {
+            console.log(
+              "All peers gone — waiting for ICE recovery (no rejoin)"
+            );
           }
         };
 

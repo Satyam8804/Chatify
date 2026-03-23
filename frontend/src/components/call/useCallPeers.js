@@ -265,33 +265,45 @@ export const useCallPeers = ({
       const state = peer.iceConnectionState;
       console.log("ICE state:", state);
 
-      // ✅ When reconnected → re-apply bitrate
+      // ✅ When connection is back → re-apply bitrate
       if (state === "connected") {
         console.log("✅ ICE connected — applying bitrate tuning");
-        try {
-          adaptBitrateToNetwork?.(); // 🔥 ADD THIS
-        } catch {}
-      }
 
-      // ignore temporary
-      if (state === "disconnected") {
-        console.log("⚠️ ICE disconnected — waiting...");
+        try {
+          adaptBitrateToNetwork?.();
+        } catch (e) {
+          console.warn("Bitrate adaptation failed:", e);
+        }
+
         return;
       }
 
-      // restart only if failed
+      // ✅ Ignore temporary network fluctuation
+      if (state === "disconnected") {
+        console.log("⚠️ ICE disconnected — temporary, waiting...");
+        return;
+      }
+
+      // ❌ DO NOT handle "checking" / "new" → let WebRTC do its job
+
+      // ✅ Only restart when truly failed
       if (state === "failed") {
-        console.log("🔄 ICE failed — restarting");
+        console.log("🔄 ICE failed — restarting with renegotiation");
 
         try {
-          if (peer.signalingState !== "stable") return;
+          // 🔥 VERY IMPORTANT GUARD
+          if (peer.signalingState !== "stable") {
+            console.log("Skip ICE restart — not stable:", peer.signalingState);
+            return;
+          }
 
           const offer = await peer.createOffer({ iceRestart: true });
+
           await peer.setLocalDescription(offer);
 
           socket.emit("webrtc-offer", {
             offer: peer.localDescription,
-            to: userId,
+            to: userId, // ✅ correct peer id
             fromName: user?.fName,
             roomId: chatId,
           });
