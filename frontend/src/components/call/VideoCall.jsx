@@ -439,17 +439,22 @@ const VideoCall = forwardRef(
               log("Failed to re-acquire stream:", e);
             }
           } else {
-            if (localVideoRef.current && !localVideoRef.current.srcObject) {
-              localVideoRef.current.srcObject = localStreamRef.current;
-              localVideoRef.current.play().catch(() => {});
-            }
-            if (
-              localVideoMainRef.current &&
-              !localVideoMainRef.current.srcObject
-            ) {
-              localVideoMainRef.current.srcObject = localStreamRef.current;
-              localVideoMainRef.current.play().catch(() => {});
-            }
+            [localVideoRef.current, localVideoMainRef.current].forEach(
+              (video) => {
+                if (!video) return;
+
+                // ✅ ensure stream attached
+                if (!video.srcObject && localStreamRef.current) {
+                  video.srcObject = localStreamRef.current;
+                }
+
+                // 🔥 THIS IS THE REAL FIX
+                if (video.paused || video.readyState < 2) {
+                  console.log("▶️ Resuming video after network change");
+                  video.play().catch(() => {});
+                }
+              }
+            );
           }
 
           log("Peer map size:", peersRef.current.size);
@@ -498,6 +503,19 @@ const VideoCall = forwardRef(
               "All peers gone — waiting for ICE recovery (no rejoin)"
             );
           }
+
+          setTimeout(() => {
+            [localVideoRef.current, localVideoMainRef.current].forEach(
+              (video) => {
+                if (!video) return;
+
+                if (video.paused) {
+                  console.log("🔁 Retry play after network stabilize");
+                  video.play().catch(() => {});
+                }
+              }
+            );
+          }, 1000);
         };
 
         return () => {
