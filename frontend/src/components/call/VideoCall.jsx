@@ -251,6 +251,7 @@ const VideoCall = forwardRef(
       callType,
       socket,
       chatId,
+    
     });
 
     const {
@@ -271,6 +272,7 @@ const VideoCall = forwardRef(
       isVideoOffRef,
       setRemoteStreams,
       wrappedOnConnected,
+      adaptBitrateToNetwork
     });
 
     useEffect(() => {
@@ -424,11 +426,6 @@ const VideoCall = forwardRef(
                 peer.connectionState === "failed"
               ) {
                 log(`Calling restartIce() for peer: ${uid}`);
-                try {
-                  peer.restartIce();
-                } catch (e) {
-                  log("restartIce failed:", e);
-                }
               }
             });
           }

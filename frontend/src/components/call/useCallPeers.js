@@ -13,6 +13,7 @@ export const useCallPeers = ({
   isVideoOffRef,
   setRemoteStreams,
   wrappedOnConnected,
+  adaptBitrateToNetwork,
 }) => {
   const sharedAudioContextRef = useRef(null);
   const animationFramesRef = useRef(new Map());
@@ -246,7 +247,7 @@ export const useCallPeers = ({
           ...updated,
           {
             userId,
-            stream: new MediaStream(incomingStream.getTracks()),
+            stream: incomingStream,
             streamId: incomingStream.id + "-" + Date.now(), // 🔥 KEY FIX
             fName,
             lName,
@@ -264,29 +265,33 @@ export const useCallPeers = ({
       const state = peer.iceConnectionState;
       console.log("ICE state:", state);
 
-      // ✅ ignore temporary disconnect
+      // ✅ When reconnected → re-apply bitrate
+      if (state === "connected") {
+        console.log("✅ ICE connected — applying bitrate tuning");
+        try {
+          adaptBitrateToNetwork?.(); // 🔥 ADD THIS
+        } catch {}
+      }
+
+      // ignore temporary
       if (state === "disconnected") {
         console.log("⚠️ ICE disconnected — waiting...");
         return;
       }
 
-      // ✅ restart only when truly failed
+      // restart only if failed
       if (state === "failed") {
-        console.log("🔄 ICE failed — restarting with renegotiation");
+        console.log("🔄 ICE failed — restarting");
 
         try {
-          if (peer.signalingState !== "stable") {
-            console.log("Skip ICE restart — not stable:", peer.signalingState);
-            return;
-          }
+          if (peer.signalingState !== "stable") return;
 
           const offer = await peer.createOffer({ iceRestart: true });
-
           await peer.setLocalDescription(offer);
 
           socket.emit("webrtc-offer", {
             offer: peer.localDescription,
-            to: userId, // 🔥 IMPORTANT: use peer id
+            to: userId,
             fromName: user?.fName,
             roomId: chatId,
           });
