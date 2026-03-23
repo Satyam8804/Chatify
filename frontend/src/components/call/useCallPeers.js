@@ -265,38 +265,66 @@ export const useCallPeers = ({
       const state = peer.iceConnectionState;
       console.log("ICE state:", state);
 
-      if (state === "connected") return;
+      // ✅ When connected → clear all timers
+      if (state === "connected") {
+        clearTimeout(peer._disconnectTimer);
+        clearTimeout(peer._reconnectTimer);
+        return;
+      }
 
+      // 🟡 DISCONNECTED (temporary → wait + retry ICE)
       if (state === "disconnected") {
         clearTimeout(peer._disconnectTimer);
 
         peer._disconnectTimer = setTimeout(async () => {
-          if (peer.iceConnectionState === "disconnected") {
-            console.log("🔄 Restart ICE (disconnected)");
+          if (peer.iceConnectionState !== "disconnected") return;
 
-            try {
-              if (peer.signalingState !== "stable") {
-                try {
-                  await peer.setLocalDescription({ type: "rollback" });
-                } catch {}
-              }
+          console.log("🔄 Restart ICE (disconnected)");
 
-              const offer = await peer.createOffer({ iceRestart: true });
-              await peer.setLocalDescription(offer);
-
-              socket.emit("webrtc-offer", {
-                offer: peer.localDescription,
-                to: userId,
-                fromName: user?.fName,
-                roomId: chatId,
-              });
-            } catch (e) {
-              console.warn("ICE restart failed:", e);
+          try {
+            if (peer.signalingState !== "stable") {
+              try {
+                await peer.setLocalDescription({ type: "rollback" });
+              } catch {}
             }
+
+            const offer = await peer.createOffer({ iceRestart: true });
+            await peer.setLocalDescription(offer);
+
+            socket.emit("webrtc-offer", {
+              offer: peer.localDescription,
+              to: userId,
+              fromName: user?.fName,
+              roomId: chatId,
+            });
+
+            // 🔥 SAFE fallback (no duplicate timers)
+            clearTimeout(peer._reconnectTimer);
+            peer._reconnectTimer = setTimeout(() => {
+              if (peer.iceConnectionState !== "connected") {
+                console.log("🔥 ICE restart failed → full reconnect");
+
+                try {
+                  clearTimeout(peer._disconnectTimer);
+                  clearTimeout(peer._reconnectTimer);
+                  peer.close();
+                } catch {}
+
+                removePeer(userId);
+
+                socket.emit("ping-rejoin", {
+                  to: userId,
+                  chatId,
+                });
+              }
+            }, 5000);
+          } catch (e) {
+            console.warn("ICE restart failed:", e);
           }
         }, 3000);
       }
 
+      // 🔴 FAILED (direct reconnect)
       if (state === "failed") {
         console.log("🔄 Restart ICE (failed)");
 
@@ -317,6 +345,27 @@ export const useCallPeers = ({
               fromName: user?.fName,
               roomId: chatId,
             });
+
+            // 🔥 SAFE fallback
+            clearTimeout(peer._reconnectTimer);
+            peer._reconnectTimer = setTimeout(() => {
+              if (peer.iceConnectionState !== "connected") {
+                console.log("🔥 ICE failed → full reconnect");
+
+                try {
+                  clearTimeout(peer._disconnectTimer);
+                  clearTimeout(peer._reconnectTimer);
+                  peer.close();
+                } catch {}
+
+                removePeer(userId);
+
+                socket.emit("ping-rejoin", {
+                  to: userId,
+                  chatId,
+                });
+              }
+            }, 5000);
           } catch (e) {
             console.warn("ICE restart failed:", e);
           }

@@ -72,13 +72,22 @@ export const videoCallSocket = (io, socket) => {
     });
   });
 
-  socket.on("ping-rejoin", ({ to, chatId }) => {
-    if (!to) return;
-    onlineUsers.get(to)?.forEach((socketId) => {
-      io.to(socketId).emit("ping-rejoin", {
-        from: socket.userId,
-        chatId,
-      });
+  socket.on("ping-rejoin", async ({ from, chatId }) => {
+    console.log("🔄 Rejoin requested from:", from);
+
+    const stream = await getLocalStream(true); // 🔥 force new stream
+
+    const peer = createPeerConnection(from);
+
+    addTracksIfNeeded(peer, stream);
+
+    const offer = await peer.createOffer();
+    await peer.setLocalDescription(offer);
+
+    socket.emit("webrtc-offer", {
+      offer: peer.localDescription,
+      to: from,
+      roomId: chatId,
     });
   });
 
@@ -192,5 +201,4 @@ export const videoCallSocket = (io, socket) => {
       from: socket.userId,
     });
   });
-
 };
