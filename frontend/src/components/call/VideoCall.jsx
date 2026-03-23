@@ -699,302 +699,113 @@ const VideoCall = forwardRef(
         );
       };
 
-      useEffect(() => {
-        if (!socket) return;
+      const handleOffer = async ({ offer, from, fromName }) => {
+        if (cleanedUpRef.current) return;
+        if (pendingPeersRef.current.has(from)) return;
 
-        const handleExistingParticipants = async ({ participants }) => {
-          if (cleanedUpRef.current) return;
-          log("existing-participants received:", participants);
+        log("webrtc-offer from:", from, "| fromName:", fromName);
 
-          const others = participants.filter(
-            ({ userId }) => userId && String(userId) !== String(user?._id)
-          );
+        const stream = await getLocalStream();
+        if (cleanedUpRef.current) return;
 
-          if (others.length === 0) {
-            emptyParticipantsRetryRef.current += 1;
+        let peer = createPeerConnection(from, fromName);
+        if (!peer) return;
 
-            if (emptyParticipantsRetryRef.current > 10) {
-              log("Too many empty retries — stopping");
-              setConnectionFailed(true);
-              return;
-            }
+        let entry = getPeerEntry(from);
+        if (!entry) {
+          getOrCreatePeer(from);
+          entry = getPeerEntry(from);
+        }
 
-            log(
-              `existing-participants empty — retry ${emptyParticipantsRetryRef.current}/10`
-            );
+        const offerCollision =
+          entry.makingOffer || peer.signalingState !== "stable";
 
-            const isPolite = user._id.localeCompare(chatId) > 0;
-            const delay = isPolite ? 4000 : 2000;
+        log(
+          `Offer collision — makingOffer: ${entry.makingOffer}, state: ${peer.signalingState}, polite: ${entry.polite}`
+        );
 
-            setTimeout(() => {
-              if (!cleanedUpRef.current && socket) {
-                if (
-                  hadConnectionRef.current &&
-                  knownPeerIdsRef.current.size > 0
-                ) {
-                  knownPeerIdsRef.current.forEach((userId) => {
-                    log("Pinging user to rejoin:", userId);
-                    socket.emit("ping-rejoin", { to: userId, chatId });
-                  });
-                }
-                log("Retrying join-call-room after empty participants");
-                socket.emit("join-call-room", { roomId: chatId });
-              }
-            }, delay);
+        if (offerCollision) {
+          if (!entry.polite) {
+            log("Dropping offer — impolite peer");
             return;
           }
-
-          for (const { userId } of others) {
-            knownPeerIdsRef.current.add(userId);
-            const entry = getPeerEntry(userId);
-            const isHealthy =
-              entry?.peer && entry.peer.connectionState === "connected";
-
-            log(
-              `Participant ${userId} — healthy: ${isHealthy}, makingOffer: ${
-                entry?.makingOffer
-              }, pendingCandidates: ${entry?.pendingCandidates?.length ?? 0}`
-            );
-
-            if (isHealthy || entry?.makingOffer) continue;
-
-            if (entry?.pendingCandidates?.length && !entry?.peer) {
-              log(
-                `Pre-creating peer for ${userId} — has ${entry.pendingCandidates.length} pending candidates`
-              );
-              createPeerConnection(userId);
-            }
-
-            log("Initiating offer to existing participant:", userId);
-            await initiateOffer(userId, getLocalStream);
-          }
-
-          emptyParticipantsRetryRef.current = 0;
-          setConnectionFailed(false);
-          setNetworkStatus("connected");
-          setNetworkLabel("");
-        };
-
-        const handleUserMuted = ({ userId, isMuted }) => {
-          log("user-muted:", userId, isMuted);
-          setRemoteStreams((prev) =>
-            prev.map((u) => (u.userId === userId ? { ...u, isMuted } : u))
-          );
-        };
-
-        const handleOffer = async ({ offer, from, fromName }) => {
-          if (cleanedUpRef.current) return;
-          if (pendingPeersRef.current.has(from)) return;
-
-          log("webrtc-offer from:", from);
-
-          const stream = await getLocalStream();
-          if (cleanedUpRef.current) return;
-
-          let peer = createPeerConnection(from, fromName);
-          if (!peer) return;
-
-          let entry = getPeerEntry(from);
-          if (!entry) {
-            getOrCreatePeer(from);
-            entry = getPeerEntry(from);
-          }
-
-          const offerCollision =
-            entry.makingOffer || peer.signalingState !== "stable";
-
-          log(
-            `Offer collision — makingOffer: ${entry.makingOffer}, state: ${peer.signalingState}, polite: ${entry.polite}`
-          );
-
-          // 🔥 GLARE HANDLING (CLEAN)
-          if (offerCollision) {
-            if (!entry.polite) {
-              log("Dropping offer — impolite peer");
-              return;
-            }
-
-            try {
-              log("Polite rollback");
-              await peer.setLocalDescription({ type: "rollback" });
-            } catch (e) {
-              log("Rollback failed — recreating peer");
-
-              try {
-                peer.close();
-              } catch {}
-
-              removePeer(from);
-
-              peer = createPeerConnection(from, fromName);
-              if (!peer) return;
-            }
-          }
-
-          addTracksIfNeeded(peer, stream);
-
-          // ✅ IMPORTANT: only accept offer in stable state
-          if (peer.signalingState !== "stable") {
-            log("Skipping — not stable:", peer.signalingState);
-            return;
-          }
-
-          await peer.setRemoteDescription(offer);
-
-          // ✅ flush ICE
-          const latest = getPeerEntry(from);
-          if (latest?.pendingCandidates?.length) {
-            log(`Flushing ${latest.pendingCandidates.length} ICE`);
-            for (const c of latest.pendingCandidates) {
-              await peer.addIceCandidate(c).catch(() => {});
-            }
-            setPeerEntry(from, { ...latest, pendingCandidates: [] });
-          }
-
-          // ✅ CREATE ANSWER (ONLY ONCE)
-          const answer = await peer.createAnswer();
-          await peer.setLocalDescription(answer);
-
-          log("Sending answer to:", from);
-
-          if (cleanedUpRef.current) return;
-
-          socket.emit("webrtc-answer", {
-            answer: peer.localDescription,
-            to: from,
-            roomId: chatId,
-          });
-        };
-
-        const handleAnswer = async ({ answer, from }) => {
-          const entry = getPeerEntry(from);
-          if (!entry?.peer) return;
 
           try {
-            if (!entry.peer.remoteDescription) {
-              await entry.peer.setRemoteDescription(answer);
+            log("Polite rollback");
+            await peer.setLocalDescription({ type: "rollback" });
+          } catch (e) {
+            log("Rollback failed — recreating peer");
 
-              const latest = getPeerEntry(from);
-              if (latest?.pendingCandidates?.length) {
-                for (const c of latest.pendingCandidates) {
-                  await entry.peer.addIceCandidate(c).catch(() => {});
-                }
-                setPeerEntry(from, { ...latest, pendingCandidates: [] });
-              }
-            }
-          } catch (err) {
-            log("Answer apply failed:", err);
+            try {
+              peer.close();
+            } catch {}
+
+            removePeer(from);
+
+            peer = createPeerConnection(from, fromName);
+            if (!peer) return;
           }
-        };
+        }
 
-        const handleIce = async ({ candidate, from }) => {
-          if (cleanedUpRef.current) return;
+        addTracksIfNeeded(peer, stream);
 
-          const entry = getPeerEntry(from);
-
-          if (!entry) {
-            setPeerEntry(from, {
-              peer: null,
-              pendingCandidates: [candidate],
-              makingOffer: false,
-              polite: user._id.localeCompare(from) > 0,
-            });
-            return;
-          }
-
-          if (entry.peer?.remoteDescription) {
-            await entry.peer.addIceCandidate(candidate).catch(() => {});
-          } else {
-            setPeerEntry(from, {
-              ...entry,
-              pendingCandidates: [
-                ...(entry.pendingCandidates || []),
-                candidate,
-              ],
-            });
-          }
-        };
-
-        const handleUserLeft = (userId) => {
-          console.log("User maybe left:", userId);
-
-          setTimeout(() => {
-            const entry = getPeerEntry(userId);
-            if (!entry?.peer) return;
-
-            const state = entry.peer.connectionState;
-
-            if (state === "disconnected" || state === "failed") {
-              console.log("Removing peer:", userId);
-              removePeer(userId);
-            } else {
-              console.log("Recovered, not removing:", userId);
-            }
-          }, 5000); // wait 5 seconds
-        };
-
-        socket.on("existing-participants", handleExistingParticipants);
-        socket.on("webrtc-offer", handleOffer);
-        socket.on("webrtc-answer", handleAnswer);
-        socket.on("ice-candidate", handleIce);
-        socket.on("user-left-call", handleUserLeft);
-        socket.on("user-muted", handleUserMuted);
-
-        return () => {
-          socket.off("existing-participants", handleExistingParticipants);
-          socket.off("webrtc-offer", handleOffer);
-          socket.off("webrtc-answer", handleAnswer);
-          socket.off("ice-candidate", handleIce);
-          socket.off("user-left-call", handleUserLeft);
-          socket.off("user-muted", handleUserMuted);
-        };
-      }, [socket, user?._id]);
-
-      const handleAnswer = async ({ answer, from }) => {
-        log("webrtc-answer from:", from);
-        const entry = getPeerEntry(from);
-        if (!entry?.peer) {
-          log("No peer entry for answer from:", from);
+        if (peer.signalingState !== "stable") {
+          log("Skipping — not stable:", peer.signalingState);
           return;
         }
-        if (entry?.makingOffer)
-          setPeerEntry(from, { ...entry, makingOffer: false });
+
+        await peer.setRemoteDescription(offer);
+
+        const latest = getPeerEntry(from);
+        if (latest?.pendingCandidates?.length) {
+          log(`Flushing ${latest.pendingCandidates.length} ICE`);
+          for (const c of latest.pendingCandidates) {
+            await peer.addIceCandidate(c).catch(() => {});
+          }
+          setPeerEntry(from, { ...latest, pendingCandidates: [] });
+        }
+
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+
+        log("Sending answer to:", from);
+
+        if (cleanedUpRef.current) return;
+
+        socket.emit("webrtc-answer", {
+          answer: peer.localDescription,
+          to: from,
+          roomId: chatId,
+        });
+      };
+
+      const handleAnswer = async ({ answer, from }) => {
+        const entry = getPeerEntry(from);
+        if (!entry?.peer) return;
+
         try {
           if (!entry.peer.remoteDescription) {
-            log("setRemoteDescription (answer) for:", from);
             await entry.peer.setRemoteDescription(answer);
+
             const latest = getPeerEntry(from);
             if (latest?.pendingCandidates?.length) {
-              log(
-                `Flushing ${latest.pendingCandidates.length} pending candidates after answer for:`,
-                from
-              );
-              for (const candidate of latest.pendingCandidates) {
-                try {
-                  await entry.peer.addIceCandidate(candidate);
-                } catch {}
+              for (const c of latest.pendingCandidates) {
+                await entry.peer.addIceCandidate(c).catch(() => {});
               }
               setPeerEntry(from, { ...latest, pendingCandidates: [] });
             }
-          } else {
-            log("Remote description already set — skipping answer from:", from);
           }
         } catch (err) {
-          logger("[VideoCall] failed to apply answer from", from, err);
+          log("Answer apply failed:", err);
         }
       };
 
       const handleIce = async ({ candidate, from }) => {
         if (cleanedUpRef.current) return;
-        log("ice-candidate from:", from);
+
         const entry = getPeerEntry(from);
+
         if (!entry) {
-          log(
-            "No peer entry yet — storing ICE candidate for:",
-            from,
-            "polite:",
-            user._id.localeCompare(from) > 0
-          );
           setPeerEntry(from, {
             peer: null,
             pendingCandidates: [candidate],
@@ -1003,12 +814,10 @@ const VideoCall = forwardRef(
           });
           return;
         }
+
         if (entry.peer?.remoteDescription) {
-          try {
-            await entry.peer.addIceCandidate(candidate);
-          } catch {}
+          await entry.peer.addIceCandidate(candidate).catch(() => {});
         } else {
-          log("Queuing ICE candidate — no remote description yet for:", from);
           setPeerEntry(from, {
             ...entry,
             pendingCandidates: [...(entry.pendingCandidates || []), candidate],
@@ -1031,7 +840,7 @@ const VideoCall = forwardRef(
           } else {
             console.log("Recovered, not removing:", userId);
           }
-        }, 5000); // wait 5 seconds
+        }, 5000);
       };
 
       socket.on("existing-participants", handleExistingParticipants);
