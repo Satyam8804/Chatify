@@ -209,7 +209,7 @@ const VideoCall = forwardRef(
     useEffect(() => {
       if (remoteStreams.length === 0 && swapped) setSwapped(false);
       if (remoteStreams.length > 1 && swapped) setSwapped(false);
-    }, [remoteStreams.length]);
+    }, [remoteStreams.length, swapped]);
 
     useEffect(() => {
       if (remoteStreams.length > 0) setConnectionFailed(false);
@@ -263,6 +263,7 @@ const VideoCall = forwardRef(
       user,
       chatId,
       chats,
+      getLocalStream,
       getOrCreatePeer,
       getPeerEntry,
       removePeer,
@@ -286,7 +287,6 @@ const VideoCall = forwardRef(
       setInvitedUsers(new Set());
       setConnectionFailed(false);
 
-      // FIX: stop tracks on re-init (chatId change)
       localStreamRef.current?.getTracks().forEach((t) => {
         try {
           t.stop();
@@ -419,12 +419,6 @@ const VideoCall = forwardRef(
               log(
                 `Peer ${uid} — iceState: ${peer.iceConnectionState}, connState: ${peer.connectionState}`
               );
-              if (
-                peer.iceConnectionState === "failed" ||
-                peer.connectionState === "failed"
-              ) {
-                log(`Peer ${uid} failed — ICE restart handled in peer`);
-              }
             });
           }
 
@@ -480,40 +474,18 @@ const VideoCall = forwardRef(
         navigator.mozConnection ||
         navigator.webkitConnection;
 
-      const handleReconnect = async () => {
-        log("Socket reconnected — rejoining + renegotiating");
-
-        socket.emit("join-call-room", { roomId: chatId });
-
-        // 🔥 FORCE renegotiation
-        peersRef.current.forEach(async ({ peer }, userId) => {
-          if (!peer || peer.connectionState === "closed") return;
-
-          try {
-            const offer = await peer.createOffer();
-
-            await peer.setLocalDescription(offer);
-
-            socket.emit("webrtc-offer", {
-              offer: peer.localDescription,
-              to: userId,
-              fromName: user?.fName,
-              roomId: chatId,
-            });
-          } catch (err) {
-            log("Reconnect renegotiation failed:", err);
-          }
-        });
-      };
-
       const handleUserJoinedEarly = async ({ userId }) => {
         if (cleanedUpRef.current) return;
         clearTimeout(userLeftTimerRef.current);
         log("user-joined-call (early handler):", userId);
         if (!userId || String(userId) === String(user?._id)) return;
+
+        knownPeerIdsRef.current.add(userId);
+
         const existingEntry = getPeerEntry(userId);
         if (existingEntry?.peer) return;
         if (pendingPeersRef.current.has(userId)) return;
+
         pendingPeersRef.current.add(userId);
         try {
           await initiateOffer(userId, getLocalStream);
@@ -522,15 +494,7 @@ const VideoCall = forwardRef(
         }
       };
 
-      const handlePingRejoin = ({ from, chatId: pingChatId }) => {
-        if (cleanedUpRef.current) return;
-        if (pingChatId !== chatId) return;
-        log("ping-rejoin received from:", from, "— rejoining call room");
-        socket.emit("join-call-room", { roomId: chatId });
-      };
-
       socket.on("user-joined-call", handleUserJoinedEarly);
-      socket.on("ping-rejoin", handlePingRejoin);
 
       const init = async () => {
         try {
@@ -566,7 +530,6 @@ const VideoCall = forwardRef(
 
           log("Emitting join-call-room — chatId:", chatId);
           socket.emit("join-call-room", { roomId: chatId });
-          socket.on("reconnect", handleReconnect);
 
           if (initiator?.isInitiator && initiator?.receiverIds?.length) {
             log("Caller — emitting video-call-user to:", initiator.receiverIds);
@@ -598,8 +561,6 @@ const VideoCall = forwardRef(
       return () => {
         clearInterval(cleanupRef.watchdog);
         clearTimeout(userLeftTimerRef.current);
-        socket.off("ping-rejoin", handlePingRejoin);
-        socket.off("reconnect", handleReconnect);
         socket.off("user-joined-call", handleUserJoinedEarly);
         navigator.mediaDevices.removeEventListener(
           "devicechange",
@@ -609,17 +570,18 @@ const VideoCall = forwardRef(
           connection.removeEventListener("change", handleConnectionChange);
         window.removeEventListener("online", handleOnline);
         window.removeEventListener("offline", handleOffline);
-        // FIX: stop tracks on cleanup
+
         localStreamRef.current?.getTracks().forEach((t) => {
           try {
             t.stop();
           } catch {}
         });
         localStreamRef.current = null;
+
         socket.emit("leave-call-room", { roomId: chatId });
         closeAllPeers();
       };
-    }, [socket, chatId]);
+    }, [socket, chatId, callType, getLocalStream, getVideoConstraints]);
 
     useEffect(() => {
       if (!socket) return;
@@ -650,15 +612,6 @@ const VideoCall = forwardRef(
 
           setTimeout(() => {
             if (!cleanedUpRef.current && socket) {
-              if (
-                hadConnectionRef.current &&
-                knownPeerIdsRef.current.size > 0
-              ) {
-                knownPeerIdsRef.current.forEach((userId) => {
-                  log("Pinging user to rejoin:", userId);
-                  socket.emit("ping-rejoin", { to: userId, chatId });
-                });
-              }
               log("Retrying join-call-room after empty participants");
               socket.emit("join-call-room", { roomId: chatId });
             }
@@ -668,17 +621,31 @@ const VideoCall = forwardRef(
 
         for (const { userId } of others) {
           knownPeerIdsRef.current.add(userId);
+
           const entry = getPeerEntry(userId);
-          const isHealthy =
-            entry?.peer && entry.peer.connectionState === "connected";
 
           log(
-            `Participant ${userId} — healthy: ${isHealthy}, makingOffer: ${
-              entry?.makingOffer
+            `Participant ${userId} — existingPeer: ${!!entry?.peer}, state: ${
+              entry?.peer?.connectionState
+            }, makingOffer: ${entry?.makingOffer}, restarting: ${
+              entry?.restarting
             }, pendingCandidates: ${entry?.pendingCandidates?.length ?? 0}`
           );
 
-          if (isHealthy || entry?.makingOffer) continue;
+          if (entry?.peer) {
+            if (entry.peer.connectionState === "connected") {
+              continue;
+            }
+
+            if (entry.makingOffer || entry.restarting) {
+              continue;
+            }
+
+            log(
+              `Participant ${userId} already has a peer (${entry.peer.connectionState}) — waiting for ICE recovery`
+            );
+            continue;
+          }
 
           if (entry?.pendingCandidates?.length && !entry?.peer) {
             log(
@@ -713,14 +680,11 @@ const VideoCall = forwardRef(
         const stream = await getLocalStream();
         if (cleanedUpRef.current) return;
 
-        let peer = createPeerConnection(from, fromName);
+        const peer = createPeerConnection(from, fromName);
         if (!peer) return;
 
         let entry = getPeerEntry(from);
-        if (!entry) {
-          getOrCreatePeer(from);
-          entry = getPeerEntry(from);
-        }
+        if (!entry) return;
 
         const offerCollision =
           entry.makingOffer || peer.signalingState !== "stable";
@@ -747,8 +711,8 @@ const VideoCall = forwardRef(
 
             removePeer(from);
 
-            peer = createPeerConnection(from, fromName);
-            if (!peer) return;
+            const recreated = createPeerConnection(from, fromName);
+            if (!recreated) return;
           }
         }
 
@@ -789,16 +753,20 @@ const VideoCall = forwardRef(
         if (!entry?.peer) return;
 
         try {
-          if (!entry.peer.remoteDescription) {
-            await entry.peer.setRemoteDescription(answer);
+          const shouldApplyAnswer =
+            entry.peer.signalingState === "have-local-offer" ||
+            !entry.peer.remoteDescription;
 
-            const latest = getPeerEntry(from);
-            if (latest?.pendingCandidates?.length) {
-              for (const c of latest.pendingCandidates) {
-                await entry.peer.addIceCandidate(c).catch(() => {});
-              }
-              setPeerEntry(from, { ...latest, pendingCandidates: [] });
+          if (!shouldApplyAnswer) return;
+
+          await entry.peer.setRemoteDescription(answer);
+
+          const latest = getPeerEntry(from);
+          if (latest?.pendingCandidates?.length) {
+            for (const c of latest.pendingCandidates) {
+              await entry.peer.addIceCandidate(c).catch(() => {});
             }
+            setPeerEntry(from, { ...latest, pendingCandidates: [] });
           }
         } catch (err) {
           log("Answer apply failed:", err);
@@ -816,6 +784,8 @@ const VideoCall = forwardRef(
             pendingCandidates: [candidate],
             makingOffer: false,
             polite: user._id.localeCompare(from) > 0,
+            restarting: false,
+            recoveryAttempts: 0,
           });
           return;
         }
@@ -863,7 +833,19 @@ const VideoCall = forwardRef(
         socket.off("user-left-call", handleUserLeft);
         socket.off("user-muted", handleUserMuted);
       };
-    }, [socket, user?._id]);
+    }, [
+      socket,
+      user?._id,
+      user?.fName,
+      chatId,
+      createPeerConnection,
+      getLocalStream,
+      getPeerEntry,
+      initiateOffer,
+      removePeer,
+      setPeerEntry,
+      addTracksIfNeeded,
+    ]);
 
     const cleanup = () => {
       if (cleanedUpRef.current) return;
@@ -942,7 +924,6 @@ const VideoCall = forwardRef(
 
     const isFrontCamera = facingMode === "user";
 
-    // FIX: guard against undefined cfg if networkStatus is unexpected value
     const networkCfgMap = {
       poor: { bg: "bg-amber-500/90", icon: <AlertTriangle size={11} /> },
       reconnecting: { bg: "bg-sky-500/90", icon: <Wifi size={11} /> },
@@ -973,7 +954,6 @@ const VideoCall = forwardRef(
                             setConnectionFailed(false);
                             hadConnectionRef.current = false;
                             emptyParticipantsRetryRef.current = 0;
-                            // FIX: restart watchdog on retry
                             startWatchdog({
                               cleanedUpRef,
                               peersRef,

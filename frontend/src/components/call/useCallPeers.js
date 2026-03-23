@@ -1,10 +1,11 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useCallback } from "react";
 
 export const useCallPeers = ({
   socket,
   user,
   chatId,
   chats,
+  getLocalStream,
   getOrCreatePeer,
   getPeerEntry,
   setPeerEntry,
@@ -18,6 +19,8 @@ export const useCallPeers = ({
   const sharedAudioContextRef = useRef(null);
   const animationFramesRef = useRef(new Map());
   const audioNodesRef = useRef(new Map());
+  const socketWasDisconnectedRef = useRef(false);
+  const reconnectRecoveryTimerRef = useRef(null);
 
   const getAudioContext = () => {
     if (
@@ -102,6 +105,110 @@ export const useCallPeers = ({
     animationFramesRef.current.set(userId, requestAnimationFrame(detect));
   };
 
+  const clearPeerTimers = (peer) => {
+    if (!peer) return;
+    if (peer._disconnectTimer) {
+      clearTimeout(peer._disconnectTimer);
+      peer._disconnectTimer = null;
+    }
+  };
+
+  const requestIceRestart = useCallback(
+    async (userId, peer, reason = "unknown") => {
+      if (!socket?.connected) return;
+      if (!peer || peer.connectionState === "closed") return;
+
+      const entry = getPeerEntry(userId);
+      const recoveryAttempts = entry?.recoveryAttempts || 0;
+
+      if (entry?.restarting || peer._iceRestartInProgress) return;
+      if (recoveryAttempts >= 2) return;
+      if (peer.signalingState !== "stable") return;
+
+      peer._iceRestartInProgress = true;
+      clearPeerTimers(peer);
+
+      setPeerEntry(userId, {
+        ...(entry || {}),
+        peer,
+        restarting: true,
+        recoveryAttempts: recoveryAttempts + 1,
+      });
+
+      try {
+        if (typeof peer.restartIce === "function") {
+          try {
+            peer.restartIce();
+          } catch {}
+        }
+
+        const offer = await peer.createOffer({ iceRestart: true });
+        if (peer.signalingState !== "stable") return;
+
+        await peer.setLocalDescription(offer);
+
+        socket.emit("webrtc-offer", {
+          offer: peer.localDescription,
+          to: userId,
+          fromName: user?.fName,
+          roomId: chatId,
+          reason,
+        });
+      } catch (err) {
+        console.warn("[useCallPeers] ICE restart failed:", err);
+      } finally {
+        peer._iceRestartInProgress = false;
+        const latest = getPeerEntry(userId);
+        if (latest) {
+          setPeerEntry(userId, {
+            ...latest,
+            restarting: false,
+          });
+        }
+      }
+    },
+    [
+      chatId,
+      getPeerEntry,
+      setPeerEntry,
+      socket,
+      user?.fName,
+      user,
+    ]
+  );
+
+  const recoverAfterReconnect = useCallback(() => {
+    if (!socket?.connected) return;
+
+    if (chatId) {
+      socket.emit("join-call-room", { roomId: chatId });
+    }
+
+    peersRef.current.forEach((entry, userId) => {
+      const peer = entry?.peer;
+      if (!peer || peer.connectionState === "closed") return;
+
+      if (entry?.makingOffer || entry?.restarting) return;
+
+      if (
+        peer.connectionState === "connected" ||
+        peer.iceConnectionState === "connected"
+      ) {
+        return;
+      }
+
+      requestIceRestart(userId, peer, "socket-reconnect");
+    });
+
+    if (typeof adaptBitrateToNetwork === "function") {
+      setTimeout(() => {
+        try {
+          adaptBitrateToNetwork();
+        } catch {}
+      }, 250);
+    }
+  }, [adaptBitrateToNetwork, chatId, requestIceRestart, socket]);
+
   const handleRemovePeer = (userId) => {
     const frame = animationFramesRef.current.get(userId);
     if (frame) {
@@ -118,6 +225,11 @@ export const useCallPeers = ({
         nodes.analyser?.disconnect();
       } catch {}
       audioNodesRef.current.delete(userId);
+    }
+
+    const entry = getPeerEntry(userId);
+    if (entry?.peer) {
+      clearPeerTimers(entry.peer);
     }
 
     removePeer(userId);
@@ -167,6 +279,7 @@ export const useCallPeers = ({
 
     if (existing?.peer) {
       try {
+        clearPeerTimers(existing.peer);
         existing.peer.ontrack = null;
         existing.peer.onicecandidate = null;
         existing.peer.onconnectionstatechange = null;
@@ -191,10 +304,9 @@ export const useCallPeers = ({
     };
 
     peer.onnegotiationneeded = async () => {
-      // FIX: guard closed peer
       if (peer.connectionState === "closed") return;
       const entry = getPeerEntry(userId);
-      if (entry?.makingOffer) return;
+      if (entry?.makingOffer || entry?.restarting) return;
       if (peer.signalingState !== "stable") return;
 
       const now = Date.now();
@@ -224,6 +336,7 @@ export const useCallPeers = ({
     peer.ontrack = (e) => {
       const incomingStream = e.streams?.[0];
       if (!incomingStream) return;
+
       console.log(
         "🎥 ontrack fired — kind:",
         e.track.kind,
@@ -235,7 +348,6 @@ export const useCallPeers = ({
       const fName = meta.fName !== userId ? meta.fName : fromName ?? userId;
       const { lName, avatar } = meta;
 
-      // FIX: only setup speaking detection on audio track, not on every track event
       if (e.track.kind === "audio") {
         setupSpeakingDetection(userId, incomingStream);
       }
@@ -248,7 +360,7 @@ export const useCallPeers = ({
           {
             userId,
             stream: incomingStream,
-            streamId: incomingStream.id + "-" + Date.now(), // 🔥 KEY FIX
+            streamId: incomingStream.id + "-" + Date.now(),
             fName,
             lName,
             avatar,
@@ -261,138 +373,75 @@ export const useCallPeers = ({
       wrappedOnConnected?.();
     };
 
+    peer.onconnectionstatechange = () => {
+      const state = peer.connectionState;
+      console.log("Connection state:", state);
+
+      if (state === "connected") {
+        clearPeerTimers(peer);
+        const entry = getPeerEntry(userId);
+        if (entry?.restarting || entry?.recoveryAttempts) {
+          setPeerEntry(userId, {
+            ...(entry || {}),
+            restarting: false,
+            recoveryAttempts: 0,
+          });
+        }
+        return;
+      }
+
+      if (state === "failed") {
+        requestIceRestart(userId, peer, "connection-failed");
+      }
+    };
+
     peer.oniceconnectionstatechange = () => {
       const state = peer.iceConnectionState;
       console.log("ICE state:", state);
 
-      // ✅ When connected → clear all timers
       if (state === "connected") {
-        clearTimeout(peer._disconnectTimer);
-        clearTimeout(peer._reconnectTimer);
+        clearPeerTimers(peer);
+        const entry = getPeerEntry(userId);
+        if (entry?.restarting || entry?.recoveryAttempts) {
+          setPeerEntry(userId, {
+            ...(entry || {}),
+            restarting: false,
+            recoveryAttempts: 0,
+          });
+        }
+        console.log("✅ ICE connected");
         return;
       }
 
-      // 🟡 DISCONNECTED (temporary → wait + retry ICE)
       if (state === "disconnected") {
-        clearTimeout(peer._disconnectTimer);
-
+        clearPeerTimers(peer);
         peer._disconnectTimer = setTimeout(async () => {
           if (peer.iceConnectionState !== "disconnected") return;
-
-          console.log("🔄 Restart ICE (disconnected)");
-
-          try {
-            if (peer.signalingState !== "stable") {
-              try {
-                await peer.setLocalDescription({ type: "rollback" });
-              } catch {}
-            }
-
-            const offer = await peer.createOffer({ iceRestart: true });
-            await peer.setLocalDescription(offer);
-
-            socket.emit("webrtc-offer", {
-              offer: peer.localDescription,
-              to: userId,
-              fromName: user?.fName,
-              roomId: chatId,
-            });
-
-            // 🔥 SAFE fallback (no duplicate timers)
-            clearTimeout(peer._reconnectTimer);
-            peer._reconnectTimer = setTimeout(() => {
-              if (peer.iceConnectionState !== "connected") {
-                console.log("🔥 ICE restart failed → full reconnect");
-
-                try {
-                  clearTimeout(peer._disconnectTimer);
-                  clearTimeout(peer._reconnectTimer);
-                  peer.close();
-                } catch {}
-
-                removePeer(userId);
-
-                socket.emit("ping-rejoin", {
-                  to: userId,
-                  chatId,
-                });
-              }
-            }, 5000);
-          } catch (e) {
-            console.warn("ICE restart failed:", e);
-          }
-        }, 3000);
+          requestIceRestart(userId, peer, "ice-disconnected");
+        }, 4000);
       }
 
-      // 🔴 FAILED (direct reconnect)
       if (state === "failed") {
-        console.log("🔄 Restart ICE (failed)");
-
-        (async () => {
-          try {
-            if (peer.signalingState !== "stable") {
-              try {
-                await peer.setLocalDescription({ type: "rollback" });
-              } catch {}
-            }
-
-            const offer = await peer.createOffer({ iceRestart: true });
-            await peer.setLocalDescription(offer);
-
-            socket.emit("webrtc-offer", {
-              offer: peer.localDescription,
-              to: userId,
-              fromName: user?.fName,
-              roomId: chatId,
-            });
-
-            // 🔥 SAFE fallback
-            clearTimeout(peer._reconnectTimer);
-            peer._reconnectTimer = setTimeout(() => {
-              if (peer.iceConnectionState !== "connected") {
-                console.log("🔥 ICE failed → full reconnect");
-
-                try {
-                  clearTimeout(peer._disconnectTimer);
-                  clearTimeout(peer._reconnectTimer);
-                  peer.close();
-                } catch {}
-
-                removePeer(userId);
-
-                socket.emit("ping-rejoin", {
-                  to: userId,
-                  chatId,
-                });
-              }
-            }, 5000);
-          } catch (e) {
-            console.warn("ICE restart failed:", e);
-          }
-        })();
+        requestIceRestart(userId, peer, "ice-failed");
       }
     };
 
     return peer;
   };
 
-  const initiateOffer = async (userId, getLocalStream) => {
-    if (!getLocalStream) return;
+  const initiateOffer = async (userId, getLocalStreamFn) => {
+    if (!getLocalStreamFn) return;
 
     let peer = createPeerConnection(userId);
     if (!peer) return;
 
-    const stream = await getLocalStream();
+    const stream = await getLocalStreamFn();
     if (!stream || stream.getTracks().length === 0) {
       console.warn("❌ No local tracks available");
       return;
     }
 
     let entry = getPeerEntry(userId);
-    if (!entry) {
-      getOrCreatePeer(userId);
-      entry = getPeerEntry(userId);
-    }
     if (!entry) return;
 
     if (peer.signalingState === "have-local-offer") {
@@ -409,6 +458,7 @@ export const useCallPeers = ({
       } catch (e) {
         console.warn("❌ Rollback failed — closing peer");
         try {
+          clearPeerTimers(peer);
           peer.ontrack = null;
           peer.onicecandidate = null;
           peer.onconnectionstatechange = null;
@@ -429,6 +479,7 @@ export const useCallPeers = ({
     setPeerEntry(userId, {
       ...(getPeerEntry(userId) || {}),
       makingOffer: true,
+      restarting: false,
     });
 
     addTracksIfNeeded(peer, stream);
@@ -466,6 +517,7 @@ export const useCallPeers = ({
     } catch (err) {
       console.error("❌ offer error:", err);
       try {
+        clearPeerTimers(peer);
         peer.close();
       } catch {}
       removePeer(userId);
@@ -475,6 +527,34 @@ export const useCallPeers = ({
         setPeerEntry(userId, { ...(latest || {}), makingOffer: false });
     }
   };
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleConnect = () => {
+      if (!socketWasDisconnectedRef.current) return;
+
+      socketWasDisconnectedRef.current = false;
+      clearTimeout(reconnectRecoveryTimerRef.current);
+
+      reconnectRecoveryTimerRef.current = setTimeout(() => {
+        recoverAfterReconnect();
+      }, 250);
+    };
+
+    const handleDisconnect = () => {
+      socketWasDisconnectedRef.current = true;
+    };
+
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
+
+    return () => {
+      clearTimeout(reconnectRecoveryTimerRef.current);
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+    };
+  }, [socket, recoverAfterReconnect]);
 
   useEffect(() => {
     const frames = animationFramesRef.current;
