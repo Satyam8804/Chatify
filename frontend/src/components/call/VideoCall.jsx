@@ -703,121 +703,256 @@ const VideoCall = forwardRef(
         );
       };
 
-      const handleOffer = async ({ offer, from, fromName }) => {
-        if (cleanedUpRef.current) return;
-        if (pendingPeersRef.current.has(from)) return;
+      useEffect(() => {
+        if (!socket) return;
 
-        log("webrtc-offer from:", from, "| fromName:", fromName);
+        const handleExistingParticipants = async ({ participants }) => {
+          if (cleanedUpRef.current) return;
+          log("existing-participants received:", participants);
 
-        const stream = await getLocalStream();
-        if (cleanedUpRef.current) return;
-
-        let peer = createPeerConnection(from, fromName);
-        if (!peer) {
-          log("createPeerConnection returned null for:", from);
-          return;
-        }
-
-        let entry = getPeerEntry(from);
-        if (!entry) {
-          getOrCreatePeer(from);
-          entry = getPeerEntry(from);
-        }
-
-        const offerCollision =
-          entry.makingOffer || peer.signalingState !== "stable";
-        log(
-          `Offer collision check — makingOffer: ${entry.makingOffer}, signalingState: ${peer.signalingState}, polite: ${entry.polite}, collision: ${offerCollision}`
-        );
-
-        if (offerCollision) {
-          if (!entry.polite) {
-            log("Dropping offer — impolite peer");
-            return;
-          }
-          try {
-            log("Polite rollback — rolling back local offer for:", from);
-            await peer.setLocalDescription({ type: "rollback" });
-            setPeerEntry(from, {
-              ...getPeerEntry(from),
-              makingOffer: false,
-              pendingCandidates: [],
-            });
-          } catch (e) {
-            log("Rollback failed — recreating peer fresh for:", from);
-            try {
-              peer.ontrack = null;
-              peer.onicecandidate = null;
-              peer.onconnectionstatechange = null;
-              peer.oniceconnectionstatechange = null;
-              peer.onnegotiationneeded = null;
-              peer.close();
-            } catch {}
-            removePeer(from);
-
-            peer = createPeerConnection(from, fromName);
-            if (!peer) return;
-
-            addTracksIfNeeded(peer, stream);
-
-            try {
-              // 🚨 IMPORTANT GUARD
-              if (peer.signalingState !== "have-remote-offer") {
-                log("❌ Skipping answer — wrong state:", peer.signalingState);
-                return;
-              }
-
-              await peer.setRemoteDescription(offer);
-
-              const answer = await peer.createAnswer();
-              await peer.setLocalDescription(answer);
-
-              if (cleanedUpRef.current) return;
-
-              socket.emit("webrtc-answer", {
-                answer: peer.localDescription,
-                to: from,
-                roomId: chatId,
-              });
-            } catch (err) {
-              log("Fresh peer offer handling failed:", err);
-            }
-            return;
-          }
-        }
-
-        addTracksIfNeeded(peer, stream);
-        log("setRemoteDescription (offer) for:", from);
-        await peer.setRemoteDescription(offer);
-
-        if (cleanedUpRef.current) return;
-
-        const latestEntry = getPeerEntry(from);
-        if (latestEntry?.pendingCandidates?.length) {
-          log(
-            `Flushing ${latestEntry.pendingCandidates.length} pending ICE candidates for:`,
-            from
+          const others = participants.filter(
+            ({ userId }) => userId && String(userId) !== String(user?._id)
           );
-          for (const candidate of latestEntry.pendingCandidates) {
-            try {
-              await peer.addIceCandidate(candidate);
-            } catch {}
+
+          if (others.length === 0) {
+            emptyParticipantsRetryRef.current += 1;
+
+            if (emptyParticipantsRetryRef.current > 10) {
+              log("Too many empty retries — stopping");
+              setConnectionFailed(true);
+              return;
+            }
+
+            log(
+              `existing-participants empty — retry ${emptyParticipantsRetryRef.current}/10`
+            );
+
+            const isPolite = user._id.localeCompare(chatId) > 0;
+            const delay = isPolite ? 4000 : 2000;
+
+            setTimeout(() => {
+              if (!cleanedUpRef.current && socket) {
+                if (
+                  hadConnectionRef.current &&
+                  knownPeerIdsRef.current.size > 0
+                ) {
+                  knownPeerIdsRef.current.forEach((userId) => {
+                    log("Pinging user to rejoin:", userId);
+                    socket.emit("ping-rejoin", { to: userId, chatId });
+                  });
+                }
+                log("Retrying join-call-room after empty participants");
+                socket.emit("join-call-room", { roomId: chatId });
+              }
+            }, delay);
+            return;
           }
-          setPeerEntry(from, { ...latestEntry, pendingCandidates: [] });
-        }
 
-        const answer = await peer.createAnswer();
-        await peer.setLocalDescription(answer);
-        log("Sending webrtc-answer to:", from);
+          for (const { userId } of others) {
+            knownPeerIdsRef.current.add(userId);
+            const entry = getPeerEntry(userId);
+            const isHealthy =
+              entry?.peer && entry.peer.connectionState === "connected";
 
-        if (cleanedUpRef.current) return;
+            log(
+              `Participant ${userId} — healthy: ${isHealthy}, makingOffer: ${
+                entry?.makingOffer
+              }, pendingCandidates: ${entry?.pendingCandidates?.length ?? 0}`
+            );
 
-        socket.emit("webrtc-answer", {
-          answer: peer.localDescription,
-          to: from,
-          roomId: chatId,
-        });
-      };
+            if (isHealthy || entry?.makingOffer) continue;
+
+            if (entry?.pendingCandidates?.length && !entry?.peer) {
+              log(
+                `Pre-creating peer for ${userId} — has ${entry.pendingCandidates.length} pending candidates`
+              );
+              createPeerConnection(userId);
+            }
+
+            log("Initiating offer to existing participant:", userId);
+            await initiateOffer(userId, getLocalStream);
+          }
+
+          emptyParticipantsRetryRef.current = 0;
+          setConnectionFailed(false);
+          setNetworkStatus("connected");
+          setNetworkLabel("");
+        };
+
+        const handleUserMuted = ({ userId, isMuted }) => {
+          log("user-muted:", userId, isMuted);
+          setRemoteStreams((prev) =>
+            prev.map((u) => (u.userId === userId ? { ...u, isMuted } : u))
+          );
+        };
+
+        const handleOffer = async ({ offer, from, fromName }) => {
+          if (cleanedUpRef.current) return;
+          if (pendingPeersRef.current.has(from)) return;
+
+          log("webrtc-offer from:", from);
+
+          const stream = await getLocalStream();
+          if (cleanedUpRef.current) return;
+
+          let peer = createPeerConnection(from, fromName);
+          if (!peer) return;
+
+          let entry = getPeerEntry(from);
+          if (!entry) {
+            getOrCreatePeer(from);
+            entry = getPeerEntry(from);
+          }
+
+          const offerCollision =
+            entry.makingOffer || peer.signalingState !== "stable";
+
+          log(
+            `Offer collision — makingOffer: ${entry.makingOffer}, state: ${peer.signalingState}, polite: ${entry.polite}`
+          );
+
+          // 🔥 GLARE HANDLING (CLEAN)
+          if (offerCollision) {
+            if (!entry.polite) {
+              log("Dropping offer — impolite peer");
+              return;
+            }
+
+            try {
+              log("Polite rollback");
+              await peer.setLocalDescription({ type: "rollback" });
+            } catch (e) {
+              log("Rollback failed — recreating peer");
+
+              try {
+                peer.close();
+              } catch {}
+
+              removePeer(from);
+
+              peer = createPeerConnection(from, fromName);
+              if (!peer) return;
+            }
+          }
+
+          addTracksIfNeeded(peer, stream);
+
+          // ✅ IMPORTANT: only accept offer in stable state
+          if (peer.signalingState !== "stable") {
+            log("Skipping — not stable:", peer.signalingState);
+            return;
+          }
+
+          await peer.setRemoteDescription(offer);
+
+          // ✅ flush ICE
+          const latest = getPeerEntry(from);
+          if (latest?.pendingCandidates?.length) {
+            log(`Flushing ${latest.pendingCandidates.length} ICE`);
+            for (const c of latest.pendingCandidates) {
+              await peer.addIceCandidate(c).catch(() => {});
+            }
+            setPeerEntry(from, { ...latest, pendingCandidates: [] });
+          }
+
+          // ✅ CREATE ANSWER (ONLY ONCE)
+          const answer = await peer.createAnswer();
+          await peer.setLocalDescription(answer);
+
+          log("Sending answer to:", from);
+
+          if (cleanedUpRef.current) return;
+
+          socket.emit("webrtc-answer", {
+            answer: peer.localDescription,
+            to: from,
+            roomId: chatId,
+          });
+        };
+
+        const handleAnswer = async ({ answer, from }) => {
+          const entry = getPeerEntry(from);
+          if (!entry?.peer) return;
+
+          try {
+            if (!entry.peer.remoteDescription) {
+              await entry.peer.setRemoteDescription(answer);
+
+              const latest = getPeerEntry(from);
+              if (latest?.pendingCandidates?.length) {
+                for (const c of latest.pendingCandidates) {
+                  await entry.peer.addIceCandidate(c).catch(() => {});
+                }
+                setPeerEntry(from, { ...latest, pendingCandidates: [] });
+              }
+            }
+          } catch (err) {
+            log("Answer apply failed:", err);
+          }
+        };
+
+        const handleIce = async ({ candidate, from }) => {
+          if (cleanedUpRef.current) return;
+
+          const entry = getPeerEntry(from);
+
+          if (!entry) {
+            setPeerEntry(from, {
+              peer: null,
+              pendingCandidates: [candidate],
+              makingOffer: false,
+              polite: user._id.localeCompare(from) > 0,
+            });
+            return;
+          }
+
+          if (entry.peer?.remoteDescription) {
+            await entry.peer.addIceCandidate(candidate).catch(() => {});
+          } else {
+            setPeerEntry(from, {
+              ...entry,
+              pendingCandidates: [
+                ...(entry.pendingCandidates || []),
+                candidate,
+              ],
+            });
+          }
+        };
+
+        const handleUserLeft = (userId) => {
+          console.log("User maybe left:", userId);
+
+          setTimeout(() => {
+            const entry = getPeerEntry(userId);
+            if (!entry?.peer) return;
+
+            const state = entry.peer.connectionState;
+
+            if (state === "disconnected" || state === "failed") {
+              console.log("Removing peer:", userId);
+              removePeer(userId);
+            } else {
+              console.log("Recovered, not removing:", userId);
+            }
+          }, 5000); // wait 5 seconds
+        };
+
+        socket.on("existing-participants", handleExistingParticipants);
+        socket.on("webrtc-offer", handleOffer);
+        socket.on("webrtc-answer", handleAnswer);
+        socket.on("ice-candidate", handleIce);
+        socket.on("user-left-call", handleUserLeft);
+        socket.on("user-muted", handleUserMuted);
+
+        return () => {
+          socket.off("existing-participants", handleExistingParticipants);
+          socket.off("webrtc-offer", handleOffer);
+          socket.off("webrtc-answer", handleAnswer);
+          socket.off("ice-candidate", handleIce);
+          socket.off("user-left-call", handleUserLeft);
+          socket.off("user-muted", handleUserMuted);
+        };
+      }, [socket, user?._id]);
 
       const handleAnswer = async ({ answer, from }) => {
         log("webrtc-answer from:", from);

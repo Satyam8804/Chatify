@@ -260,24 +260,38 @@ export const useCallPeers = ({
       wrappedOnConnected?.();
     };
 
-    peer.oniceconnectionstatechange = () => {
+    peer.oniceconnectionstatechange = async () => {
       const state = peer.iceConnectionState;
       console.log("ICE state:", state);
 
-      // ✅ ignore temporary network change
+      // ✅ ignore temporary disconnect
       if (state === "disconnected") {
         console.log("⚠️ ICE disconnected — waiting...");
         return;
       }
 
-      // ✅ only restart when fully broken
+      // ✅ restart only when truly failed
       if (state === "failed") {
-        console.log("🔄 ICE failed — restarting ICE");
+        console.log("🔄 ICE failed — restarting with renegotiation");
 
         try {
-          peer.restartIce();
-        } catch (err) {
-          console.warn("ICE restart failed:", err);
+          if (peer.signalingState !== "stable") {
+            console.log("Skip ICE restart — not stable:", peer.signalingState);
+            return;
+          }
+
+          const offer = await peer.createOffer({ iceRestart: true });
+
+          await peer.setLocalDescription(offer);
+
+          socket.emit("webrtc-offer", {
+            offer: peer.localDescription,
+            to: userId, // 🔥 IMPORTANT: use peer id
+            fromName: user?.fName,
+            roomId: chatId,
+          });
+        } catch (e) {
+          console.warn("ICE restart failed:", e);
         }
       }
     };
