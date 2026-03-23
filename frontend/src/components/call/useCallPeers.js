@@ -264,7 +264,22 @@ export const useCallPeers = ({
       const state = peer.iceConnectionState;
       console.log("ICE state:", state);
 
-      // ❌ DO NOTHING HERE
+      // ✅ ignore temporary network change
+      if (state === "disconnected") {
+        console.log("⚠️ ICE disconnected — waiting...");
+        return;
+      }
+
+      // ✅ only restart when fully broken
+      if (state === "failed") {
+        console.log("🔄 ICE failed — restarting ICE");
+
+        try {
+          peer.restartIce();
+        } catch (err) {
+          console.warn("ICE restart failed:", err);
+        }
+      }
     };
 
     return peer;
