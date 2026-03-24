@@ -9,7 +9,7 @@ import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
 import { ThemeProvider } from "./context/themeContext";
-import AppWrapper from "./AppWrapper";
+import AppWrapper from "./utils/AppWrapper.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <BrowserRouter>
