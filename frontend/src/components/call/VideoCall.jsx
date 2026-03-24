@@ -29,8 +29,8 @@ const startWatchdog = ({
   cleanedUpRef,
   peersRef,
   setConnectionFailed,
-  joinRoom,
   cleanupRef,
+  initiateOffer, // 🔥 ADD THIS
 }) => {
   clearInterval(cleanupRef.watchdog);
 
@@ -68,7 +68,38 @@ const startWatchdog = ({
     }
 
     if (!cleanedUpRef.current) {
-      joinRoom();
+      console.log("🔧 Watchdog → fixing peers");
+
+      peersRef.current.forEach(async (entry, userId) => {
+        const peer = entry?.peer;
+        if (!peer) return;
+
+        const state = peer.connectionState;
+
+        console.log("👀 Peer:", userId, state);
+
+        // ✅ already connected
+        if (state === "connected") return;
+
+        // ⚠️ still connecting
+        if (state === "connecting") return;
+
+        try {
+          // 🔥 KEY FIX
+          if (state === "new" || state === "disconnected") {
+            console.log("🚀 Re-offer:", userId);
+            await initiateOffer(userId);
+          }
+
+          // fallback
+          if (state === "failed") {
+            console.log("🔄 Restart ICE:", userId);
+            await peer.restartIce?.();
+          }
+        } catch (e) {
+          console.log("❌ Watchdog error:", e);
+        }
+      });
     }
   }, 8000);
 
@@ -628,8 +659,8 @@ const VideoCall = forwardRef(
             cleanedUpRef,
             peersRef,
             setConnectionFailed,
-            joinRoom: safeJoinRoom,
             cleanupRef,
+            initiateOffer,
           });
 
           log("init() complete");
@@ -697,7 +728,7 @@ const VideoCall = forwardRef(
             `existing-participants empty — retry ${emptyParticipantsRetryRef.current}/10`
           );
 
-          const isPolite = user._id.localeCompare(chatId) > 0;
+          const isPolite = user._id < chatId;
           const delay = isPolite ? 4000 : 2000;
 
           setTimeout(() => {
@@ -727,7 +758,11 @@ const VideoCall = forwardRef(
               continue;
             }
 
-            if (entry.makingOffer || entry.restarting) {
+            if (
+              entry.peer.connectionState === "connecting" ||
+              entry.makingOffer ||
+              entry.restarting
+            ) {
               continue;
             }
 
@@ -738,13 +773,13 @@ const VideoCall = forwardRef(
           }
 
           if (entry?.pendingCandidates?.length && !entry?.peer) {
-            log(
+            console.log(
               `Pre-creating peer for ${userId} — has ${entry.pendingCandidates.length} pending candidates`
             );
             createPeerConnection(userId);
           }
 
-          log("Initiating offer to existing participant:", userId);
+          console.log("Initiating offer to existing participant:", userId);
           await initiateOffer(userId);
         }
 
@@ -875,7 +910,7 @@ const VideoCall = forwardRef(
             peer: null,
             pendingCandidates: [candidate],
             makingOffer: false,
-            polite: user._id.localeCompare(from) > 0,
+            polite: user._id < from,
             restarting: false,
             recoveryAttempts: 0,
           });
