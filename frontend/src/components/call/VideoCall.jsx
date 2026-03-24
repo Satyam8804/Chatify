@@ -421,15 +421,14 @@ const VideoCall = forwardRef(
             `downlink: ${connection?.downlink}`
           );
 
+          // ❌ OFFLINE HANDLING
           if (!navigator.onLine) {
             setNetworkStatus("offline");
             setNetworkLabel("Offline");
+
             if (retryCount < MAX_RETRIES) {
               retryCount++;
-              log(`Device offline — retry ${retryCount}/${MAX_RETRIES} in 3s`);
               timeout = setTimeout(attempt, 3000);
-            } else {
-              log("Max retries reached while offline");
             }
             return;
           }
@@ -438,10 +437,8 @@ const VideoCall = forwardRef(
 
           const effectiveType = connection?.effectiveType;
           const downlink = connection?.downlink;
-          log(
-            `Network stable — effectiveType: ${effectiveType}, downlink: ${downlink}`
-          );
 
+          // ✅ network status
           if (
             effectiveType === "slow-2g" ||
             effectiveType === "2g" ||
@@ -453,117 +450,66 @@ const VideoCall = forwardRef(
             setNetworkStatus("poor");
             setNetworkLabel("Weak connection");
           } else {
-            setNetworkStatus("reconnecting");
-            setNetworkLabel("Reconnecting…");
+            setNetworkStatus("connected"); // ✅ FIXED
+            setNetworkLabel("");
           }
 
-          const videoTrack = localStreamRef.current?.getVideoTracks()[0];
-          if (!videoTrack || videoTrack.readyState === "ended") {
-            log("Local video track dead — re-acquiring stream");
+          // ✅ ensure local video is playing
+          [localVideoRef.current, localVideoMainRef.current].forEach(
+            (video) => {
+              if (!video) return;
+
+              if (!video.srcObject && localStreamRef.current) {
+                video.srcObject = localStreamRef.current;
+              }
+
+              if (video.paused || video.readyState < 2) {
+                console.log("▶️ Resume video");
+                video.play().catch(() => {});
+              }
+            }
+          );
+
+          // ✅ FIX: ONLY reset video track (NO renegotiation here)
+          for (const [userId, { peer }] of peersRef.current.entries()) {
+            if (!peer) continue;
+
             try {
-              const newStream = await getLocalStream(true);
-              peersRef.current.forEach(({ peer }) => {
-                if (!peer || peer.connectionState === "closed") return;
+              const videoTrack = localStreamRef.current?.getVideoTracks()[0];
+
+              if (videoTrack) {
                 const sender = peer
                   .getSenders()
                   .find((s) => s.track?.kind === "video");
-                const newTrack = newStream?.getVideoTracks()[0];
-                if (sender && newTrack) {
-                  sender.replaceTrack(newTrack).catch(() => {});
+
+                if (sender) {
+                  console.log("🎥 Soft video refresh:", userId);
+
+                  await sender.replaceTrack(null);
+                  await new Promise((r) => setTimeout(r, 100));
+                  await sender.replaceTrack(videoTrack);
                 }
-              });
+              }
             } catch (e) {
-              log("Failed to re-acquire stream:", e);
+              console.log("❌ Soft refresh failed:", e);
             }
-          } else {
-            [localVideoRef.current, localVideoMainRef.current].forEach(
-              (video) => {
-                if (!video) return;
-
-                // ✅ ensure stream attached
-                if (!video.srcObject && localStreamRef.current) {
-                  video.srcObject = localStreamRef.current;
-                }
-
-                // 🔥 THIS IS THE REAL FIX
-                if (video.paused || video.readyState < 2) {
-                  console.log("▶️ Resuming video after network change");
-                  video.play().catch(() => {});
-                }
-              }
-            );
           }
 
-          log("Peer map size:", peersRef.current.size);
-
-          if (peersRef.current.size > 0) {
-            const track = localStreamRef.current?.getVideoTracks()[0];
-            if (track) {
-              const constraints = getVideoConstraints();
-              track
-                .applyConstraints({
-                  width: constraints.width,
-                  height: constraints.height,
-                  frameRate: constraints.frameRate,
-                })
-                .catch((e) => log("applyConstraints failed:", e));
-            }
-
-            if (networkStatus !== "poor") {
-              adaptBitrateToNetwork();
-            }
-
-            peersRef.current.forEach(async ({ peer }, userId) => {
-              if (!peer) return;
-
-              if (
-                peer.connectionState === "connected" ||
-                peer.connectionState === "connecting"
-              ) {
-                console.log("🔁 Force renegotiation:", userId);
-                await initiateOffer(userId); // ✅ CRITICAL FIX
-              }
-            });
+          // ✅ bitrate adjust only
+          if (networkStatus !== "poor") {
+            adaptBitrateToNetwork();
           }
 
-          const allGone = [...peersRef.current.values()].every(
-            ({ peer }) =>
-              !peer ||
-              peer.connectionState === "closed" ||
-              peer.connectionState === "failed"
-          );
-
-          console.log(
-            "allGone:",
-            allGone,
-            "— total peers:",
-            peersRef.current.size
-          );
-
-          if (allGone) {
-            console.log(
-              "All peers gone — waiting for ICE recovery (no rejoin)"
-            );
-          }
-
-          setTimeout(() => {
-            [localVideoRef.current, localVideoMainRef.current].forEach(
-              (video) => {
-                if (!video) return;
-
-                if (video.paused) {
-                  console.log("🔁 Retry play after network stabilize");
-                  video.play().catch(() => {});
-                }
-              }
-            );
-          }, 1000);
+          // ❌ REMOVED:
+          // - initiateOffer ❌
+          // - applyConstraints ❌
         };
 
         return () => {
           clearTimeout(timeout);
           retryCount = 0;
-          log("Network change event — waiting 3s");
+
+          console.log("🌐 Network change detected (debounced)");
           timeout = setTimeout(attempt, 3000);
         };
       })();
@@ -578,33 +524,55 @@ const VideoCall = forwardRef(
         setNetworkStatus("reconnecting");
         setNetworkLabel("Reconnecting…");
 
-        // ✅ reattach video
+        // ✅ reattach local video
         const videoTrack = localStreamRef.current?.getVideoTracks()[0];
         if (videoTrack && localVideoRef.current) {
           localVideoRef.current.srcObject = localStreamRef.current;
           localVideoRef.current.play().catch(() => {});
         }
 
-        // ✅ STEP 1: rejoin room FIRST
+        // ✅ STEP 1: rejoin signaling room
         safeJoinRoom();
 
-        // ✅ STEP 2: wait a bit, then renegotiate (IMPORTANT FIX)
-        setTimeout(() => {
-          peersRef.current.forEach(async ({ peer }, userId) => {
-            if (!peer) return;
+        // ✅ STEP 2: HARD RESET video pipeline + single renegotiation
+        setTimeout(async () => {
+          if (!socket?.connected) return;
+
+          for (const [userId, { peer }] of peersRef.current.entries()) {
+            if (!peer) continue;
 
             if (
-              peer.connectionState === "connected" ||
-              peer.connectionState === "connecting"
-            ) {
-              if (!socket?.connected) return;
-              console.log("🔁 Renegotiate after online:", userId);
-              await initiateOffer(userId);
-            }
-          });
-        }, 500); // 🔥 delay prevents race condition
+              peer.connectionState !== "connected" &&
+              peer.connectionState !== "connecting"
+            )
+              continue;
 
-        // ✅ STEP 3: run network logic AFTER
+            try {
+              const videoTrack = localStreamRef.current?.getVideoTracks()[0];
+
+              if (videoTrack) {
+                const sender = peer
+                  .getSenders()
+                  .find((s) => s.track?.kind === "video");
+
+                if (sender) {
+                  console.log("🎥 Reset video track (online):", userId);
+
+                  await sender.replaceTrack(null);
+                  await new Promise((r) => setTimeout(r, 150));
+                  await sender.replaceTrack(videoTrack);
+                }
+              }
+
+              console.log("📤 Renegotiate after online:", userId);
+              await initiateOffer(userId); // ✅ ONLY ONE PLACE
+            } catch (e) {
+              console.log("❌ Online recovery failed:", e);
+            }
+          }
+        }, 600); // ✅ safe delay
+
+        // ✅ STEP 3: run network stabilization (NO renegotiation inside)
         setTimeout(() => {
           handleConnectionChange();
         }, 300);

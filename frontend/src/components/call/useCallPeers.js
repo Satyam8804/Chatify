@@ -184,14 +184,6 @@ export const useCallPeers = ({
             sender.track.enabled = !isVideoOffRef.current;
           }
         });
-
-        // 🔥 ADD THIS (important fallback)
-        setTimeout(() => {
-          if (peer.connectionState === "connected") {
-            console.log("🔁 Post-connect renegotiation:", userId);
-            initiateOffer(userId);
-          }
-        }, 1000);
       }
 
       if (state === "failed") {
