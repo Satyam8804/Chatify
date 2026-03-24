@@ -23,15 +23,27 @@ const Avatar = ({
       {isGroup ? (
         <div
           style={{ width: size, height: size }}
-          className="grid grid-cols-2 grid-rows-2 w-full h-full rounded-full overflow-hidden"
+          className={`w-full h-full rounded-full overflow-hidden ${
+            users.length === 1
+              ? "grid grid-cols-1 grid-rows-1"
+              : users.length === 2
+              ? "grid grid-cols-2 grid-rows-1"
+              : users.length === 3
+              ? "grid grid-cols-2 grid-rows-2"
+              : "grid grid-cols-2 grid-rows-2"
+          }`}
         >
-          {users.slice(0, 4).map((u) => {
+          {users.slice(0, 4).map((u, idx) => {
             const bg = getAvatarColor(u?._id || u?.fName);
+
+            // special case for 3 users (last takes full row)
+            const extraClass =
+              users.length === 3 && idx === 2 ? "col-span-2" : "";
 
             return (
               <div
                 key={u._id}
-                className="flex items-center justify-center text-white text-[10px] font-semibold overflow-hidden"
+                className={`flex items-center justify-center text-white text-[10px] font-semibold overflow-hidden ${extraClass}`}
                 style={{ backgroundColor: u?.avatar ? "transparent" : bg }}
               >
                 {u?.avatar ? (

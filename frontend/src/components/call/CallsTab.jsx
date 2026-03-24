@@ -127,17 +127,6 @@ const CallLog = ({ log, currentUserId, onCall }) => {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
             <DirectionIcon size={12} className={`shrink-0 ${directionColor}`} />
-            {type === "video" ? (
-              <Video
-                size={12}
-                className="text-gray-400 dark:text-slate-400 shrink-0"
-              />
-            ) : (
-              <Phone
-                size={12}
-                className="text-gray-400 dark:text-slate-400 shrink-0"
-              />
-            )}
             <span className="text-sm font-semibold text-gray-900 dark:text-slate-100 truncate">
               {displayName}
             </span>
