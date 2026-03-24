@@ -91,24 +91,20 @@ export const videoCallSocket = (io, socket) => {
     });
   });
 
-  socket.on("invite-to-call", ({ chatId, inviteeIds, callType }) => {
-    if (!inviteeIds?.length) return;
+  socket.on("video-call-user", ({ chatId, receiverIds, isGroup, callType }) => {
+    if (!receiverIds?.length) return;
 
-    inviteeIds.forEach((userId) => {
+    receiverIds.forEach((userId) => {
       onlineUsers.get(userId)?.forEach((socketId) => {
         io.to(socketId).emit("incoming-call", {
           from: socket.userId,
           callerName: socket.user?.fName,
           callerAvatar: socket.user?.avatar,
           chatId,
+          isGroup: !!isGroup,
           callType,
-          isGroup: true,
         });
       });
-    });
-
-    socket.to(chatId).emit("user-invited-to-call", {
-      userIds: inviteeIds,
     });
   });
 
