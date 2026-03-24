@@ -93,12 +93,18 @@ const ChatLayout = () => {
   }, []);
 
   const getParticipants = useCallback(() => {
-    if (!isGroupCallRef.current) return [];
-    const chat = chats.find(
-      (c) => String(c._id) === String(callChatIdRef.current)
-    );
-    return chat?.users?.map((u) => u._id) || [];
-  }, [chats]);
+    const participants = videoCallRef.current?.getParticipants?.() || [];
+
+    if (participants.length === 1 && receiverIdRef.current) {
+      return [
+        {
+          _id: receiverIdRef.current,
+        },
+      ];
+    }
+
+    return participants;
+  }, []);
 
   const playRing = useCallback(() => {
     const audio = outgoingRingRef.current;
@@ -135,20 +141,52 @@ const ChatLayout = () => {
       document.exitFullscreen().catch(() => {});
     }
   }, [stopTimer, stopRing]);
+
   const saveCallLog = useCallback(
     async (status, duration = 0) => {
       if (callSavedRef.current || !initiatorRef.current?.isInitiator) return;
       callSavedRef.current = true;
+
+      const participants = getParticipants();
+
       await api.post("/messages/call", {
         chatId: callChatIdRef.current,
         callType: callTypeRef.current,
         status,
         duration,
-        participants: getParticipants(),
+        participants: isGroupCallRef.current
+          ? participants.length > 0
+            ? participants
+            : initiatorRef.current?.receiverIds?.map((id) => {
+                const user = chats
+                  ?.flatMap((c) => c.users || [])
+                  .find((u) => String(u._id) === String(id));
+
+                return {
+                  _id: id,
+                  fName: user?.fName,
+                  lName: user?.lName,
+                  avatar: user?.avatar,
+                };
+              }) || []
+          : (() => {
+              const user = chats
+                ?.flatMap((c) => c.users || [])
+                .find((u) => String(u._id) === String(receiverIdRef.current));
+
+              return [
+                {
+                  _id: receiverIdRef.current,
+                  fName: user?.fName,
+                  lName: user?.lName,
+                  avatar: user?.avatar,
+                },
+              ];
+            })(),
         receiverId: receiverIdRef.current,
       });
     },
-    [getParticipants]
+    [getParticipants, chats]
   );
 
   useEffect(() => {

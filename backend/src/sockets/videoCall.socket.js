@@ -41,7 +41,7 @@ export const videoCallSocket = (io, socket) => {
         if (s?.userId && s.id !== socket.id) {
           existingParticipants.push({
             userId: s.userId,
-            name: s.user?.fName,
+            name: s.user?.fName || "User",
             avatar: s.user?.avatar,
           });
         }
@@ -91,23 +91,6 @@ export const videoCallSocket = (io, socket) => {
     });
   });
 
-  socket.on("video-call-user", ({ chatId, receiverIds, isGroup, callType }) => {
-    if (!receiverIds?.length) return;
-
-    receiverIds.forEach((userId) => {
-      onlineUsers.get(userId)?.forEach((socketId) => {
-        io.to(socketId).emit("incoming-call", {
-          from: socket.userId,
-          callerName: socket.user?.fName,
-          callerAvatar: socket.user?.avatar,
-          chatId,
-          isGroup: !!isGroup,
-          callType,
-        });
-      });
-    });
-  });
-
   socket.on("invite-to-call", ({ chatId, inviteeIds, callType }) => {
     if (!inviteeIds?.length) return;
 
@@ -122,6 +105,32 @@ export const videoCallSocket = (io, socket) => {
           isGroup: true,
         });
       });
+    });
+
+    socket.to(chatId).emit("user-invited-to-call", {
+      userIds: inviteeIds,
+    });
+  });
+
+  socket.on("invite-to-call", ({ chatId, inviteeIds, callType }) => {
+    if (!inviteeIds?.length) return;
+
+    inviteeIds.forEach((userId) => {
+      onlineUsers.get(userId)?.forEach((socketId) => {
+        io.to(socketId).emit("incoming-call", {
+          from: socket.userId,
+          callerName: socket.user?.fName,
+          callerAvatar: socket.user?.avatar,
+          chatId,
+          callType,
+          isGroup: true, // ✅ force group
+        });
+      });
+    });
+
+    // ✅ notify existing room users
+    socket.to(chatId).emit("user-invited-to-call", {
+      userIds: inviteeIds,
     });
   });
 

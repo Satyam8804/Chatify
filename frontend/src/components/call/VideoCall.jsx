@@ -1080,12 +1080,38 @@ const VideoCall = forwardRef(
 
     cleanupRef.current = cleanup;
     useEffect(() => () => cleanupRef.current?.(), []);
-    useImperativeHandle(ref, () => ({ cleanup: () => cleanupRef.current?.() }));
-
+    useImperativeHandle(ref, () => ({
+      cleanup: () => cleanupRef.current?.(),
+      getParticipants: () => getFinalParticipants(),
+    }));
+    
     const callChat = useMemo(
       () => chats?.find((c) => String(c._id) === String(chatId)),
       [chats, chatId]
     );
+
+    const getFinalParticipants = () => {
+      const map = new Map();
+
+      // self
+      map.set(user._id, {
+        _id: user._id,
+        name: user.fName,
+        avatar: user.avatar,
+      });
+
+      // joined users (real participants)
+      remoteStreams.forEach((u) => {
+        if (!u?.userId) return;
+        map.set(u.userId, {
+          _id: u.userId,
+          name: u.fName,
+          avatar: u.avatar,
+        });
+      });
+
+      return Array.from(map.values());
+    };
 
     const addableUsers = useMemo(() => {
       const alreadyInCall = new Set([
@@ -1115,7 +1141,13 @@ const VideoCall = forwardRef(
         inviteeIds: [inviteeId],
         callType,
       });
-      setInvitedUsers((prev) => new Set(prev).add(inviteeId));
+
+      setInvitedUsers((prev) => {
+        const updated = new Set(prev);
+        updated.add(inviteeId);
+        return updated;
+      });
+
       setShowAddParticipant(false);
     };
 

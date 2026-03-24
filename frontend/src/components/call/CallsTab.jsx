@@ -30,62 +30,94 @@ const getDayGroup = (dateString) => {
 };
 
 const CallLog = ({ log, currentUserId, onCall }) => {
+  console.log(log);
   const isMissed = log.status?.toLowerCase() === "missed";
-
   const isOutgoing = String(log.sender?._id) === String(currentUserId);
-
   const type = log.callType;
 
-  const isGroupCall = log.isGroupCall || false;
+  const participants = log.participants || [];
 
-  const otherUser = isGroupCall
-    ? null
-    : isOutgoing
-    ? log.participants?.[0] || null // 1-to-1: only one receiver in participants
-    : log.sender || null; // 1-to-1: you're the receiver, other is sender
+  const isEscalatedGroupCall = !log.chat?.chatName && participants.length > 2;
 
-  const displayName = isGroupCall
-    ? log.chat?.chatName || "Group Call"
-    : `${otherUser?.fName || "Unknown"} ${otherUser?.lName || ""}`.trim();
+  const isGroupCall = log.chat?.chatName || isEscalatedGroupCall;
+
+  const otherParticipants = participants.filter(
+    (p) => String(p._id) !== String(currentUserId)
+  );
+
+  let displayName = "";
+
+  if (isGroupCall && log.chat?.chatName) {
+    displayName = log.chat.chatName;
+  } else if (isGroupCall) {
+    const names = otherParticipants.map((p) => p.fName).filter(Boolean);
+
+    if (names.length <= 3) {
+      displayName = names.join(", ");
+    } else {
+      displayName = `${names.slice(0, 3).join(", ")} +${
+        names.length - 3
+      } others`;
+    }
+  } else {
+    let otherUser = null;
+
+    if (isOutgoing) {
+      // participants has ONLY receiver in 1-1
+      otherUser = (log.participants || [])[0];
+    } else {
+      otherUser = log.sender;
+    }
+
+    displayName = `${otherUser?.fName || "Unknown"} ${
+      otherUser?.lName || ""
+    }`.trim();
+    displayName = `${otherUser?.fName || "Unknown"} ${
+      otherUser?.lName || ""
+    }`.trim();
+  }
+
+  const callbackUser = !isGroupCall
+    ? isOutgoing
+      ? (log.participants || [])[0]
+      : log.sender
+    : null;
 
   const DirectionIcon = isMissed
     ? PhoneMissed
     : isOutgoing
     ? PhoneOutgoing
     : PhoneIncoming;
-
   const directionColor = isMissed
     ? "text-rose-500"
     : isOutgoing
     ? "text-sky-500"
     : "text-emerald-500";
-
   const statusLabel = isMissed
     ? "Missed"
     : isOutgoing
     ? "Outgoing"
     : "Incoming";
-
   const formatTime = (date) =>
     new Date(date).toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
     });
-
   const formatDuration = (secs) => {
     if (!secs) return null;
     const m = Math.floor(secs / 60);
     const s = secs % 60;
     return `${m}:${String(s).padStart(2, "0")}`;
   };
-
   const duration = formatDuration(log.duration);
+
+  console.log("otherParticipants",otherParticipants)
 
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800/40 transition-all duration-200 group cursor-pointer">
       <Avatar
-        user={isGroupCall ? null : otherUser}
-        users={isGroupCall ? log.participants : null}
+        user={!isGroupCall ? callbackUser : null}
+        users={isGroupCall ? otherParticipants : null}
         isGroup={isGroupCall}
         size={40}
         IsInside
@@ -118,6 +150,16 @@ const CallLog = ({ log, currentUserId, onCall }) => {
         <div className="flex items-center justify-between mt-0.5">
           <div className="flex items-center gap-1.5">
             <span className={`text-xs ${directionColor}`}>{statusLabel}</span>
+            {isGroupCall && !log.chat?.chatName && (
+              <>
+                <span className="text-gray-300 dark:text-slate-600 text-xs">
+                  ·
+                </span>
+                <span className="text-xs text-gray-400 dark:text-slate-400">
+                  {otherParticipants.length} invited
+                </span>
+              </>
+            )}
             {duration && (
               <>
                 <span className="text-gray-300 dark:text-slate-600 text-xs">
@@ -130,12 +172,11 @@ const CallLog = ({ log, currentUserId, onCall }) => {
             )}
           </div>
 
-          {!isGroupCall && otherUser && (
+          {callbackUser && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (!otherUser) return;
-                onCall(otherUser, type);
+                onCall(callbackUser, type);
               }}
               className="opacity-100 md:opacity-0 md:group-hover:opacity-100 cursor-pointer transition-all duration-200 w-7 h-7 flex items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25 dark:bg-emerald-500/20 dark:hover:bg-emerald-500/30"
             >

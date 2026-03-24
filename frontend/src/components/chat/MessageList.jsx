@@ -339,8 +339,16 @@ const CallBubble = ({ message, isOwn, onStartCall, chat }) => {
 
   const callData = message.callData || {};
   const { callType, status, duration = 0 } = callData;
-
   const isIncoming = !isOwn;
+
+  const participantsCount = message?.participants?.length || 0;
+
+  const isEscalatedGroupCall =
+    !message?.chat?.chatName && participantsCount > 2;
+
+  const isGroup = message?.chat?.chatName || isEscalatedGroupCall;
+
+  const isVideo = callType === "video";
 
   const formatDuration = (sec) => {
     if (!sec) return "";
@@ -353,19 +361,14 @@ const CallBubble = ({ message, isOwn, onStartCall, chat }) => {
   if (status === "missed" && isIncoming) colorClass = "text-red-500";
   else if (status === "completed") colorClass = "text-green-500";
 
+  const invitedCount = Math.max(participantsCount - 1, 0);
+
   const handleCall = (e) => {
     e.stopPropagation();
-    console.log("!message?.chat", !message?.chat);
-    console.log("fullChat ", chat);
     if (!message?.chat) return;
     onStartCall?.(chat, callType);
   };
 
-  const participantsCount = message?.participants?.length || 0;
-
-  const isGroup = participantsCount > 1 || message?.chat?.isGroup;
-
-  const isVideo = message?.callData?.callType === "video";
   return (
     <div
       onClick={handleCall}
@@ -403,7 +406,9 @@ const CallBubble = ({ message, isOwn, onStartCall, chat }) => {
         </div>
 
         <span className="text-[11px] text-slate-400 dark:text-slate-500 pl-5">
-          {status === "missed"
+          {isGroup && !message?.chat?.chatName
+            ? `${invitedCount} invited`
+            : status === "missed"
             ? isIncoming
               ? "Missed"
               : "No answer"
