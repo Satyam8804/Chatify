@@ -39,7 +39,7 @@ const startWatchdog = ({
   let watchdogAttempt = 0;
   const MAX_WATCHDOG_RETRIES = 5;
 
-  const watchdog = setInterval(() => {
+  const watchdog = setInterval(async () => {
     if (cleanedUpRef.current) {
       clearInterval(watchdog);
       return;
@@ -71,30 +71,32 @@ const startWatchdog = ({
 
     console.log("🔧 Watchdog → fixing peers");
 
-    peersRef.current.forEach(async ({ peer }, userId) => {
-      if (!peer) return;
+    for (const [userId, entry] of peersRef.current.entries()) {
+      const peer = entry?.peer;
+      if (!peer) continue;
 
       const state = peer.connectionState;
       console.log("👀 Peer:", userId, state);
 
-      if (state === "connected" || state === "connecting") return;
+      if (state === "connected" || state === "connecting") continue;
 
       try {
         if (state === "new" || state === "disconnected" || state === "failed") {
-          if (peer.signalingState !== "stable") return;
+          if (peer.signalingState !== "stable") {
+            console.log("♻️ Watchdog forcing recovery:", userId);
 
-          console.log("🚀 Watchdog re-offer:", userId);
-          await initiateOffer(userId);
-        }
+            try {
+              await peer.setLocalDescription({ type: "rollback" });
+            } catch {}
 
-        if (state === "failed") {
-          console.log("🔄 Restart ICE:", userId);
-          await initiateOffer(userId);
+            await initiateOffer(userId);
+            continue;
+          }
         }
       } catch (e) {
         console.log("❌ Watchdog error:", e);
       }
-    });
+    }
   }, 8000);
 
   cleanupRef.current = { ...cleanupRef.current, watchdog };
@@ -849,8 +851,17 @@ const VideoCall = forwardRef(
         addTracksIfNeeded(peer, stream);
 
         if (peer.signalingState !== "stable") {
-          log("Skipping — not stable:", peer.signalingState);
-          return;
+          console.log("⚠️ Forcing recovery from:", peer.signalingState);
+
+          try {
+            await peer.setLocalDescription({ type: "rollback" });
+          } catch (e) {
+            console.log("Rollback failed, recreating peer");
+
+            peer.close();
+            removePeer(from);
+            peer = createPeerConnection(from);
+          }
         }
 
         await peer.setRemoteDescription(offer);
@@ -882,24 +893,71 @@ const VideoCall = forwardRef(
         const entry = getPeerEntry(from);
         if (!entry?.peer) return;
 
+        const peer = entry.peer;
+
         try {
-          const shouldApplyAnswer =
-            entry.peer.signalingState === "have-local-offer" ||
-            !entry.peer.remoteDescription;
+          console.log(
+            "📥 Applying answer from:",
+            from,
+            "| state:",
+            peer.signalingState
+          );
 
-          if (!shouldApplyAnswer) return;
+          // ✅ Always try applying answer
+          await peer.setRemoteDescription(answer);
 
-          await entry.peer.setRemoteDescription(answer);
-
+          // ✅ flush pending ICE
           const latest = getPeerEntry(from);
           if (latest?.pendingCandidates?.length) {
+            console.log(
+              "🧊 Flushing ICE candidates:",
+              latest.pendingCandidates.length
+            );
+
             for (const c of latest.pendingCandidates) {
-              await entry.peer.addIceCandidate(c).catch(() => {});
+              await peer.addIceCandidate(c).catch(() => {});
             }
-            setPeerEntry(from, { ...latest, pendingCandidates: [] });
+
+            setPeerEntry(from, {
+              ...latest,
+              pendingCandidates: [],
+            });
           }
         } catch (err) {
-          log("Answer apply failed:", err);
+          console.log("❌ Answer apply failed:", err);
+
+          // 🔥 Recovery (important)
+          if (peer.signalingState !== "stable") {
+            try {
+              console.log("♻️ Forcing recovery via rollback");
+
+              await peer.setLocalDescription({ type: "rollback" });
+              await peer.setRemoteDescription(answer);
+            } catch (err) {
+              console.log("❌ Answer apply failed:", err);
+
+              if (peer.signalingState !== "stable") {
+                try {
+                  console.log("♻️ Forcing rollback recovery");
+
+                  await peer.setLocalDescription({ type: "rollback" });
+                  await peer.setRemoteDescription(answer);
+                } catch (e) {
+                  console.log("💀 Hard reset peer");
+
+                  removePeer(from);
+
+                  createPeerConnection(from);
+
+                  // ✅ THIS IS WHAT SHOULD COME HERE
+                  setTimeout(() => {
+                    console.log("♻️ Re-initiating offer after reset:", from);
+                    initiateOffer(from);
+                  }, 100);
+                }
+              }
+            }
+          }
         }
       };
 

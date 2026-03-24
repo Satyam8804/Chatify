@@ -239,15 +239,17 @@ export const useCallPeers = ({
 
     if (entry?.makingOffer) return;
 
-    // ✅ 🔥 PUT HERE
     if (peer.signalingState !== "stable") {
-      if (!entry?.polite) {
-        console.log("❌ Impolite peer — skipping offer");
-        return;
-      }
+      console.log("⚠️ Recovering non-stable state:", peer.signalingState);
 
-      console.log("⏳ Skip offer — not stable:", peer.signalingState);
-      return;
+      try {
+        await peer.setLocalDescription({ type: "rollback" });
+      } catch (e) {
+        console.log("♻️ Recreating peer due to bad state");
+
+        removePeer(userId);
+        return initiateOffer(userId);
+      }
     }
 
     // ✅ transceiver fix
@@ -271,7 +273,7 @@ export const useCallPeers = ({
 
     try {
       console.log("📤 Creating offer →", userId);
-
+      
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
 
