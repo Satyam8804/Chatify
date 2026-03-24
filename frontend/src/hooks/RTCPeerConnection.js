@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { useAuth } from "../context/authContext";
 
 const ICE_SERVERS = {
   iceServers: [
@@ -16,9 +17,13 @@ const ICE_SERVERS = {
 };
 
 export const useWebRTC = () => {
+
+  const {user}= useAuth();
   const peersRef = useRef(new Map());
 
-  const getOrCreatePeer = (userId, polite = false) => {
+  const getOrCreatePeer = (userId) => {
+    const isPolite = String(user?._id) < String(userId);
+
     const entry = peersRef.current.get(userId);
 
     if (
@@ -31,10 +36,6 @@ export const useWebRTC = () => {
 
     if (entry?.peer) {
       try {
-        entry.peer.ontrack = null;
-        entry.peer.onicecandidate = null;
-        entry.peer.onconnectionstatechange = null;
-        entry.peer.oniceconnectionstatechange = null;
         entry.peer.close();
       } catch {}
     }
@@ -45,7 +46,7 @@ export const useWebRTC = () => {
       peer,
       pendingCandidates: entry?.pendingCandidates || [],
       makingOffer: false,
-      polite,
+      polite: isPolite, // ✅ FIXED
     });
 
     return peer;

@@ -94,7 +94,7 @@ const startWatchdog = ({
           // fallback
           if (state === "failed") {
             console.log("🔄 Restart ICE:", userId);
-            await peer.restartIce?.();
+            await initiateOffer(userId);
           }
         } catch (e) {
           console.log("❌ Watchdog error:", e);
@@ -143,7 +143,6 @@ const VideoCall = forwardRef(
     const knownPeerIdsRef = useRef(new Set());
     const emptyParticipantsRetryRef = useRef(0);
     const userLeftTimerRef = useRef(null);
-    const activeVideoRef = swapped ? localVideoMainRef : localVideoRef;
 
     const [remoteStreams, setRemoteStreams] = useState([]);
     const [isMuted, setIsMuted] = useState(false);
@@ -160,6 +159,8 @@ const VideoCall = forwardRef(
     const [networkLabel, setNetworkLabel] = useState("");
 
     const canSwap = remoteStreams.length === 1;
+
+    const activeVideoRef = swapped ? localVideoMainRef : localVideoRef;
 
     const safeJoinRoom = useCallback(() => {
       if (!socket || !chatId || cleanedUpRef.current) return;
@@ -363,6 +364,11 @@ const VideoCall = forwardRef(
     useEffect(() => {
       if (!socket || !chatId) return;
 
+      if (peersRef.current.size > 0 && !cleanedUpRef.current) {
+        console.log("🚫 Prevent re-init during active call");
+        return;
+      }
+
       log("useEffect init — chatId:", chatId);
       cleanedUpRef.current = false;
       emptyParticipantsRetryRef.current = 0;
@@ -507,11 +513,16 @@ const VideoCall = forwardRef(
               adaptBitrateToNetwork();
             }
 
-            peersRef.current.forEach(({ peer }, uid) => {
+            peersRef.current.forEach(async ({ peer }, userId) => {
               if (!peer) return;
-              log(
-                `Peer ${uid} — iceState: ${peer.iceConnectionState}, connState: ${peer.connectionState}`
-              );
+
+              if (
+                peer.connectionState === "connected" ||
+                peer.connectionState === "connecting"
+              ) {
+                console.log("🔁 Force renegotiation:", userId);
+                await initiateOffer(userId); // ✅ CRITICAL FIX
+              }
             });
           }
 
@@ -558,15 +569,45 @@ const VideoCall = forwardRef(
       })();
 
       const handleOnline = () => {
-        log("window online event fired");
+        console.log("🌐 Network back online");
+
+        // ✅ reset join throttle
+        lastJoinRef.current = 0;
+        joinInFlightRef.current = false;
+
         setNetworkStatus("reconnecting");
         setNetworkLabel("Reconnecting…");
+
+        // ✅ reattach video
         const videoTrack = localStreamRef.current?.getVideoTracks()[0];
         if (videoTrack && localVideoRef.current) {
           localVideoRef.current.srcObject = localStreamRef.current;
           localVideoRef.current.play().catch(() => {});
         }
-        handleConnectionChange();
+
+        // ✅ STEP 1: rejoin room FIRST
+        safeJoinRoom();
+
+        // ✅ STEP 2: wait a bit, then renegotiate (IMPORTANT FIX)
+        setTimeout(() => {
+          peersRef.current.forEach(async ({ peer }, userId) => {
+            if (!peer) return;
+
+            if (
+              peer.connectionState === "connected" ||
+              peer.connectionState === "connecting"
+            ) {
+              if (!socket?.connected) return;
+              console.log("🔁 Renegotiate after online:", userId);
+              await initiateOffer(userId);
+            }
+          });
+        }, 500); // 🔥 delay prevents race condition
+
+        // ✅ STEP 3: run network logic AFTER
+        setTimeout(() => {
+          handleConnectionChange();
+        }, 300);
       };
 
       const handleOffline = () => {
@@ -822,24 +863,18 @@ const VideoCall = forwardRef(
 
         if (offerCollision) {
           if (!entry.polite) {
-            log("Dropping offer — impolite peer");
+            console.log("❌ Ignoring offer (impolite)");
             return;
           }
 
+          console.log("✅ Polite peer rollback");
+
           try {
-            log("Polite rollback");
             await peer.setLocalDescription({ type: "rollback" });
-          } catch (e) {
-            log("Rollback failed — recreating peer");
-
-            try {
-              peer.close();
-            } catch {}
-
+          } catch {
+            peer.close();
             removePeer(from);
-
             peer = createPeerConnection(from);
-            if (!peer) return;
           }
         }
 
@@ -927,7 +962,7 @@ const VideoCall = forwardRef(
         }
       };
 
-      const handleUserLeft = (userId) => {
+      const handleUserLeft = ({ userId }) => {
         console.log("User maybe left:", userId);
 
         setTimeout(() => {

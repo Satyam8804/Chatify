@@ -9,7 +9,7 @@ export const useCallPeers = ({
   getOrCreatePeer,
   getPeerEntry,
   setPeerEntry,
-
+  removePeer,
   isMutedRef,
   isVideoOffRef,
   setRemoteStreams,
@@ -59,7 +59,6 @@ export const useCallPeers = ({
 
       const now = Date.now();
 
-      // ✅ cooldown (VERY IMPORTANT)
       if (
         lastRestartRef.current[userId] &&
         now - lastRestartRef.current[userId] < 5000
@@ -71,11 +70,23 @@ export const useCallPeers = ({
       lastRestartRef.current[userId] = now;
 
       const entry = getPeerEntry(userId);
+
       if (entry?.makingOffer || entry?.restarting) return;
+
+      if (peer.signalingState !== "stable") {
+        console.log("⛔ Skip ICE restart — not stable:", peer.signalingState);
+        return;
+      }
+
+      if (!entry?.polite && peer.signalingState !== "stable") {
+        console.log("❌ Impolite peer skipping restart");
+        return;
+      }
 
       setPeerEntry(userId, {
         ...(entry || {}),
         restarting: true,
+        makingOffer: true,
       });
 
       try {
@@ -87,25 +98,19 @@ export const useCallPeers = ({
         socket.emit("webrtc-offer", {
           offer: peer.localDescription,
           to: userId,
+          fromName: user?.fName, // ✅ FIX
           roomId: chatId,
         });
-      } catch {
-        console.log("❌ ICE restart failed → fallback");
-
-        try {
-          const offer = await peer.createOffer();
-          await peer.setLocalDescription(offer);
-
-          socket.emit("webrtc-offer", {
-            offer: peer.localDescription,
-            to: userId,
-            roomId: chatId,
-          });
-        } catch {}
+      } catch (e) {
+        console.log("❌ ICE restart failed:", e);
       } finally {
         const latest = getPeerEntry(userId);
         if (latest) {
-          setPeerEntry(userId, { ...latest, restarting: false });
+          setPeerEntry(userId, {
+            ...latest,
+            restarting: false,
+            makingOffer: false,
+          });
         }
       }
     },
@@ -123,8 +128,8 @@ export const useCallPeers = ({
       return existing.peer;
     }
 
-    const polite = user._id.localeCompare(userId) > 0;
-    const peer = getOrCreatePeer(userId, polite);
+    const isPolite = String(user._id) < String(userId);
+    const peer = getOrCreatePeer(userId, isPolite);
 
     // ICE
     peer.onicecandidate = (e) => {
@@ -170,6 +175,25 @@ export const useCallPeers = ({
 
       console.log("Connection state:", state);
 
+      if (state === "connected") {
+        peer.getSenders().forEach((sender) => {
+          if (sender.track?.kind === "audio") {
+            sender.track.enabled = !isMutedRef.current;
+          }
+          if (sender.track?.kind === "video") {
+            sender.track.enabled = !isVideoOffRef.current;
+          }
+        });
+
+        // 🔥 ADD THIS (important fallback)
+        setTimeout(() => {
+          if (peer.connectionState === "connected") {
+            console.log("🔁 Post-connect renegotiation:", userId);
+            initiateOffer(userId);
+          }
+        }, 1000);
+      }
+
       if (state === "failed") {
         restartIce(userId, peer);
       }
@@ -189,7 +213,7 @@ export const useCallPeers = ({
             console.log("🔄 ICE recovery triggered");
             restartIce(userId, peer);
           }
-        }, 4000);
+        }, 6000);
       }
 
       if (state === "failed") {
@@ -201,25 +225,64 @@ export const useCallPeers = ({
   };
 
   const initiateOffer = async (userId) => {
-    const peer = createPeerConnection(userId);
+    if (!socket?.connected) return;
+
+    let peer = createPeerConnection(userId);
     if (!peer) return;
 
     const stream = await getLocalStream();
     addTracksIfNeeded(peer, stream);
 
-    const entry = getPeerEntry(userId);
+    let entry = getPeerEntry(userId);
 
-    if (entry?.makingOffer || peer.signalingState !== "stable") return;
+    // ✅ prevent using dead peer
+    if (
+      peer.connectionState === "failed" ||
+      peer.connectionState === "closed"
+    ) {
+      console.log("♻️ Recreating peer:", userId);
+      removePeer(userId);
+      return initiateOffer(userId);
+    }
 
-    setPeerEntry(userId, { ...(entry || {}), makingOffer: true });
+    if (entry?.makingOffer) return;
+
+    if (peer.signalingState !== "stable") {
+      if (!entry?.polite) {
+        console.log("❌ Impolite peer — skipping offer");
+        return;
+      }
+    }
+
+    // ✅ fix one-way audio issues
+    peer.getTransceivers().forEach((t) => {
+      if (t.direction !== "sendrecv") {
+        t.direction = "sendrecv";
+      }
+    });
+
+    // ✅ debounce
+    if (entry?.lastOfferTime && Date.now() - entry.lastOfferTime < 2000) {
+      console.log("⏳ Skipping duplicate offer");
+      return;
+    }
+
+    setPeerEntry(userId, {
+      ...(entry || {}),
+      makingOffer: true,
+      lastOfferTime: Date.now(),
+    });
 
     try {
+      console.log("📤 Creating offer →", userId);
+
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
 
       socket.emit("webrtc-offer", {
         offer: peer.localDescription,
         to: userId,
+        fromName: user?.fName, // ✅ FIX
         roomId: chatId,
       });
     } catch (err) {
@@ -227,7 +290,10 @@ export const useCallPeers = ({
     } finally {
       const latest = getPeerEntry(userId);
       if (latest) {
-        setPeerEntry(userId, { ...latest, makingOffer: false });
+        setPeerEntry(userId, {
+          ...latest,
+          makingOffer: false,
+        });
       }
     }
   };
