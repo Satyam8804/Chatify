@@ -227,7 +227,7 @@ export const useCallPeers = ({
 
     let entry = getPeerEntry(userId);
 
-    // ✅ prevent using dead peer
+    // ✅ recreate dead peer
     if (
       peer.connectionState === "failed" ||
       peer.connectionState === "closed"
@@ -239,14 +239,18 @@ export const useCallPeers = ({
 
     if (entry?.makingOffer) return;
 
+    // ✅ 🔥 PUT HERE
     if (peer.signalingState !== "stable") {
       if (!entry?.polite) {
         console.log("❌ Impolite peer — skipping offer");
         return;
       }
+
+      console.log("⏳ Skip offer — not stable:", peer.signalingState);
+      return;
     }
 
-    // ✅ fix one-way audio issues
+    // ✅ transceiver fix
     peer.getTransceivers().forEach((t) => {
       if (t.direction !== "sendrecv") {
         t.direction = "sendrecv";
@@ -274,7 +278,7 @@ export const useCallPeers = ({
       socket.emit("webrtc-offer", {
         offer: peer.localDescription,
         to: userId,
-        fromName: user?.fName, // ✅ FIX
+        fromName: user?.fName,
         roomId: chatId,
       });
     } catch (err) {

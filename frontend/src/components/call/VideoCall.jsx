@@ -80,10 +80,10 @@ const startWatchdog = ({
       if (state === "connected" || state === "connecting") return;
 
       try {
-        if (state === "new" || state === "disconnected") {
+        if (state === "new" || state === "disconnected" || state === "failed") {
           if (peer.signalingState !== "stable") return;
 
-          console.log("🚀 Re-offer:", userId);
+          console.log("🚀 Watchdog re-offer:", userId);
           await initiateOffer(userId);
         }
 
@@ -759,22 +759,26 @@ const VideoCall = forwardRef(
           );
 
           if (entry?.peer) {
-            if (entry.peer.connectionState === "connected") {
+            const state = entry.peer.connectionState;
+
+            if (state === "connected" || state === "connecting") {
               continue;
             }
 
+            // 🔥 KEY FIX: allow recovery
             if (
-              entry.peer.connectionState === "connecting" ||
-              entry.makingOffer ||
-              entry.restarting
+              state === "new" ||
+              state === "disconnected" ||
+              state === "failed"
             ) {
+              console.log("♻️ Recovering stuck peer:", userId);
+              await initiateOffer(userId);
               continue;
             }
 
-            log(
-              `Participant ${userId} already has a peer (${entry.peer.connectionState}) — waiting for ICE recovery`
-            );
-            continue;
+            if (entry.makingOffer || entry.restarting) {
+              continue;
+            }
           }
 
           if (entry?.pendingCandidates?.length && !entry?.peer) {
