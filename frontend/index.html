@@ -10,22 +10,19 @@
     <title>Chatify - an advance chat-app</title>
   </head>
   <body>
-    <div id="root">
+    <div id="loader">
       <div class="initial-loader">
         <img src="/logo.png" alt="Chatify" class="logo" />
-
         <div class="wave-container">
-          <span class="text">Restoring session...</span>
+          <span class="text" id="loader-text">Restoring session...</span>
           <div class="bars">
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
-            <span></span>
+            <span></span><span></span><span></span><span></span><span></span>
           </div>
         </div>
       </div>
     </div>
+
+    <div id="root"></div>
 
     <script type="module" src="/src/main.jsx"></script>
 
@@ -35,6 +32,14 @@
         margin: 0;
         padding: 0;
         background: #020617;
+      }
+      #loader {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: #020617;
+        display: flex;
+        transition: opacity 0.4s ease;
       }
       .initial-loader {
         display: flex;

@@ -9,17 +9,18 @@ import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
 import { ThemeProvider } from "./context/themeContext";
+import AppWrapper from "./AppWrapper";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-  //  <React.StrictMode>
   <BrowserRouter>
     <ThemeProvider>
       <AuthProvider>
         <SocketProvider>
-          <App />
+          <AppWrapper>
+            <App />
+          </AppWrapper>
         </SocketProvider>
       </AuthProvider>
     </ThemeProvider>
   </BrowserRouter>
-  // </React.StrictMode>
 );
