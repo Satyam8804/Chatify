@@ -30,9 +30,11 @@ const startWatchdog = ({
   peersRef,
   setConnectionFailed,
   cleanupRef,
-  initiateOffer, // 🔥 ADD THIS
+  initiateOffer,
 }) => {
-  clearInterval(cleanupRef.watchdog);
+  if (cleanupRef.current?.watchdog) {
+    clearInterval(cleanupRef.current.watchdog);
+  }
 
   let watchdogAttempt = 0;
   const MAX_WATCHDOG_RETRIES = 5;
@@ -67,43 +69,35 @@ const startWatchdog = ({
       return;
     }
 
-    if (!cleanedUpRef.current) {
-      console.log("🔧 Watchdog → fixing peers");
+    console.log("🔧 Watchdog → fixing peers");
 
-      peersRef.current.forEach(async (entry, userId) => {
-        const peer = entry?.peer;
-        if (!peer) return;
+    peersRef.current.forEach(async ({ peer }, userId) => {
+      if (!peer) return;
 
-        const state = peer.connectionState;
+      const state = peer.connectionState;
+      console.log("👀 Peer:", userId, state);
 
-        console.log("👀 Peer:", userId, state);
+      if (state === "connected" || state === "connecting") return;
 
-        // ✅ already connected
-        if (state === "connected") return;
+      try {
+        if (state === "new" || state === "disconnected") {
+          if (peer.signalingState !== "stable") return;
 
-        // ⚠️ still connecting
-        if (state === "connecting") return;
-
-        try {
-          // 🔥 KEY FIX
-          if (state === "new" || state === "disconnected") {
-            console.log("🚀 Re-offer:", userId);
-            await initiateOffer(userId);
-          }
-
-          // fallback
-          if (state === "failed") {
-            console.log("🔄 Restart ICE:", userId);
-            await initiateOffer(userId);
-          }
-        } catch (e) {
-          console.log("❌ Watchdog error:", e);
+          console.log("🚀 Re-offer:", userId);
+          await initiateOffer(userId);
         }
-      });
-    }
+
+        if (state === "failed") {
+          console.log("🔄 Restart ICE:", userId);
+          await initiateOffer(userId);
+        }
+      } catch (e) {
+        console.log("❌ Watchdog error:", e);
+      }
+    });
   }, 8000);
 
-  cleanupRef.watchdog = watchdog;
+  cleanupRef.current = { ...cleanupRef.current, watchdog };
 };
 
 const VideoCall = forwardRef(
@@ -681,7 +675,9 @@ const VideoCall = forwardRef(
       init();
 
       return () => {
-        clearInterval(cleanupRef.watchdog);
+        if (cleanupRef.current?.watchdog) {
+          clearInterval(cleanupRef.current.watchdog);
+        }
         clearTimeout(userLeftTimerRef.current);
         socket.off("user-joined-call", handleUserJoinedEarly);
 
@@ -984,8 +980,8 @@ const VideoCall = forwardRef(
       cleanedUpRef.current = true;
 
       clearTimeout(userLeftTimerRef.current);
-      if (cleanupRef.watchdog) {
-        clearInterval(cleanupRef.watchdog);
+      if (cleanupRef.current?.watchdog) {
+        clearInterval(cleanupRef.current.watchdog);
       }
 
       knownPeerIdsRef.current.clear();
@@ -1097,8 +1093,8 @@ const VideoCall = forwardRef(
                               cleanedUpRef,
                               peersRef,
                               setConnectionFailed,
-                              joinRoom: safeJoinRoom,
                               cleanupRef,
+                              initiateOffer, // ✅ REQUIRED
                             });
                             safeJoinRoom();
                           }}
@@ -1358,8 +1354,8 @@ const VideoCall = forwardRef(
                     cleanedUpRef,
                     peersRef,
                     setConnectionFailed,
-                    joinRoom: safeJoinRoom,
                     cleanupRef,
+                    initiateOffer, // ✅ REQUIRED
                   });
                   safeJoinRoom();
                 }}
