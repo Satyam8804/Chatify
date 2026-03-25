@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import LocalVideo from "./LocalVideo";
 import RemoteVideo from "./RemoteVideo";
+import { MicOff } from "lucide-react";
 
 const PiPThumbnail = ({
   swapped, canSwap, onSwap,
