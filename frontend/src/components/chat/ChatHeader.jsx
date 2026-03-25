@@ -3,8 +3,7 @@ import { useAuth } from "../../context/authContext";
 import { useSocket } from "../../context/socketContext";
 import { formatLastSeen } from "../../utils/formatMessageDate";
 import Avatar from "../common/Avatar";
-import { getAvatarColor } from "../../utils/getAvatarColor";
-import { getInitials } from "../../utils/getInitials";
+
 import { ArrowLeft, Video, Phone } from "lucide-react";
 import ChatInfo from "./ChatInfo";
 

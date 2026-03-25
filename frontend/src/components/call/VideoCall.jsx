@@ -335,6 +335,22 @@ const VideoCall = forwardRef(
       }
     }, [socket?.connected, chatId]);
 
+    useEffect(() => {
+      if (chatId) {
+        localStorage.setItem(
+          "ongoingCall",
+          JSON.stringify({
+            chatId,
+            type: callType, // audio / video
+          })
+        );
+      }
+
+      return () => {
+        localStorage.removeItem("ongoingCall");
+      };
+    }, [chatId, callType]);
+
     const {
       getLocalStream,
       toggleMute,

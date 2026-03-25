@@ -49,7 +49,30 @@ const ChatLayout = () => {
   const callDurationRef = useRef(0);
   const callConnectedRef = useRef(false);
   const initiatorRef = useRef(null);
-  
+
+  useEffect(() => {
+    const call = JSON.parse(localStorage.getItem("ongoingCall"));
+
+    if (call?.chatId && chats.length > 0) {
+      console.log("♻️ Restoring call in chat");
+
+      const chat = chats.find((c) => c._id === call.chatId);
+
+      if (chat) {
+        setSelectedChat(chat);
+
+        // 🔥 THIS is the real trigger
+        setCallChatId(call.chatId);
+        setIsCalling(true);
+        setCallType(call.type || "video");
+
+        // optional (better UX)
+        setCallTargetName(
+          chat.users?.find((u) => u._id !== user._id)?.fName || "User"
+        );
+      }
+    }
+  }, [chats]);
 
   useEffect(() => {
     isCallingRef.current = isCalling;
@@ -138,6 +161,7 @@ const ChatLayout = () => {
     isGroupCallRef.current = false;
     receiverIdRef.current = null;
     initiatorRef.current = null;
+    localStorage.removeItem("ongoingCall");
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     }
@@ -263,6 +287,14 @@ const ChatLayout = () => {
       setIsCalling(true);
       setCallType(type);
 
+      localStorage.setItem(
+        "ongoingCall",
+        JSON.stringify({
+          chatId: chat._id,
+          type,
+        })
+      );
+
       if (!isGroup) {
         receiverIdRef.current = receiverIds[0];
         playRing();
@@ -291,6 +323,14 @@ const ChatLayout = () => {
       setIsGroupCall(isGroup);
       setIsCalling(true);
       setInitiator({ isInitiator: false });
+
+      localStorage.setItem(
+        "ongoingCall",
+        JSON.stringify({
+          chatId,
+          callType,
+        })
+      );
 
       if (!isGroup) {
         receiverIdRef.current = callerId;
