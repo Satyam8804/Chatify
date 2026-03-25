@@ -272,80 +272,98 @@ const CallsTab = ({
   return (
     <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar py-2 space-y-3">
       {ongoingCall && (
-        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800/40 transition-all duration-200 group cursor-pointer">
-          {/* Top row */}
-          <div className="flex items-center justify-between px-3 pt-3 pb-2">
-            <div className="flex items-center gap-2">
-              {/* Pulsing live dot */}
-              <span className="relative flex h-2 w-2 shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
-              </span>
-              <span className="text-sm font-semibold text-white">
-                Ongoing Call
-              </span>
-              <span className="text-xs text-emerald-200 font-medium">
-                {ongoingCall.callType === "video" ? "· Video" : "· Audio"}
-              </span>
-            </div>
+        <div className="mx-1 my-1 rounded-[14px] overflow-hidden bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800 relative">
+          {/* Subtle radial highlight */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(52,211,153,0.15),transparent_65%)] pointer-events-none" />
 
-            <button
-              onClick={() => {
-                const chat = chats.find(
-                  (c) => String(c._id) === String(ongoingCall.chatId)
-                );
+          <div className="relative p-3 pb-2.5">
+            {/* Top row: badge + join */}
+            <div className="flex items-center justify-between mb-2.5">
+              {/* Live badge */}
+              <div className="flex items-center gap-1.5 bg-black/20 border border-emerald-400/20 rounded-full px-2 py-0.5">
+                {/* Pulsing dot */}
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-50" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                </span>
 
-                if (!chat) return;
+                <span className="text-[11px] font-semibold text-emerald-50 tracking-tight">
+                  Live call
+                </span>
 
-                onJoinCall(chat, ongoingCall.callType || "video");
-              }}
-              className="bg-white text-emerald-700 px-3 py-1 rounded-lg text-xs font-bold hover:bg-emerald-50 transition-colors"
-            >
-              Join
-            </button>
-          </div>
-
-          {/* Participants row */}
-          {ongoingCall.participants?.length > 0 && (
-            <div className="flex items-center gap-2 px-3 pb-3">
-              {/* Stacked avatars */}
-              <div className="flex -space-x-2 shrink-0">
-                {ongoingCall.participants.slice(0, 3).map((p, i) => {
-                  const participantUser = chats
-                    ?.flatMap((c) => c.users || [])
-                    .find((u) => String(u._id) === String(p));
-
-                  return (
-                    <Avatar
+                {/* Animated wave bars for audio indicator */}
+                <div className="flex items-end gap-px h-2.5">
+                  {[0, 150, 300].map((delay, i) => (
+                    <span
                       key={i}
-                      user={participantUser || { _id: p }}
-                      size={22}
-                      IsInside
-                      className="ring-2 ring-emerald-600"
+                      className="w-0.5 bg-emerald-400/70 rounded-sm origin-bottom animate-[waveBar_0.9s_ease-in-out_infinite]"
+                      style={{
+                        height: "8px",
+                        animationDelay: `${delay}ms`,
+                      }}
                     />
-                  );
-                })}
+                  ))}
+                </div>
               </div>
 
-              {/* Names */}
-              <span className="text-xs text-emerald-100 truncate">
-                {(() => {
-                  const participants = ongoingCall.participants;
-                  const resolved = participants.map((p) => {
-                    const u = chats
+              {/* Join button */}
+              <button
+                onClick={() => {
+                  const chat = chats.find(
+                    (c) => String(c._id) === String(ongoingCall.chatId)
+                  );
+                  if (!chat) return;
+                  onJoinCall(chat, ongoingCall.callType || "video");
+                }}
+                className="bg-emerald-50 hover:bg-white text-emerald-800 px-3 py-1 rounded-lg text-[11.5px] font-bold transition-all hover:scale-[1.03] active:scale-95"
+              >
+                Join
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-emerald-400/10 mb-2.5" />
+
+            {/* Participants row */}
+            {ongoingCall.participants?.length > 0 && (
+              <div className="flex items-center gap-2">
+                {/* Stacked avatars */}
+                <div className="flex -space-x-1.5 shrink-0">
+                  {ongoingCall.participants.slice(0, 3).map((p, i) => {
+                    const participantUser = chats
                       ?.flatMap((c) => c.users || [])
                       .find((u) => String(u._id) === String(p));
-                    return u?.fName || "Unknown";
-                  });
 
-                  if (resolved.length <= 2) return resolved.join(", ");
-                  return `${resolved.slice(0, 2).join(", ")} & ${
-                    resolved.length - 2
-                  } other${resolved.length - 2 > 1 ? "s" : ""}`;
-                })()}
-              </span>
-            </div>
-          )}
+                    return (
+                      <Avatar
+                        key={i}
+                        user={participantUser || { _id: p }}
+                        size={22}
+                        IsInside
+                        className="ring-[1.5px] ring-emerald-900"
+                      />
+                    );
+                  })}
+                </div>
+
+                {/* Names */}
+                <span className="text-[11.5px] text-emerald-200/80 truncate">
+                  {(() => {
+                    const resolved = ongoingCall.participants.map((p) => {
+                      const u = chats
+                        ?.flatMap((c) => c.users || [])
+                        .find((u) => String(u._id) === String(p));
+                      return u?.fName || "Unknown";
+                    });
+                    if (resolved.length <= 2) return resolved.join(", ");
+                    return `${resolved.slice(0, 2).join(", ")} & ${
+                      resolved.length - 2
+                    } other${resolved.length - 2 > 1 ? "s" : ""}`;
+                  })()}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

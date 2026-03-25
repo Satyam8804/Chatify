@@ -37,7 +37,6 @@ const IncomingCallModal = ({ onAccept, isCalling }) => {
 
   const { from, callerName, chatId, isGroup, callType } = incomingCall;
 
-
   const handleAccept = () => {
     stopRing();
     setIncomingCall(null);
@@ -51,49 +50,118 @@ const IncomingCallModal = ({ onAccept, isCalling }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl text-center shadow-2xl w-80 border border-slate-200 dark:border-slate-700">
-        <div className="relative w-20 h-20 mx-auto mb-5">
-          <span className="absolute inset-0 rounded-full bg-emerald-400/20 animate-ping" />
-          <div className="relative w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
-            {isGroup ? (
-              <Users size={32} className="text-emerald-500" />
-            ) : callType === "audio" ? (
-              <Phone size={32} className="text-emerald-500" />
-            ) : (
-              <Video size={32} className="text-emerald-500" />
-            )}
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-md">
+      <div
+        className="w-80 rounded-[28px] overflow-hidden border border-white/[0.07]"
+        style={{
+          background: "#0f1623",
+          animation: "fadeUp 0.4s cubic-bezier(0.22,1,0.36,1) both",
+        }}
+      >
+        {/* Top accent line */}
+        <div className="h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent" />
+
+        <div className="px-7 pt-9 pb-7 text-center">
+          {/* Avatar with pulse rings */}
+          <div className="relative w-24 h-24 mx-auto mb-6">
+            <span className="absolute inset-[-18px] rounded-full bg-emerald-400/[0.06] animate-[ping2_2s_ease-out_0.3s_infinite]" />
+            <span className="absolute inset-[-10px] rounded-full bg-emerald-400/10 animate-ping" />
+            <div
+              className="relative w-24 h-24 rounded-full border-2 border-emerald-400/30 flex items-center justify-center"
+              style={{ background: "linear-gradient(145deg,#1a2e48,#0d1e30)" }}
+            >
+              {/* Swap for real avatar: <img src={callerAvatar} className="w-full h-full object-cover rounded-full" /> */}
+              <span className="text-3xl font-bold text-emerald-400 tracking-tight">
+                {callerName?.slice(0, 2).toUpperCase() || "??"}
+              </span>
+            </div>
+            {/* Call type badge */}
+            <div className="absolute bottom-0.5 right-0.5 w-6 h-6 rounded-full bg-emerald-400 border-[2.5px] border-[#0f1623] flex items-center justify-center">
+              {isGroup ? (
+                <Users size={11} color="#064e3b" strokeWidth={2.5} />
+              ) : callType === "audio" ? (
+                <Phone size={11} color="#064e3b" strokeWidth={2.5} />
+              ) : (
+                <Video size={11} color="#064e3b" strokeWidth={2.5} />
+              )}
+            </div>
           </div>
+
+          {/* Live label */}
+          <div className="inline-flex items-center gap-1.5 bg-emerald-400/10 border border-emerald-400/20 rounded-full px-3 py-1 mb-3">
+            <div className="flex items-end gap-0.5 h-3">
+              {[0, 150, 300].map((d, i) => (
+                <span
+                  key={i}
+                  className="w-0.5 bg-emerald-400 rounded-sm origin-bottom"
+                  style={{
+                    height: 10,
+                    animation: `waveBar 0.9s ease-in-out ${d}ms infinite`,
+                  }}
+                />
+              ))}
+            </div>
+            <span className="text-[11.5px] font-semibold text-emerald-400 tracking-wide">
+              {isGroup
+                ? "Incoming group call"
+                : callType === "audio"
+                ? "Incoming voice call"
+                : "Incoming video call"}
+            </span>
+          </div>
+
+          {/* Name + subtitle */}
+          <h2 className="text-[22px] font-bold text-slate-100 tracking-tight mb-1">
+            {callerName || "Someone"}
+          </h2>
+          <p className="text-[13px] text-slate-600 mb-8">
+            Calling you · Chatify
+          </p>
+
+          {/* Buttons */}
+          <div className="flex items-center justify-center gap-4">
+            {/* Decline */}
+            <div className="flex flex-col items-center gap-2.5">
+              <button
+                onClick={handleReject}
+                className="w-16 h-16 rounded-full border border-red-400/25 flex items-center justify-center transition-transform active:scale-90 hover:border-red-400/40"
+                style={{ background: "#1e1018" }}
+              >
+                <PhoneOff size={22} color="#f87171" strokeWidth={2} />
+              </button>
+              <span className="text-[12px] text-slate-600 font-medium">
+                Decline
+              </span>
+            </div>
+
+            <div className="w-px h-8 bg-white/[0.06]" />
+
+            {/* Accept */}
+            <div className="flex flex-col items-center gap-2.5">
+              <button
+                onClick={handleAccept}
+                className="w-16 h-16 rounded-full bg-emerald-400 flex items-center justify-center transition-transform active:scale-90 shadow-lg shadow-emerald-400/20"
+              >
+                {callType === "audio" ? (
+                  <Phone size={22} color="#042c1a" strokeWidth={2.2} />
+                ) : (
+                  <Video size={22} color="#042c1a" strokeWidth={2.2} />
+                )}
+              </button>
+              <span className="text-[12px] text-emerald-400 font-medium">
+                Accept
+              </span>
+            </div>
+          </div>
+
+          {/* Message hint */}
+          <button className="mt-6 mx-auto flex items-center gap-1.5 text-[12.5px] text-slate-600 hover:text-slate-400 transition-colors px-3 py-1.5 rounded-lg">
+            <MessageSquare size={13} />
+            Send a message instead
+          </button>
         </div>
 
-        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-          {isGroup
-            ? "Incoming Group Call"
-            : callType === "audio"
-            ? "Incoming Voice Call"
-            : "Incoming Video Call"}
-        </h3>
-
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 mb-6">
-          {callerName || "Someone"} is calling…
-        </p>
-
-        <div className="flex gap-3">
-          <button
-            onClick={handleReject}
-            className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-700 dark:text-slate-300 hover:text-red-600 font-medium text-sm transition-colors flex items-center justify-center gap-2"
-          >
-            <PhoneOff size={15} />
-            Decline
-          </button>
-          <button
-            onClick={handleAccept}
-            className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-medium text-sm transition-colors shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2"
-          >
-            {callType === "audio" ? <Phone size={15} /> : <Video size={15} />}
-            Accept
-          </button>
-        </div>
+        <div className="h-px bg-gradient-to-r from-transparent via-emerald-400/10 to-transparent" />
       </div>
     </div>
   );
