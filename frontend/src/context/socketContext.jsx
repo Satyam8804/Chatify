@@ -1,8 +1,7 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { io } from "socket.io-client";
 import { useAuth } from "./authContext";
 import { getToken } from "../api/axios";
-import { logger } from "../utils/logger";
 
 const SocketContext = createContext(null);
 
@@ -37,46 +36,32 @@ export const SocketProvider = ({ children }) => {
     const newSocket = io("https://chatify-jux9.onrender.com", {
       auth: { token },
       transports: ["websocket"],
-
-      // 🔥 FIX 1: Always reconnect
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-
       pingInterval: 10000,
       pingTimeout: 5000,
     });
 
     setSocket(newSocket);
 
-    // ✅ BASIC EVENTS
     newSocket.on("connect", () => {
       console.log("✅ Socket connected:", newSocket.id);
+      newSocket.emit("request-ongoing-call");
     });
 
     newSocket.on("disconnect", (reason) => {
       console.log("❌ Socket disconnected:", reason);
     });
 
-    // 🔥 FIX 2: HANDLE RECONNECT
-    newSocket.on("reconnect", (attempt) => {
-      console.log("🔄 Socket reconnected after", attempt);
-
-      // 🔥 VERY IMPORTANT
-      newSocket.emit("join-call-room", {
-        roomId: activeChatId, // or call room id
-      });
-
-      // 🔥 Trigger call recovery
+    newSocket.on("reconnect", () => {
       if (activeChatId) {
-        newSocket.emit("ping-rejoin", {
-          chatId: activeChatId,
-        });
+        newSocket.emit("join-call-room", { roomId: activeChatId });
+        newSocket.emit("ping-rejoin", { chatId: activeChatId });
       }
     });
 
-    // ✅ YOUR EXISTING EVENTS (unchanged)
     newSocket.on("online-users", (users) => {
       setOnlineUser(new Set(users));
     });
@@ -137,8 +122,8 @@ export const SocketProvider = ({ children }) => {
     return () => {
       newSocket.disconnect();
     };
-  }, [user?._id]);
-  
+  }, [user?._id, activeChatId]);
+
   return (
     <SocketContext.Provider
       value={{

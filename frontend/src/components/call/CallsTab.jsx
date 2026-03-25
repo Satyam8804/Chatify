@@ -272,7 +272,7 @@ const CallsTab = ({
   return (
     <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar py-2 space-y-3">
       {ongoingCall && (
-        <div className="mx-3 mt-3 rounded-2xl bg-emerald-600 overflow-hidden">
+        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800/40 transition-all duration-200 group cursor-pointer">
           {/* Top row */}
           <div className="flex items-center justify-between px-3 pt-3 pb-2">
             <div className="flex items-center gap-2">

@@ -140,22 +140,12 @@ const Sidebar = ({
   }, [activeTab]);
 
   useEffect(() => {
-    if (!socket) return;
-
-    const timer = setTimeout(() => {
-      socket.emit("request-ongoing-call");
-    }, 700);
-
-    return () => clearTimeout(timer);
-  }, [socket]);
-
-  useEffect(() => {
     joinedChatsRef.current = new Set();
-  }, [socket]);
+  }, [user?._id]);
 
   useEffect(() => {
     if (!socket || !chats.length) return;
-    
+
     chats.forEach((chat) => {
       if (!joinedChatsRef.current.has(chat._id)) {
         socket.emit("join-chat", chat._id);
@@ -320,17 +310,14 @@ const Sidebar = ({
             )}
           </div>
           <span className="mt-0.5">Calls</span>
-          {activeTab === "calls" && (
-            <>
-              {ongoingCall ? (
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
-                </span>
-              ) : (
-                <span className="mt-1 w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              )}
-            </>
+          {ongoingCall && (
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+            </span>
+          )}
+          {activeTab === "calls" && !ongoingCall && (
+            <span className="mt-1 w-1.5 h-1.5 rounded-full bg-emerald-500" />
           )}
         </button>
       </div>

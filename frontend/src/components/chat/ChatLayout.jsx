@@ -49,6 +49,7 @@ const ChatLayout = () => {
   const callDurationRef = useRef(0);
   const callConnectedRef = useRef(false);
   const initiatorRef = useRef(null);
+  const audioCtxRef = useRef(null);
 
   useEffect(() => {
     const call = JSON.parse(localStorage.getItem("ongoingCall"));
@@ -61,18 +62,16 @@ const ChatLayout = () => {
       if (chat) {
         setSelectedChat(chat);
 
-        // 🔥 THIS is the real trigger
         setCallChatId(call.chatId);
         setIsCalling(true);
         setCallType(call.type || "video");
 
-        // optional (better UX)
         setCallTargetName(
           chat.users?.find((u) => u._id !== user._id)?.fName || "User"
         );
       }
     }
-  }, [chats]);
+  }, [chats, user?._id]);
 
   useEffect(() => {
     isCallingRef.current = isCalling;
@@ -269,8 +268,12 @@ const ChatLayout = () => {
 
   const startCall = useCallback(
     (chat, type = "video") => {
-      const ctx = new AudioContext();
-      ctx.resume();
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext ||
+          window.webkitAudioContext)();
+      }
+
+      audioCtxRef.current.resume();
 
       if (isCallingRef.current || !socket || !chat?._id) return;
 
@@ -307,7 +310,10 @@ const ChatLayout = () => {
         playRing();
 
         ringTimeoutRef.current = setTimeout(async () => {
-          socket.emit("call-ended", { to: receiverIds[0] });
+          socket.emit("call-ended", {
+            roomId: chat._id,
+            isGroup: false,
+          });
           await saveCallLog("missed", 0);
           resetCall();
         }, 30000);
@@ -371,6 +377,7 @@ const ChatLayout = () => {
 
   const joinCall = useCallback(
     (chat, type = "video") => {
+      if (socket.disconnected) return;
       if (isCallingRef.current || !socket || !chat?._id) return;
 
       const isGroup = !!chat.isGroupChat || isGroupCallRef.current;

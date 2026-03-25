@@ -31,6 +31,7 @@ const routeToUser = (io, userId, roomId, event, data) => {
 const activeCalls = new Map();
 
 export const videoCallSocket = (io, socket) => {
+
   activeCalls.forEach((call, chatId) => {
     const isInvited = call.invitedUsers.includes(socket.userId);
     const alreadyJoined = call.participants.includes(socket.userId);
@@ -142,17 +143,7 @@ export const videoCallSocket = (io, socket) => {
 
     // ✅ Save back
     activeCalls.set(chatId, call);
-
-    call.invitedUsers.forEach((userId) => {
-      onlineUsers.get(userId)?.forEach((socketId) => {
-        io.to(socketId).emit("ongoing-call", {
-          chatId,
-          participants: call.participants,
-          callType: call.callType,
-        });
-      });
-    });
-
+    
     console.log("📞 Active call updated:", call);
 
     setTimeout(() => {
@@ -283,6 +274,7 @@ export const videoCallSocket = (io, socket) => {
       }
     });
   });
+
 
   socket.on("call-ended", ({ roomId, isGroup }) => {
     if (!roomId) return;
