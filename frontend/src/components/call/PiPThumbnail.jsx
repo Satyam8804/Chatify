@@ -13,6 +13,7 @@ const PiPThumbnail = ({
   const hasDragged = useRef(false);
   const startPos = useRef({ x: 0, y: 0 });
   const offset = useRef({ x: 0, y: 0 });
+  const livePos = useRef({ x: null, y: 56 }); // tracks pos without re-render
   const ref = useRef();
 
   const onPointerDown = (e) => {
@@ -32,7 +33,6 @@ const PiPThumbnail = ({
     const dx = Math.abs(e.clientX - startPos.current.x);
     const dy = Math.abs(e.clientY - startPos.current.y);
     if (dx > 6 || dy > 6) hasDragged.current = true;
-
     if (!hasDragged.current) return;
 
     const parent = ref.current.parentElement.getBoundingClientRect();
@@ -40,13 +40,24 @@ const PiPThumbnail = ({
     const h = ref.current.offsetHeight;
     const x = Math.min(Math.max(e.clientX - parent.left - offset.current.x, 8), parent.width - w - 8);
     const y = Math.min(Math.max(e.clientY - parent.top - offset.current.y, 8), parent.height - h - 8);
-    setPos({ x, y });
+
+    // ✅ directly update DOM — no React re-render, smooth on mobile
+    ref.current.style.left = `${x}px`;
+    ref.current.style.top = `${y}px`;
+    ref.current.style.right = "auto";
+    livePos.current = { x, y };
   };
 
   const onPointerUp = () => {
     if (!dragging.current) return;
     dragging.current = false;
-    if (!hasDragged.current) onSwap();
+
+    if (!hasDragged.current) {
+      onSwap();
+    } else {
+      // ✅ sync to state only once on release so position survives re-renders
+      setPos({ ...livePos.current });
+    }
   };
 
   const style =
