@@ -49,6 +49,7 @@ const ChatLayout = () => {
   const callDurationRef = useRef(0);
   const callConnectedRef = useRef(false);
   const initiatorRef = useRef(null);
+  
 
   useEffect(() => {
     isCallingRef.current = isCalling;

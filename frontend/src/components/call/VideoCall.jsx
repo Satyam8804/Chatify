@@ -140,6 +140,7 @@ const VideoCall = forwardRef(
     const knownPeerIdsRef = useRef(new Set());
     const emptyParticipantsRetryRef = useRef(0);
     const userLeftTimerRef = useRef(null);
+    const isRejoinRef = useRef(false);
 
     const [remoteStreams, setRemoteStreams] = useState([]);
     const [isMuted, setIsMuted] = useState(false);
@@ -194,6 +195,15 @@ const VideoCall = forwardRef(
 
       return () => clearInterval(interval);
     }, []);
+
+    useEffect(() => {
+      const call = JSON.parse(localStorage.getItem("ongoingCall"));
+
+      if (call?.chatId === chatId) {
+        isRejoinRef.current = true;
+        console.log("♻️ Rejoin detected");
+      }
+    }, [chatId]);
 
     const wrappedOnConnected = useCallback(() => {
       hadConnectionRef.current = true;
@@ -309,6 +319,21 @@ const VideoCall = forwardRef(
       const speakingUser = remoteStreams.find((u) => u.isSpeaking);
       setActiveSpeakerId(speakingUser ? speakingUser.userId : null);
     }, [remoteStreams]);
+
+    useEffect(() => {
+      if (!socket) return;
+
+      if (isRejoinRef.current && socket.connected) {
+        console.log("📡 Sending rejoin ping (socket ready)");
+
+        socket.emit("ping-rejoin", {
+          chatId,
+        });
+
+        // ✅ prevent duplicate
+        isRejoinRef.current = false;
+      }
+    }, [socket?.connected, chatId]);
 
     const {
       getLocalStream,
@@ -496,10 +521,6 @@ const VideoCall = forwardRef(
           if (networkStatus !== "poor") {
             adaptBitrateToNetwork();
           }
-
-          // ❌ REMOVED:
-          // - initiateOffer ❌
-          // - applyConstraints ❌
         };
 
         return () => {
@@ -1007,6 +1028,20 @@ const VideoCall = forwardRef(
         }, 5000);
       };
 
+      const handlePeerRejoin = async ({ userId }) => {
+        console.log("♻️ Peer rejoined:", userId);
+
+        if (!userId || String(userId) === String(user?._id)) return;
+
+        try {
+          await initiateOffer(userId); // 🔥 force renegotiation
+        } catch (e) {
+          console.log("Rejoin offer failed:", e);
+        }
+      };
+
+      socket.on("peer-rejoin", handlePeerRejoin);
+
       socket.on("existing-participants", handleExistingParticipants);
       socket.on("webrtc-offer", handleOffer);
       socket.on("webrtc-answer", handleAnswer);
@@ -1021,6 +1056,7 @@ const VideoCall = forwardRef(
         socket.off("ice-candidate", handleIce);
         socket.off("user-left-call", handleUserLeft);
         socket.off("user-muted", handleUserMuted);
+        socket.off("peer-rejoin", handlePeerRejoin);
       };
     }, [
       socket,

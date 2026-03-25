@@ -72,22 +72,14 @@ export const videoCallSocket = (io, socket) => {
     });
   });
 
-  socket.on("ping-rejoin", async ({ from, chatId }) => {
-    console.log("🔄 Rejoin requested from:", from);
+  socket.on("ping-rejoin", ({ chatId }) => {
+    if (!chatId) return;
 
-    const stream = await getLocalStream(true); // 🔥 force new stream
+    console.log("🔄 Rejoin broadcast:", socket.userId);
 
-    const peer = createPeerConnection(from);
-
-    addTracksIfNeeded(peer, stream);
-
-    const offer = await peer.createOffer();
-    await peer.setLocalDescription(offer);
-
-    socket.emit("webrtc-offer", {
-      offer: peer.localDescription,
-      to: from,
-      roomId: chatId,
+    // tell others in room to renegotiate
+    socket.to(chatId).emit("peer-rejoin", {
+      userId: socket.userId,
     });
   });
 

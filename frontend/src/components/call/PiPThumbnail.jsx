@@ -106,7 +106,7 @@ const PiPThumbnail = ({
         transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
         touchAction: "none",
       }}
-      className={`z-20 w-24 h-32 sm:w-28 sm:h-40 rounded-2xl overflow-hidden
+      className={`z-20 w-24 h-32 sm:w-28 sm:h-40 rounded overflow-hidden
         border border-white/10 shadow-2xl bg-slate-900
         will-change-transform
         ${canSwap ? "cursor-grab active:cursor-grabbing" : ""}
