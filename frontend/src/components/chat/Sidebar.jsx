@@ -182,6 +182,12 @@ const Sidebar = ({
       setOngoingCall(data);
     };
 
+    const handleCallEnded = () => {
+      console.log("📴 Clearing ongoing call");
+      setOngoingCall(null);
+    };
+
+    socket.on("call-ended", handleCallEnded);
     socket.on("ongoing-call", handleOngoingCall);
 
     socket.on("receive-message", handleMessage);
@@ -193,6 +199,7 @@ const Sidebar = ({
       socket.off("call-log-saved", handleCallLog);
       socket.off("new-chat-created", handleNewChat);
       socket.off("ongoing-call", handleOngoingCall);
+      socket.off("call-ended", handleCallEnded);
     };
   }, [socket]);
 

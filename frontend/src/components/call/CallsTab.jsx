@@ -192,6 +192,7 @@ const CallsTab = ({
         !c.isGroupChat &&
         c.users?.some((u) => String(u._id) === String(otherUser._id))
     );
+
     if (!chat) return;
     if (chat) onStartCall(chat, callType);
   };
@@ -284,10 +285,15 @@ const CallsTab = ({
 
           <button
             onClick={() => {
-              onStartCall(
-                chats.find((c) => c._id === ongoingCall.chatId),
-                "video"
+              const chat = chats.find(
+                (c) => String(c._id) === String(ongoingCall.chatId)
               );
+              if (!chat) {
+                console.log("❌ Chat not found for ongoing call");
+                return;
+              }
+
+              onStartCall(chat, ongoingCall.callType || "video");
             }}
             className="bg-white text-black px-3 py-1 rounded text-xs font-semibold"
           >
