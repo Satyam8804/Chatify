@@ -186,14 +186,15 @@ const Sidebar = ({
       });
     };
 
-    const handleCallFullyEnded = ({ chatId }) => {
+    const handleEnd = ({ chatId }) => {
       setOngoingCall((prev) => {
         if (String(prev?.chatId) === String(chatId)) return null;
         return prev;
       });
     };
-    socket.on("call-fully-ended", handleCallFullyEnded);
 
+    socket.on("call-ended", handleEnd);
+    socket.on("call-fully-ended", handleEnd);
     socket.on("ongoing-call", handleOngoingCall);
 
     socket.on("receive-message", handleMessage);
@@ -205,7 +206,8 @@ const Sidebar = ({
       socket.off("call-log-saved", handleCallLog);
       socket.off("new-chat-created", handleNewChat);
       socket.off("ongoing-call", handleOngoingCall);
-      socket.off("call-fully-ended", handleCallFullyEnded);
+      socket.off("call-fully-ended", handleEnd);
+      socket.off("call-ended", handleEnd);
     };
   }, [socket]);
 

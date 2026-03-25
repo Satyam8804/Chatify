@@ -259,7 +259,6 @@ export const videoCallSocket = (io, socket) => {
     });
   });
 
-  
   socket.on("call-accepted", ({ to }) => {
     if (!to) return;
 
@@ -315,21 +314,43 @@ export const videoCallSocket = (io, socket) => {
     const call = activeCalls.get(roomId);
     activeCalls.delete(roomId);
 
+    // 🔥 1. Notify ALL participants (important)
+    if (call?.participants?.length) {
+      call.participants.forEach((userId) => {
+        onlineUsers.get(String(userId))?.forEach((socketId) => {
+          io.to(socketId).emit("call-ended", {
+            chatId: roomId,
+            by: socket.userId,
+          });
+        });
+      });
+    }
+
     if (isGroup) {
+      // notify room users
       socket.to(roomId).emit("user-left-call", { userId: socket.userId });
       socket.leave(roomId);
 
-      // ✅ notify invited users who never joined so their banner clears
+      // 🔥 2. Notify invited users who never joined
       if (call?.invitedUsers?.length) {
         call.invitedUsers.forEach((userId) => {
-          if (call.participants.includes(userId)) return; // already in call, skip
-          onlineUsers.get(userId)?.forEach((socketId) => {
-            io.to(socketId).emit("call-fully-ended", { chatId: roomId });
+          // skip users already in call
+          if (call.participants.map(String).includes(String(userId))) return;
+
+          onlineUsers.get(String(userId))?.forEach((socketId) => {
+            io.to(socketId).emit("call-fully-ended", {
+              chatId: roomId,
+            });
           });
         });
       }
     } else {
-      io.in(roomId).emit("call-ended", { by: socket.userId });
+      // 🔥 3. one-to-one call (still notify properly)
+      io.in(roomId).emit("call-ended", {
+        chatId: roomId,
+        by: socket.userId,
+      });
+
       socket.leave(roomId);
     }
   });

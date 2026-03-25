@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useSocket } from "../../context/socketContext";
 import incomingRingFile from "../../assets/sound/incoming-ring.mp3";
-import { Phone, Video, Users, PhoneOff } from "lucide-react";
+import { Phone, Video, Users, PhoneOff, MessageSquare } from "lucide-react";
 const IncomingCallModal = ({ onAccept, isCalling }) => {
   const { socket, incomingCall, setIncomingCall } = useSocket();
 
