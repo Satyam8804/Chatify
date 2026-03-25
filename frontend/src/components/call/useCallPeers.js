@@ -256,7 +256,7 @@ export const useCallPeers = ({
 
     let peer = createPeerConnection(userId);
     if (!peer) return;
-    
+
     const stream = await getLocalStream();
 
     if (!stream) {
@@ -264,12 +264,15 @@ export const useCallPeers = ({
       return;
     }
 
-    
     addTracksIfNeeded(peer, stream);
 
     let entry = getPeerEntry(userId);
 
-    // ✅ recreate dead peer
+    if (entry?.makingOffer || entry?.restarting) {
+      console.log("🚫 Already making offer, skipping");
+      return;
+    }
+    
     if (
       peer.connectionState === "failed" ||
       peer.connectionState === "closed"

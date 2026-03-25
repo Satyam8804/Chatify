@@ -32,6 +32,7 @@ const startWatchdog = ({
   setConnectionFailed,
   cleanupRef,
   initiateOffer,
+  getPeerEntry
 }) => {
   if (cleanupRef.current?.watchdog) {
     clearInterval(cleanupRef.current.watchdog);
@@ -89,6 +90,13 @@ const startWatchdog = ({
             try {
               await peer.setLocalDescription({ type: "rollback" });
             } catch {}
+
+            const entry = getPeerEntry(userId);
+
+            if (entry?.makingOffer || entry?.restarting) {
+              console.log("🚫 Watchdog skip — already negotiating");
+              continue;
+            }
 
             await initiateOffer(userId);
             continue;
@@ -723,6 +731,7 @@ const VideoCall = forwardRef(
             setConnectionFailed,
             cleanupRef,
             initiateOffer,
+            getPeerEntry
           });
 
           log("init() complete");
@@ -912,7 +921,13 @@ const VideoCall = forwardRef(
         if (!peer) return;
 
         let entry = getPeerEntry(from);
+
         if (!entry) {
+          return;
+        }
+
+        if (entry?.makingOffer || entry?.restarting) {
+          console.log("🚫 Skipping offer — already negotiating");
           return;
         }
 
@@ -973,6 +988,12 @@ const VideoCall = forwardRef(
         }
 
         const answer = await peer.createAnswer();
+
+        if (peer.signalingState !== "have-remote-offer") {
+          console.log("🚫 Skip answer — wrong state:", peer.signalingState);
+          return;
+        }
+
         await peer.setLocalDescription(answer);
 
         log("Sending answer to:", from);
@@ -1313,6 +1334,7 @@ const VideoCall = forwardRef(
                               setConnectionFailed,
                               cleanupRef,
                               initiateOffer,
+                              getPeerEntry
                             });
                             safeJoinRoom();
                           }}
@@ -1556,6 +1578,7 @@ const VideoCall = forwardRef(
                     setConnectionFailed,
                     cleanupRef,
                     initiateOffer,
+                    getPeerEntry
                   });
                   safeJoinRoom();
                 }}
