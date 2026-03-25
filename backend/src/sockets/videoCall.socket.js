@@ -142,22 +142,22 @@ export const videoCallSocket = (io, socket) => {
     });
   });
 
-  socket.on("call-ended", ({ to, roomId }) => {
-    if (roomId) {
+  socket.on("call-ended", ({ roomId, isGroup }) => {
+    if (!roomId) return;
+
+    console.log("📴 Call ended:", socket.userId, "Group:", isGroup);
+
+    if (isGroup) {
       socket.to(roomId).emit("user-left-call", {
         userId: socket.userId,
       });
 
       socket.leave(roomId);
-      return;
-    }
-
-    if (to) {
-      onlineUsers.get(to)?.forEach((socketId) => {
-        io.to(socketId).emit("call-ended", {
-          from: socket.userId,
-        });
+    } else {
+      io.in(roomId).emit("call-ended", {
+        by: socket.userId,
       });
+      socket.leave(roomId);
     }
   });
 

@@ -347,7 +347,10 @@ const ChatLayout = () => {
       if (isGroupCallRef.current) {
         socket.emit("leave-call-room", { roomId: callChatIdRef.current });
       } else {
-        socket.emit("call-ended", { to: receiverIdRef.current });
+        socket.emit("call-ended", {
+          roomId: callChatIdRef.current,
+          isGroup: false,
+        });
       }
     }
 
