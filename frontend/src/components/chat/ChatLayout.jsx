@@ -377,8 +377,8 @@ const ChatLayout = () => {
 
   const joinCall = useCallback(
     (chat, type = "video") => {
-      if (socket.disconnected) return;
-      if (isCallingRef.current || !socket || !chat?._id) return;
+      if (!socket || socket.disconnected) return;
+      if (isCallingRef.current || !chat?._id) return;
 
       const isGroup = !!chat.isGroupChat || isGroupCallRef.current;
 
@@ -395,6 +395,16 @@ const ChatLayout = () => {
       setCallType(type);
       setIsCalling(true);
       setCallTargetName("");
+
+      // 🔥 IMPORTANT: join socket room
+      socket.emit("join-call-room", {
+        roomId: chat._id,
+      });
+
+      // 🔥 IMPORTANT: trigger re-negotiation
+      socket.emit("ping-rejoin", {
+        chatId: chat._id,
+      });
 
       localStorage.setItem(
         "ongoingCall",
