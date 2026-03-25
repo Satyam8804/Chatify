@@ -192,6 +192,7 @@ const CallsTab = ({
         !c.isGroupChat &&
         c.users?.some((u) => String(u._id) === String(otherUser._id))
     );
+    if (!chat) return;
     if (chat) onStartCall(chat, callType);
   };
 

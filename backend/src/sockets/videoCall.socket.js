@@ -1,7 +1,5 @@
 import { onlineUsers } from "./presence.socket.js";
 
-
-
 const routeToUser = (io, userId, roomId, event, data) => {
   if (roomId) {
     const room = io.sockets.adapter.rooms.get(roomId);
@@ -32,21 +30,22 @@ const routeToUser = (io, userId, roomId, event, data) => {
 
 const activeCalls = new Map();
 
-activeCalls.forEach((call, chatId) => {
-  const isInvited = call.invitedUsers.includes(socket.userId);
-  const alreadyJoined = call.participants.includes(socket.userId);
-
-  if (isInvited && !alreadyJoined) {
-    console.log("📞 Sending ongoing call to:", socket.userId);
-
-    socket.emit("ongoing-call", {
-      chatId,
-      participants: call.participants,
-    });
-  }
-});
-
 export const videoCallSocket = (io, socket) => {
+  activeCalls.forEach((call, chatId) => {
+    const isInvited = call.invitedUsers.includes(socket.userId);
+    const alreadyJoined = call.participants.includes(socket.userId);
+
+    if (isInvited && !alreadyJoined) {
+      console.log("📞 Sending ongoing call to:", socket.userId);
+
+      socket.emit("ongoing-call", {
+        chatId,
+        participants: call.participants,
+        callType: call.callType,
+      });
+    }
+  });
+
   socket.on("join-call-room", ({ roomId }) => {
     if (!roomId) return;
 
@@ -115,6 +114,7 @@ export const videoCallSocket = (io, socket) => {
     activeCalls.set(chatId, {
       invitedUsers: receiverIds,
       participants: [socket.userId],
+      callType,
     });
 
     receiverIds.forEach((userId) => {
@@ -125,6 +125,16 @@ export const videoCallSocket = (io, socket) => {
           callerAvatar: socket.user?.avatar,
           chatId,
           isGroup: !!isGroup,
+          callType,
+        });
+      });
+    });
+
+    receiverIds.forEach((userId) => {
+      onlineUsers.get(userId)?.forEach((socketId) => {
+        io.to(socketId).emit("ongoing-call", {
+          chatId,
+          participants: [socket.userId],
           callType,
         });
       });
@@ -143,6 +153,26 @@ export const videoCallSocket = (io, socket) => {
           chatId,
           callType,
           isGroup: true, // ✅ force group
+        });
+      });
+    });
+
+    const call = activeCalls.get(chatId);
+
+    if (call) {
+      inviteeIds.forEach((id) => {
+        if (!call.invitedUsers.includes(id)) {
+          call.invitedUsers.push(id);
+        }
+      });
+    }
+
+    inviteeIds.forEach((userId) => {
+      onlineUsers.get(userId)?.forEach((socketId) => {
+        io.to(socketId).emit("ongoing-call", {
+          chatId,
+          participants: call.participants,
+          callType,
         });
       });
     });
@@ -177,6 +207,7 @@ export const videoCallSocket = (io, socket) => {
     if (!roomId) return;
 
     console.log("📴 Call ended:", socket.userId, "Group:", isGroup);
+    activeCalls.delete(roomId);
 
     if (isGroup) {
       socket.to(roomId).emit("user-left-call", {
