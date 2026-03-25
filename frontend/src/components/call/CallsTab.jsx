@@ -176,6 +176,7 @@ const CallsTab = ({
   fetchNextPage,
   hasMore,
   loading,
+  ongoingCall,
 }) => {
   const { user } = useAuth();
   const observerRef = useRef();
@@ -268,6 +269,32 @@ const CallsTab = ({
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar py-2 space-y-3">
+      {ongoingCall && (
+        <div className="mx-3 mt-3 p-3 rounded-xl bg-emerald-600 text-white flex justify-between items-center">
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold">Ongoing Call</span>
+            <span className="text-xs opacity-80">
+              <span className="text-xs opacity-80">
+                {ongoingCall.callType === "video" ? "Video Call" : "Audio Call"}{" "}
+                • {ongoingCall.participants?.length || 1} in call
+              </span>
+            </span>
+          </div>
+
+          <button
+            onClick={() => {
+              onStartCall(
+                chats.find((c) => c._id === ongoingCall.chatId),
+                "video"
+              );
+            }}
+            className="bg-white text-black px-3 py-1 rounded text-xs font-semibold"
+          >
+            Join
+          </button>
+        </div>
+      )}
+
       {sections.map(({ key, label }) => {
         const logs = groupedLogs[key];
         if (!logs.length) return null;

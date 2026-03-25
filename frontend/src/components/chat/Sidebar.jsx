@@ -30,6 +30,7 @@ const Sidebar = ({
   const [showMenus, setShowMenus] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
+  const [ongoingCall, setOngoingCall] = useState(null);
 
   const [callLogs, setCallLogs] = useState([]);
   const [page, setPage] = useState(1);
@@ -176,6 +177,13 @@ const Sidebar = ({
       joinedChatsRef.current.add(newChat._id);
     };
 
+    const handleOngoingCall = (data) => {
+      console.log("📞 Ongoing call (sidebar):", data);
+      setOngoingCall(data);
+    };
+
+    socket.on("ongoing-call", handleOngoingCall);
+
     socket.on("receive-message", handleMessage);
     socket.on("call-log-saved", handleCallLog);
     socket.on("new-chat-created", handleNewChat);
@@ -184,6 +192,7 @@ const Sidebar = ({
       socket.off("receive-message", handleMessage);
       socket.off("call-log-saved", handleCallLog);
       socket.off("new-chat-created", handleNewChat);
+      socket.off("ongoing-call", handleOngoingCall);
     };
   }, [socket]);
 
@@ -249,6 +258,7 @@ const Sidebar = ({
             loading={loading}
             fetchNextPage={fetchNextPage}
             hasMore={hasMore}
+            ongoingCall={ongoingCall}
           />
         )}
       </div>

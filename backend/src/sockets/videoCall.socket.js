@@ -1,5 +1,7 @@
 import { onlineUsers } from "./presence.socket.js";
 
+
+
 const routeToUser = (io, userId, roomId, event, data) => {
   if (roomId) {
     const room = io.sockets.adapter.rooms.get(roomId);
@@ -28,6 +30,22 @@ const routeToUser = (io, userId, roomId, event, data) => {
   }
 };
 
+const activeCalls = new Map();
+
+activeCalls.forEach((call, chatId) => {
+  const isInvited = call.invitedUsers.includes(socket.userId);
+  const alreadyJoined = call.participants.includes(socket.userId);
+
+  if (isInvited && !alreadyJoined) {
+    console.log("📞 Sending ongoing call to:", socket.userId);
+
+    socket.emit("ongoing-call", {
+      chatId,
+      participants: call.participants,
+    });
+  }
+});
+
 export const videoCallSocket = (io, socket) => {
   socket.on("join-call-room", ({ roomId }) => {
     if (!roomId) return;
@@ -50,6 +68,13 @@ export const videoCallSocket = (io, socket) => {
 
     if (!socket.rooms.has(roomId)) {
       socket.join(roomId);
+
+      const call = activeCalls.get(roomId);
+      if (call) {
+        if (!call.participants.includes(socket.userId)) {
+          call.participants.push(socket.userId);
+        }
+      }
       socket.to(roomId).emit("user-joined-call", {
         userId: socket.userId,
         name: socket.user?.fName,
@@ -85,6 +110,12 @@ export const videoCallSocket = (io, socket) => {
 
   socket.on("video-call-user", ({ chatId, receiverIds, isGroup, callType }) => {
     if (!receiverIds?.length) return;
+
+    // 🔥 NEW
+    activeCalls.set(chatId, {
+      invitedUsers: receiverIds,
+      participants: [socket.userId],
+    });
 
     receiverIds.forEach((userId) => {
       onlineUsers.get(userId)?.forEach((socketId) => {
