@@ -308,11 +308,21 @@ const CallsTab = ({
 
               {/* Join button */}
               <button
+                disabled={!chats?.length}
                 onClick={() => {
-                  const chat = chats.find(
+                  let chat = chats.find(
                     (c) => String(c._id) === String(ongoingCall.chatId)
                   );
-                  if (!chat) return;
+                  if (!chat) {
+                    console.log("⚠️ Chat not found, creating fallback");
+
+                    chat = {
+                      _id: ongoingCall.chatId,
+                      isGroupChat: true,
+                      users: [],
+                    };
+                  }
+
                   onJoinCall(chat, ongoingCall.callType || "video");
                 }}
                 className="bg-emerald-50 hover:bg-white text-emerald-800 px-3 py-1 rounded-lg text-[11.5px] font-bold transition-all hover:scale-[1.03] active:scale-95"
