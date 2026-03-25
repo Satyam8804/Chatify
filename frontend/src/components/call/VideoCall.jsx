@@ -22,6 +22,7 @@ import { logger } from "../../utils/logger";
 import { MicOff, Wifi, WifiOff, AlertTriangle } from "lucide-react";
 import ParticipantCard from "./ParticipantCard";
 import { getAvatarColor } from "../../utils/getAvatarColor";
+import PiPThumbnail from "./PiPThumbnail";
 
 const log = (...args) => console.log("[VideoCall]", ...args);
 
@@ -680,7 +681,7 @@ const VideoCall = forwardRef(
         if (cleanupRef.current?.watchdog) {
           clearInterval(cleanupRef.current.watchdog);
         }
-        clearTimeout(userLeftTimerRef.current);
+        clearTimeout(userLeftTimerRef?.current);
         socket.off("user-joined-call", handleUserJoinedEarly);
 
         navigator.mediaDevices.removeEventListener(
@@ -1084,7 +1085,7 @@ const VideoCall = forwardRef(
       cleanup: () => cleanupRef.current?.(),
       getParticipants: () => getFinalParticipants(),
     }));
-    
+
     const callChat = useMemo(
       () => chats?.find((c) => String(c._id) === String(chatId)),
       [chats, chatId]
@@ -1164,7 +1165,14 @@ const VideoCall = forwardRef(
       <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col">
         {callType === "video" && (
           <div className="flex-1 relative min-h-0 overflow-hidden">
-            <div className={`absolute inset-0 ${swapped ? "hidden" : "flex"}`}>
+            {/* ── Main view (remote or local when swapped) ── */}
+            <div
+              className={`absolute inset-0 transition-all duration-300 ease-in-out ${
+                swapped
+                  ? "opacity-0 scale-95 pointer-events-none"
+                  : "opacity-100 scale-100"
+              }`}
+            >
               {remoteStreams.length === 0 ? (
                 <div className="relative w-full h-full">
                   <LocalVideo
@@ -1188,7 +1196,7 @@ const VideoCall = forwardRef(
                               peersRef,
                               setConnectionFailed,
                               cleanupRef,
-                              initiateOffer, // ✅ REQUIRED
+                              initiateOffer,
                             });
                             safeJoinRoom();
                           }}
@@ -1225,10 +1233,11 @@ const VideoCall = forwardRef(
                   )}
                 </div>
               ) : (
+                // ✅ 2 remote = horizontal split (top/bottom), 3+ = grid
                 <div
                   className={`w-full h-full p-1 grid gap-1 ${
                     remoteStreams.length === 2
-                      ? "grid-cols-2"
+                      ? "grid-cols-1 grid-rows-2"
                       : remoteStreams.length === 3
                       ? "grid-cols-2 grid-rows-2"
                       : remoteStreams.length === 4
@@ -1238,31 +1247,40 @@ const VideoCall = forwardRef(
                       : "grid-cols-3 grid-rows-3"
                   }`}
                 >
-                  {remoteStreams.map(({ userId, stream, name, isMuted }, i) => (
-                    <div
-                      key={userId}
-                      className={`relative overflow-hidden rounded-xl ${
-                        remoteStreams.length === 3 && i === 0
-                          ? "col-span-2"
-                          : ""
-                      }`}
-                    >
-                      <RemoteVideo stream={stream} />
-                      <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">
-                        {name}
-                      </span>
-                      {isMuted && (
-                        <span className="absolute bottom-2 right-2 z-10 bg-black/70 backdrop-blur-md p-1.5 rounded-full border border-white/10">
-                          <MicOff size={12} className="text-white" />
+                  {remoteStreams.map(
+                    ({ userId, stream, fName, isMuted }, i) => (
+                      <div
+                        key={userId}
+                        className={`relative overflow-hidden rounded-xl ${
+                          remoteStreams.length === 3 && i === 0
+                            ? "col-span-2"
+                            : ""
+                        }`}
+                      >
+                        <RemoteVideo stream={stream} />
+                        <span className="absolute bottom-2 left-3 text-[10px] text-white/40 font-medium z-10">
+                          {fName}
                         </span>
-                      )}
-                    </div>
-                  ))}
+                        {isMuted && (
+                          <span className="absolute bottom-2 right-2 z-10 bg-black/70 backdrop-blur-md p-1.5 rounded-full border border-white/10">
+                            <MicOff size={12} className="text-white" />
+                          </span>
+                        )}
+                      </div>
+                    )
+                  )}
                 </div>
               )}
             </div>
 
-            <div className={`absolute inset-0 ${swapped ? "block" : "hidden"}`}>
+            {/* ── Local (self) view when swapped to main ── */}
+            <div
+              className={`absolute inset-0 transition-all duration-300 ease-in-out ${
+                swapped
+                  ? "opacity-100 scale-100"
+                  : "opacity-0 scale-95 pointer-events-none"
+              }`}
+            >
               <LocalVideo
                 videoRef={localVideoMainRef}
                 isFrontCamera={isFrontCamera}
@@ -1280,6 +1298,7 @@ const VideoCall = forwardRef(
           </div>
         )}
 
+        {/* ── Network status banner ── */}
         {networkStatus !== "connected" && networkCfg && (
           <div
             className={`absolute top-0 left-0 right-0 z-50 flex items-center justify-center gap-1.5 py-1 ${networkCfg.bg} backdrop-blur-sm`}
@@ -1294,6 +1313,7 @@ const VideoCall = forwardRef(
           </div>
         )}
 
+        {/* ── Top bar ── */}
         <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 pt-4 pb-8 bg-gradient-to-b from-slate-950/70 to-transparent">
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
@@ -1306,7 +1326,6 @@ const VideoCall = forwardRef(
               <NetworkBar />
             </div>
           </div>
-
           <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
             <span className="text-[10px] text-slate-400">
               {remoteStreams.length + 1} participants
@@ -1314,47 +1333,22 @@ const VideoCall = forwardRef(
           </div>
         </div>
 
+        {/* ── PiP thumbnail ── */}
         {callType === "video" && (
-          <div
-            onClick={() => canSwap && setSwapped((p) => !p)}
-            className={`absolute top-14 right-3 z-20 w-24 h-32 sm:w-28 sm:h-40 rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-slate-900 ${
-              canSwap
-                ? "cursor-pointer active:scale-95 transition-transform"
-                : ""
-            }`}
-          >
-            {swapped ? (
-              remoteStreams[selectedRemoteIndex] && (
-                <RemoteVideo
-                  stream={remoteStreams[selectedRemoteIndex]?.stream}
-                />
-              )
-            ) : (
-              <LocalVideo
-                videoRef={localVideoRef}
-                isFrontCamera={isFrontCamera}
-                isVideoOff={isVideoOff}
-              />
-            )}
-
-            {swapped
-              ? remoteStreams[selectedRemoteIndex]?.isMuted && (
-                  <span className="absolute bottom-2 right-2 z-10 bg-black/70 backdrop-blur-md p-1 rounded-full border border-white/10">
-                    <MicOff size={10} className="text-white" />
-                  </span>
-                )
-              : isMuted && (
-                  <span className="absolute bottom-2 right-2 z-10 bg-black/70 backdrop-blur-md p-1 rounded-full border border-white/10">
-                    <MicOff size={10} className="text-white" />
-                  </span>
-                )}
-
-            <span className="absolute bottom-1.5 left-0 right-0 text-center text-[9px] text-white/30 font-medium z-10">
-              {swapped ? remoteStreams[selectedRemoteIndex]?.fName : "You"}
-            </span>
-          </div>
+          <PiPThumbnail
+            swapped={swapped}
+            canSwap={canSwap}
+            onSwap={() => canSwap && setSwapped((p) => !p)}
+            remoteStreams={remoteStreams}
+            selectedRemoteIndex={selectedRemoteIndex}
+            isMuted={isMuted}
+            localVideoRef={localVideoRef}
+            isFrontCamera={isFrontCamera}
+            isVideoOff={isVideoOff}
+          />
         )}
 
+        {/* ── Audio call UI ── */}
         {callType === "audio" && (
           <div className="flex-1 flex flex-col items-center justify-center px-4 py-6">
             <div
@@ -1378,14 +1372,11 @@ const VideoCall = forwardRef(
                           el.srcObject = u.stream;
                           el.muted = false;
                           el.volume = 1;
-                          const playPromise = el.play();
-                          if (playPromise !== undefined) {
-                            playPromise.catch(() => {
-                              setTimeout(() => {
-                                el.play().catch(() => {});
-                              }, 500);
-                            });
-                          }
+                          const p = el.play();
+                          if (p !== undefined)
+                            p.catch(() =>
+                              setTimeout(() => el.play().catch(() => {}), 500)
+                            );
                         } catch (e) {
                           console.warn("[AudioCall] ref error:", e);
                         }
@@ -1413,7 +1404,6 @@ const VideoCall = forwardRef(
                 color={getAvatarColor(activeSpeakerId || user?.fName)}
                 isSpeaking={activeSpeakerId === user?._id}
               />
-
               {remoteStreams
                 .filter((u) => u && u.userId)
                 .map((u) => (
@@ -1449,7 +1439,7 @@ const VideoCall = forwardRef(
                     peersRef,
                     setConnectionFailed,
                     cleanupRef,
-                    initiateOffer, // ✅ REQUIRED
+                    initiateOffer,
                   });
                   safeJoinRoom();
                 }}
@@ -1461,6 +1451,7 @@ const VideoCall = forwardRef(
           </div>
         )}
 
+        {/* ── Controls ── */}
         <CallControls
           isMuted={isMuted}
           isVideoOff={isVideoOff}
