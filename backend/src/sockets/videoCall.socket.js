@@ -71,7 +71,9 @@ export const videoCallSocket = (io, socket) => {
       const call = activeCalls.get(roomId);
       if (call) {
         if (!call.participants.includes(socket.userId)) {
-          call.participants.push(socket.userId);
+          call.participants = Array.from(
+            new Set([...call.participants, socket.userId])
+          );
         }
       }
       socket.to(roomId).emit("user-joined-call", {
@@ -110,13 +112,47 @@ export const videoCallSocket = (io, socket) => {
   socket.on("video-call-user", ({ chatId, receiverIds, isGroup, callType }) => {
     if (!receiverIds?.length) return;
 
-    // 🔥 NEW
-    activeCalls.set(chatId, {
-      invitedUsers: receiverIds,
-      participants: [socket.userId],
-      callType,
+    // ✅ Get existing call OR create new
+    let call = activeCalls.get(chatId);
+
+    if (!call) {
+      call = {
+        invitedUsers: [],
+        participants: [],
+        callType,
+      };
+    }
+
+    // ✅ Add all invited users (even if offline)
+    receiverIds.forEach((id) => {
+      if (!call.invitedUsers.includes(id)) {
+        call.invitedUsers.push(id);
+      }
     });
 
+    // ✅ Add caller to participants
+    if (!call.participants.includes(socket.userId)) {
+      call.participants = Array.from(
+        new Set([...call.participants, socket.userId])
+      );
+    }
+
+    // ✅ Update callType
+    call.callType = callType;
+
+    // ✅ Save back
+    activeCalls.set(chatId, call);
+
+    console.log("📞 Active call updated:", call);
+
+    setTimeout(() => {
+      if (!activeCalls.has(chatId)) return;
+
+      console.log("🧹 Cleaning stale call:", chatId);
+      activeCalls.delete(chatId);
+    }, 1000 * 60 * 30); // 30 min
+
+    // 🔔 Send incoming-call (only for online users)
     receiverIds.forEach((userId) => {
       onlineUsers.get(userId)?.forEach((socketId) => {
         io.to(socketId).emit("incoming-call", {
@@ -130,11 +166,14 @@ export const videoCallSocket = (io, socket) => {
       });
     });
 
-    receiverIds.forEach((userId) => {
+    // 🔥 ALWAYS sync ongoing-call to ALL invited users
+    call.invitedUsers.forEach((userId) => {
       onlineUsers.get(userId)?.forEach((socketId) => {
+        console.log("📡 Sending ongoing-call to:", userId);
+
         io.to(socketId).emit("ongoing-call", {
           chatId,
-          participants: [socket.userId],
+          participants: call.participants,
           callType,
         });
       });
@@ -157,14 +196,18 @@ export const videoCallSocket = (io, socket) => {
       });
     });
 
-    const call = activeCalls.get(chatId);
+    let call = activeCalls.get(chatId);
 
-    if (call) {
-      inviteeIds.forEach((id) => {
-        if (!call.invitedUsers.includes(id)) {
-          call.invitedUsers.push(id);
-        }
-      });
+    if (!call) {
+      console.log("⚠️ invite-to-call without active call, creating fallback");
+
+      call = {
+        invitedUsers: [],
+        participants: [socket.userId],
+        callType,
+      };
+
+      activeCalls.set(chatId, call);
     }
 
     inviteeIds.forEach((userId) => {
@@ -193,12 +236,13 @@ export const videoCallSocket = (io, socket) => {
     });
   });
 
-  socket.on("call-rejected", ({ to }) => {
+  socket.on("call-rejected", ({ to, chatId }) => {
     if (!to) return;
 
     onlineUsers.get(to)?.forEach((socketId) => {
       io.to(socketId).emit("call-rejected", {
         from: socket.userId,
+        chatId,
       });
     });
   });

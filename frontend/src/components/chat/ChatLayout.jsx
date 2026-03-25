@@ -222,12 +222,20 @@ const ChatLayout = () => {
       clearTimeout(ringTimeoutRef.current);
     };
 
-    const onRejected = async () => {
-      if (!callChatIdRef.current) return;
+    const onRejected = async ({ chatId, from }) => {
+      console.log("❌ User rejected:", from, "chat: ",chatId);
+
+      // 🛑 stop ringing ONLY
       stopRing();
       clearTimeout(ringTimeoutRef.current);
-      await saveCallLog("rejected", 0);
-      resetCall();
+
+      // ✅ ONLY end call if it's 1–1 call
+      if (!isGroupCallRef.current) {
+        await saveCallLog("rejected", 0);
+        resetCall();
+        return;
+      }
+
     };
 
     const onBusy = async () => {
@@ -486,7 +494,6 @@ const ChatLayout = () => {
                 onConnected={startTimer}
                 initiator={initiator}
                 callType={callType}
-                
               />
             </Suspense>
           </div>
