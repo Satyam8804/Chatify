@@ -20,6 +20,7 @@ const Sidebar = ({
   chats,
   setChats,
   onStartCall,
+  onJoinCall,
 }) => {
   const { user } = useAuth();
   const { onlineUser, unreadCounts, socket } = useSocket();
@@ -182,12 +183,14 @@ const Sidebar = ({
       setOngoingCall(data);
     };
 
-    const handleCallEnded = () => {
-      console.log("📴 Clearing ongoing call");
-      setOngoingCall(null);
+    const handleCallFullyEnded = ({ chatId }) => {
+      setOngoingCall((prev) => {
+        if (String(prev?.chatId) === String(chatId)) return null;
+        return prev;
+      });
     };
+    socket.on("call-fully-ended", handleCallFullyEnded);
 
-    socket.on("call-ended", handleCallEnded);
     socket.on("ongoing-call", handleOngoingCall);
 
     socket.on("receive-message", handleMessage);
@@ -199,7 +202,7 @@ const Sidebar = ({
       socket.off("call-log-saved", handleCallLog);
       socket.off("new-chat-created", handleNewChat);
       socket.off("ongoing-call", handleOngoingCall);
-      socket.off("call-ended", handleCallEnded);
+      socket.off("call-fully-ended", handleCallFullyEnded);
     };
   }, [socket]);
 
@@ -268,6 +271,7 @@ const Sidebar = ({
             fetchNextPage={fetchNextPage}
             hasMore={hasMore}
             ongoingCall={ongoingCall}
+            onJoinCall={onJoinCall}
           />
         )}
       </div>
@@ -306,7 +310,16 @@ const Sidebar = ({
           </div>
           <span className="mt-0.5">Calls</span>
           {activeTab === "calls" && (
-            <span className="mt-1 w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <>
+              {ongoingCall ? (
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                </span>
+              ) : (
+                <span className="mt-1 w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              )}
+            </>
           )}
         </button>
       </div>

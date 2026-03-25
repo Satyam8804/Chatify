@@ -206,19 +206,24 @@ export const videoCallSocket = (io, socket) => {
   socket.on("call-ended", ({ roomId, isGroup }) => {
     if (!roomId) return;
 
-    console.log("📴 Call ended:", socket.userId, "Group:", isGroup);
+    const call = activeCalls.get(roomId);
     activeCalls.delete(roomId);
 
     if (isGroup) {
-      socket.to(roomId).emit("user-left-call", {
-        userId: socket.userId,
-      });
-
+      socket.to(roomId).emit("user-left-call", { userId: socket.userId });
       socket.leave(roomId);
+
+      // ✅ notify invited users who never joined so their banner clears
+      if (call?.invitedUsers?.length) {
+        call.invitedUsers.forEach((userId) => {
+          if (call.participants.includes(userId)) return; // already in call, skip
+          onlineUsers.get(userId)?.forEach((socketId) => {
+            io.to(socketId).emit("call-fully-ended", { chatId: roomId });
+          });
+        });
+      }
     } else {
-      io.in(roomId).emit("call-ended", {
-        by: socket.userId,
-      });
+      io.in(roomId).emit("call-ended", { by: socket.userId });
       socket.leave(roomId);
     }
   });

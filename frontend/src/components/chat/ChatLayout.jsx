@@ -362,6 +362,34 @@ const ChatLayout = () => {
     resetCall();
   }, [socket, saveCallLog, resetCall]);
 
+  const joinCall = useCallback(
+    (chat, type = "video") => {
+      if (isCallingRef.current || !socket || !chat?._id) return;
+
+      const isGroup = !!chat.isGroupChat;
+
+      callSavedRef.current = false;
+      callTypeRef.current = type;
+      callChatIdRef.current = chat._id;
+      isCallingRef.current = true;
+      isGroupCallRef.current = isGroup;
+      initiatorRef.current = { isInitiator: false }; // ← NOT initiator, no ring, no video-call-user
+
+      setInitiator({ isInitiator: false });
+      setCallChatId(chat._id);
+      setIsGroupCall(isGroup);
+      setCallType(type);
+      setIsCalling(true);
+      setCallTargetName("");
+
+      localStorage.setItem(
+        "ongoingCall",
+        JSON.stringify({ chatId: chat._id, type })
+      );
+    },
+    [socket]
+  );
+
   return (
     <div className="h-screen w-full flex bg-gray-100 dark:bg-slate-950 transition-colors">
       {/* Sidebar */}
@@ -377,6 +405,7 @@ const ChatLayout = () => {
             setChats={setChats}
             chats={chats}
             onStartCall={startCall}
+            onJoinCall={joinCall}
           />
         </Suspense>
       </div>
@@ -457,6 +486,7 @@ const ChatLayout = () => {
                 onConnected={startTimer}
                 initiator={initiator}
                 callType={callType}
+                
               />
             </Suspense>
           </div>

@@ -174,6 +174,7 @@ const CallsTab = ({
   hasMore,
   loading,
   ongoingCall,
+  onJoinCall,
 }) => {
   const { user } = useAuth();
   const observerRef = useRef();
@@ -271,37 +272,78 @@ const CallsTab = ({
   return (
     <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar py-2 space-y-3">
       {ongoingCall && (
-        <div className="mx-3 mt-3 p-3 rounded-xl bg-emerald-600 text-white flex justify-between items-center">
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold">Ongoing Call</span>
-            <span className="text-xs opacity-80">
-              <span className="text-xs opacity-80">
-                {ongoingCall.callType === "video" ? "Video Call" : "Audio Call"}{" "}
-                • {ongoingCall.participants?.length || 1} in call
+        <div className="mx-3 mt-3 rounded-2xl bg-emerald-600 overflow-hidden">
+          {/* Top row */}
+          <div className="flex items-center justify-between px-3 pt-3 pb-2">
+            <div className="flex items-center gap-2">
+              {/* Pulsing live dot */}
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
               </span>
-            </span>
+              <span className="text-sm font-semibold text-white">
+                Ongoing Call
+              </span>
+              <span className="text-xs text-emerald-200 font-medium">
+                {ongoingCall.callType === "video" ? "· Video" : "· Audio"}
+              </span>
+            </div>
+
+            <button
+              onClick={() => {
+                const chat = chats.find(
+                  (c) => String(c._id) === String(ongoingCall.chatId)
+                );
+                if (!chat) return;
+                onJoinCall(chat, ongoingCall.callType || "video");
+              }}
+              className="bg-white text-emerald-700 px-3 py-1 rounded-lg text-xs font-bold hover:bg-emerald-50 transition-colors"
+            >
+              Join
+            </button>
           </div>
 
-          <button
-            onClick={() => {
-              console.log("🔍 Chats list:", chats);
-              console.log("🔍 Looking for chatId:", ongoingCall?.chatId);
-              const chat = chats.find(
-                (c) => String(c._id) === String(ongoingCall.chatId)
-              );
-              if (!chat) {
-                console.log("❌ Chat not found for ongoing call");
-                return;
-              }
+          {/* Participants row */}
+          {ongoingCall.participants?.length > 0 && (
+            <div className="flex items-center gap-2 px-3 pb-3">
+              {/* Stacked avatars */}
+              <div className="flex -space-x-2 shrink-0">
+                {ongoingCall.participants.slice(0, 3).map((p, i) => {
+                  const participantUser = chats
+                    ?.flatMap((c) => c.users || [])
+                    .find((u) => String(u._id) === String(p));
 
-              console.log("👆 Join clicked:", ongoingCall);
+                  return (
+                    <Avatar
+                      key={i}
+                      user={participantUser || { _id: p }}
+                      size={22}
+                      IsInside
+                      className="ring-2 ring-emerald-600"
+                    />
+                  );
+                })}
+              </div>
 
-              onStartCall(chat, ongoingCall.callType || "video");
-            }}
-            className="bg-white text-black px-3 py-1 rounded text-xs font-semibold"
-          >
-            Join
-          </button>
+              {/* Names */}
+              <span className="text-xs text-emerald-100 truncate">
+                {(() => {
+                  const participants = ongoingCall.participants;
+                  const resolved = participants.map((p) => {
+                    const u = chats
+                      ?.flatMap((c) => c.users || [])
+                      .find((u) => String(u._id) === String(p));
+                    return u?.fName || "Unknown";
+                  });
+
+                  if (resolved.length <= 2) return resolved.join(", ");
+                  return `${resolved.slice(0, 2).join(", ")} & ${
+                    resolved.length - 2
+                  } other${resolved.length - 2 > 1 ? "s" : ""}`;
+                })()}
+              </span>
+            </div>
+          )}
         </div>
       )}
 
