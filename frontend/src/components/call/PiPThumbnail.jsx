@@ -11,6 +11,7 @@ const PiPThumbnail = ({
   const [pos, setPos] = useState({ x: null, y: 56 });
   const dragging = useRef(false);
   const hasDragged = useRef(false);
+  const startPos = useRef({ x: 0, y: 0 });
   const offset = useRef({ x: 0, y: 0 });
   const ref = useRef();
 
@@ -21,12 +22,19 @@ const PiPThumbnail = ({
     hasDragged.current = false;
     const rect = ref.current.getBoundingClientRect();
     offset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    startPos.current = { x: e.clientX, y: e.clientY };
     ref.current.setPointerCapture(e.pointerId);
   };
 
   const onPointerMove = (e) => {
     if (!dragging.current || !ref.current) return;
-    hasDragged.current = true;
+
+    const dx = Math.abs(e.clientX - startPos.current.x);
+    const dy = Math.abs(e.clientY - startPos.current.y);
+    if (dx > 6 || dy > 6) hasDragged.current = true;
+
+    if (!hasDragged.current) return;
+
     const parent = ref.current.parentElement.getBoundingClientRect();
     const w = ref.current.offsetWidth;
     const h = ref.current.offsetHeight;
@@ -36,13 +44,9 @@ const PiPThumbnail = ({
   };
 
   const onPointerUp = () => {
+    if (!dragging.current) return;
     dragging.current = false;
-  };
-
-  const onClick = (e) => {
-    // don't trigger swap if user was dragging
-    if (hasDragged.current) return;
-    onSwap();
+    if (!hasDragged.current) onSwap();
   };
 
   const style =
@@ -57,7 +61,6 @@ const PiPThumbnail = ({
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onClick={onClick}
       className={`z-20 w-24 h-32 sm:w-28 sm:h-40 rounded-2xl overflow-hidden
         border border-white/10 shadow-2xl bg-slate-900
         ${canSwap ? "cursor-grab active:cursor-grabbing" : ""}
@@ -88,7 +91,5 @@ const PiPThumbnail = ({
     </div>
   );
 };
-
-
 
 export default PiPThumbnail;
