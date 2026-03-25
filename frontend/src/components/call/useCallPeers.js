@@ -59,6 +59,7 @@ export const useCallPeers = ({
 
       const now = Date.now();
 
+      // ⏳ Prevent spamming restarts
       if (
         lastRestartRef.current[userId] &&
         now - lastRestartRef.current[userId] < 5000
@@ -73,16 +74,43 @@ export const useCallPeers = ({
 
       if (entry?.makingOffer || entry?.restarting) return;
 
+      // 💀 HARD FAIL → full reconnect
+      if (peer.connectionState === "failed") {
+        console.log("💀 Peer failed → forcing full reconnect");
+
+        removePeer(userId);
+
+        setTimeout(() => {
+          initiateOffer(userId);
+        }, 100);
+
+        return;
+      }
+
+      // ♻️ Fix non-stable signaling state
       if (peer.signalingState !== "stable") {
-        console.log("⛔ Skip ICE restart — not stable:", peer.signalingState);
-        return;
+        console.log(
+          "♻️ Fixing non-stable state before ICE restart:",
+          peer.signalingState
+        );
+
+        try {
+          await peer.setLocalDescription({ type: "rollback" });
+          console.log("✅ Rollback success");
+        } catch (e) {
+          console.log("❌ Rollback failed → forcing full reconnect");
+
+          removePeer(userId);
+
+          setTimeout(() => {
+            initiateOffer(userId);
+          }, 100);
+
+          return;
+        }
       }
 
-      if (!entry?.polite && peer.signalingState !== "stable") {
-        console.log("❌ Impolite peer skipping restart");
-        return;
-      }
-
+      // 🔄 Mark restart in progress
       setPeerEntry(userId, {
         ...(entry || {}),
         restarting: true,
@@ -98,11 +126,18 @@ export const useCallPeers = ({
         socket.emit("webrtc-offer", {
           offer: peer.localDescription,
           to: userId,
-          fromName: user?.fName, // ✅ FIX
+          fromName: user?.fName,
           roomId: chatId,
         });
       } catch (e) {
         console.log("❌ ICE restart failed:", e);
+
+        // 🔥 fallback safety
+        removePeer(userId);
+
+        setTimeout(() => {
+          initiateOffer(userId);
+        }, 100);
       } finally {
         const latest = getPeerEntry(userId);
         if (latest) {
@@ -273,7 +308,7 @@ export const useCallPeers = ({
 
     try {
       console.log("📤 Creating offer →", userId);
-      
+
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
 
