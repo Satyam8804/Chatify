@@ -141,6 +141,7 @@ const VideoCall = forwardRef(
     const emptyParticipantsRetryRef = useRef(0);
     const userLeftTimerRef = useRef(null);
     const isRejoinRef = useRef(false);
+    const streamReadyRef = useRef(false);
 
     const [remoteStreams, setRemoteStreams] = useState([]);
     const [isMuted, setIsMuted] = useState(false);
@@ -868,13 +869,43 @@ const VideoCall = forwardRef(
         );
       };
 
+      const waitForStream = async () => {
+        let retries = 0;
+
+        while (!localStreamRef.current && retries < 10) {
+          console.log("⏳ Waiting for local stream...");
+          await new Promise((res) => setTimeout(res, 200));
+          retries++;
+        }
+
+        if (!localStreamRef.current) {
+          console.log("❌ Stream not ready after wait");
+          return null;
+        }
+
+        return localStreamRef.current;
+      };
+
       const handleOffer = async ({ offer, from, fromName }) => {
         if (cleanedUpRef.current) return;
         if (pendingPeersRef.current.has(from)) return;
 
         log("webrtc-offer from:", from, "| fromName:", fromName);
 
-        const stream = await getLocalStream();
+        let stream = localStreamRef.current;
+
+        if (!stream) {
+          console.log("⏳ Stream not ready, waiting...");
+          stream = await waitForStream();
+        }
+
+        if (!stream) {
+          console.log("❌ No stream available, skipping offer");
+          return;
+        }
+
+        streamReadyRef.current = true;
+
         if (cleanedUpRef.current) return;
 
         let peer = createPeerConnection(from);
@@ -907,6 +938,11 @@ const VideoCall = forwardRef(
             removePeer(from);
             peer = createPeerConnection(from);
           }
+        }
+
+        if (!stream) {
+          console.log("❌ Stream still null, abort");
+          return;
         }
 
         addTracksIfNeeded(peer, stream);

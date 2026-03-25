@@ -257,6 +257,11 @@ export const useCallPeers = ({
     let peer = createPeerConnection(userId);
     if (!peer) return;
 
+    if (!stream) {
+      console.log("❌ No stream, abort offer");
+      return;
+    }
+
     const stream = await getLocalStream();
     addTracksIfNeeded(peer, stream);
 
