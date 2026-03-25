@@ -666,6 +666,24 @@ const VideoCall = forwardRef(
           log("Emitting join-call-room — chatId:", chatId);
           safeJoinRoom();
 
+          if (isRejoinRef.current) {
+            console.log("🔥 Forcing rejoin offers");
+
+            setTimeout(() => {
+              knownPeerIdsRef.current.forEach((userId) => {
+                if (String(userId) !== String(user?._id)) {
+                  console.log("♻️ Rejoining with:", userId);
+
+                  removePeer(userId); // 🔥 important
+
+                  setTimeout(() => {
+                    initiateOffer(userId);
+                  }, 100);
+                }
+              });
+            }, 500);
+          }
+
           if (
             initiator?.isInitiator &&
             initiator?.receiverIds?.length &&
@@ -789,14 +807,19 @@ const VideoCall = forwardRef(
               continue;
             }
 
-            // 🔥 KEY FIX: allow recovery
             if (
               state === "new" ||
               state === "disconnected" ||
               state === "failed"
             ) {
               console.log("♻️ Recovering stuck peer:", userId);
-              await initiateOffer(userId);
+
+              removePeer(userId); // 🔥 ADD THIS
+
+              setTimeout(() => {
+                initiateOffer(userId);
+              }, 100);
+
               continue;
             }
 
@@ -1034,7 +1057,12 @@ const VideoCall = forwardRef(
         if (!userId || String(userId) === String(user?._id)) return;
 
         try {
-          await initiateOffer(userId); // 🔥 force renegotiation
+          // 🔥 FORCE CLEAN START
+          removePeer(userId);
+
+          setTimeout(() => {
+            initiateOffer(userId);
+          }, 200);
         } catch (e) {
           console.log("Rejoin offer failed:", e);
         }
