@@ -32,7 +32,7 @@ const startWatchdog = ({
   setConnectionFailed,
   cleanupRef,
   initiateOffer,
-  getPeerEntry
+  getPeerEntry,
 }) => {
   if (cleanupRef.current?.watchdog) {
     clearInterval(cleanupRef.current.watchdog);
@@ -113,7 +113,7 @@ const startWatchdog = ({
 
 const VideoCall = forwardRef(
   (
-    { chatId, onEndCall, onConnected, chats, initiator, callType = "video" },
+    { chatId, onEndCall, onConnected, chats, initiator, callType = "video",setIsGroupCall },
     ref
   ) => {
     const { socket } = useSocket();
@@ -731,7 +731,7 @@ const VideoCall = forwardRef(
             setConnectionFailed,
             cleanupRef,
             initiateOffer,
-            getPeerEntry
+            getPeerEntry,
           });
 
           log("init() complete");
@@ -1274,6 +1274,9 @@ const VideoCall = forwardRef(
     }, [callChat, chats, remoteStreams, invitedUsers, user?._id]);
 
     const handleInvite = (inviteeId) => {
+      // 🔥 CONVERT TO GROUP CALL
+      setIsGroupCall(true);
+
       socket.emit("invite-to-call", {
         chatId,
         inviteeIds: [inviteeId],
@@ -1334,7 +1337,7 @@ const VideoCall = forwardRef(
                               setConnectionFailed,
                               cleanupRef,
                               initiateOffer,
-                              getPeerEntry
+                              getPeerEntry,
                             });
                             safeJoinRoom();
                           }}
@@ -1578,7 +1581,7 @@ const VideoCall = forwardRef(
                     setConnectionFailed,
                     cleanupRef,
                     initiateOffer,
-                    getPeerEntry
+                    getPeerEntry,
                   });
                   safeJoinRoom();
                 }}

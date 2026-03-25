@@ -223,19 +223,18 @@ const ChatLayout = () => {
     };
 
     const onRejected = async ({ chatId, from }) => {
-      console.log("❌ User rejected:", from, "chat: ",chatId);
+      console.log("❌ User rejected:", from, "chat: ", chatId);
 
-      // 🛑 stop ringing ONLY
       stopRing();
       clearTimeout(ringTimeoutRef.current);
 
-      // ✅ ONLY end call if it's 1–1 call
+      // 🔥 IMPORTANT
+      if (String(chatId) !== String(callChatIdRef.current)) return;
+
       if (!isGroupCallRef.current) {
         await saveCallLog("rejected", 0);
         resetCall();
-        return;
       }
-
     };
 
     const onBusy = async () => {
@@ -275,7 +274,7 @@ const ChatLayout = () => {
 
       if (isCallingRef.current || !socket || !chat?._id) return;
 
-      const isGroup = !!chat.isGroupChat;
+      const isGroup = !!chat.isGroupChat || isGroupCallRef.current;
       const others = chat.users?.filter((u) => u._id !== user._id) || [];
       if (!others.length) return;
 
@@ -336,7 +335,7 @@ const ChatLayout = () => {
         "ongoingCall",
         JSON.stringify({
           chatId,
-          callType,
+          type: callType,
         })
       );
 
@@ -357,7 +356,7 @@ const ChatLayout = () => {
       } else {
         socket.emit("call-ended", {
           roomId: callChatIdRef.current,
-          isGroup: false,
+          isGroup: isGroupCallRef.current,
         });
       }
     }
@@ -374,14 +373,14 @@ const ChatLayout = () => {
     (chat, type = "video") => {
       if (isCallingRef.current || !socket || !chat?._id) return;
 
-      const isGroup = !!chat.isGroupChat;
+      const isGroup = !!chat.isGroupChat || isGroupCallRef.current;
 
       callSavedRef.current = false;
       callTypeRef.current = type;
       callChatIdRef.current = chat._id;
       isCallingRef.current = true;
       isGroupCallRef.current = isGroup;
-      initiatorRef.current = { isInitiator: false }; // ← NOT initiator, no ring, no video-call-user
+      initiatorRef.current = { isInitiator: false };
 
       setInitiator({ isInitiator: false });
       setCallChatId(chat._id);
@@ -494,6 +493,7 @@ const ChatLayout = () => {
                 onConnected={startTimer}
                 initiator={initiator}
                 callType={callType}
+                setIsGroupCall={setIsGroupCall}
               />
             </Suspense>
           </div>

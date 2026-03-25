@@ -143,6 +143,16 @@ export const videoCallSocket = (io, socket) => {
     // ✅ Save back
     activeCalls.set(chatId, call);
 
+    call.invitedUsers.forEach((userId) => {
+      onlineUsers.get(userId)?.forEach((socketId) => {
+        io.to(socketId).emit("ongoing-call", {
+          chatId,
+          participants: call.participants,
+          callType: call.callType,
+        });
+      });
+    });
+
     console.log("📞 Active call updated:", call);
 
     setTimeout(() => {
@@ -208,6 +218,16 @@ export const videoCallSocket = (io, socket) => {
       };
 
       activeCalls.set(chatId, call);
+
+      call.invitedUsers.forEach((userId) => {
+        onlineUsers.get(userId)?.forEach((socketId) => {
+          io.to(socketId).emit("ongoing-call", {
+            chatId,
+            participants: call.participants,
+            callType: call.callType,
+          });
+        });
+      });
     }
 
     inviteeIds.forEach((userId) => {
@@ -244,6 +264,23 @@ export const videoCallSocket = (io, socket) => {
         from: socket.userId,
         chatId,
       });
+    });
+  });
+
+  socket.on("request-ongoing-call", () => {
+    if (!socket.userId) return;
+
+    activeCalls.forEach((call, chatId) => {
+      const isInvited = call.invitedUsers.includes(socket.userId);
+      const alreadyJoined = call.participants.includes(socket.userId);
+
+      if (isInvited && !alreadyJoined) {
+        socket.emit("ongoing-call", {
+          chatId,
+          participants: call.participants,
+          callType: call.callType,
+        });
+      }
     });
   });
 

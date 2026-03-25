@@ -294,7 +294,9 @@ const CallsTab = ({
                 const chat = chats.find(
                   (c) => String(c._id) === String(ongoingCall.chatId)
                 );
+
                 if (!chat) return;
+
                 onJoinCall(chat, ongoingCall.callType || "video");
               }}
               className="bg-white text-emerald-700 px-3 py-1 rounded-lg text-xs font-bold hover:bg-emerald-50 transition-colors"

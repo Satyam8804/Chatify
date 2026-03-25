@@ -140,11 +140,22 @@ const Sidebar = ({
   }, [activeTab]);
 
   useEffect(() => {
+    if (!socket) return;
+
+    const timer = setTimeout(() => {
+      socket.emit("request-ongoing-call");
+    }, 700);
+
+    return () => clearTimeout(timer);
+  }, [socket]);
+
+  useEffect(() => {
     joinedChatsRef.current = new Set();
   }, [socket]);
 
   useEffect(() => {
     if (!socket || !chats.length) return;
+    
     chats.forEach((chat) => {
       if (!joinedChatsRef.current.has(chat._id)) {
         socket.emit("join-chat", chat._id);
