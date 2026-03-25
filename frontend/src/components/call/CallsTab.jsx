@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useAuth } from "../../context/authContext";
 import Avatar from "../common/Avatar";
+import { groupByDay } from "../../utils/dateUtils";
+
 import {
   Phone,
   PhoneIncoming,
@@ -9,25 +11,6 @@ import {
   Video,
 } from "lucide-react";
 import { Loader } from "lucide-react";
-
-const getDayGroup = (dateString) => {
-  const date = new Date(dateString);
-  const now = new Date();
-  const startOfToday = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate()
-  );
-  const startOfDate = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate()
-  );
-  const diffDays = (startOfToday - startOfDate) / (1000 * 60 * 60 * 24);
-  if (diffDays === 0) return "today";
-  if (diffDays === 1) return "yesterday";
-  return "earlier";
-};
 
 const CallLog = ({ log, currentUserId, onCall }) => {
   console.log(log);
@@ -98,11 +81,13 @@ const CallLog = ({ log, currentUserId, onCall }) => {
     : isOutgoing
     ? "Outgoing"
     : "Incoming";
+
   const formatTime = (date) =>
     new Date(date).toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
     });
+
   const formatDuration = (secs) => {
     if (!secs) return null;
     const m = Math.floor(secs / 60);
@@ -111,7 +96,7 @@ const CallLog = ({ log, currentUserId, onCall }) => {
   };
   const duration = formatDuration(log.duration);
 
-  console.log("otherParticipants",otherParticipants)
+  console.log("otherParticipants", otherParticipants);
 
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800/40 transition-all duration-200 group cursor-pointer">
@@ -195,6 +180,11 @@ const CallsTab = ({
   const { user } = useAuth();
   const observerRef = useRef();
 
+  const groupedLogs = useMemo(
+    () => groupByDay(callLogs, "createdAt"),
+    [callLogs]
+  );
+
   const handleCall = (otherUser, callType = "video") => {
     const chat = chats?.find(
       (c) =>
@@ -218,16 +208,6 @@ const CallsTab = ({
   useEffect(() => {
     return () => observerRef.current?.disconnect();
   }, []);
-
-  const groupedLogs = useMemo(() => {
-    if (!callLogs.length) return { today: [], yesterday: [], earlier: [] };
-    const groups = { today: [], yesterday: [], earlier: [] };
-    for (const log of callLogs) {
-      const group = getDayGroup(log.createdAt);
-      groups[group].push(log);
-    }
-    return groups;
-  }, [callLogs]);
 
   if (loading && callLogs.length === 0) {
     return (

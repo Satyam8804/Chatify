@@ -9,6 +9,8 @@ import { getAvatarColor } from "../../utils/getAvatarColor";
 import { FaFilePdf } from "react-icons/fa";
 import AudioPlayer from "./AudioPlayer";
 import ImagePreview from "./ImagePreview";
+import { getDateLabel } from "../../utils/dateUtils.js";
+
 import {
   Phone,
   PhoneCall,
@@ -51,21 +53,32 @@ const MessageList = ({ messages, onReply, onStartCall, chat }) => {
 
   return (
     <div className="h-full overflow-y-auto hide-scrollbar p-2 pb-4 bg-slate-50 dark:bg-slate-950 transition-colors">
-      {messages.map((msg) => (
-        <MessageBubble
-          key={msg._id}
-          message={msg}
-          setPreviewImage={setPreviewImage}
-          copiedId={copiedId}
-          setCopiedId={setCopiedId}
-          isOwn={msg.sender?._id === user?._id}
-          onReply={onReply}
-          messageRefs={messageRefs}
-          onReplyClick={handleReplyClick}
-          onStartCall={onStartCall}
-          chat={chat}
-        />
-      ))}
+      {messages.map((msg, index) => {
+        const currentLabel = getDateLabel(msg.createdAt);
+        const prevLabel =
+          index > 0 ? getDateLabel(messages[index - 1].createdAt) : null;
+        const showDivider = currentLabel !== prevLabel;
+
+        return (
+          <div key={msg._id}>
+            {showDivider && <DateDivider label={currentLabel} />}
+            <MessageBubble
+              key={msg._id}
+              message={msg}
+              setPreviewImage={setPreviewImage}
+              copiedId={copiedId}
+              setCopiedId={setCopiedId}
+              isOwn={msg.sender?._id === user?._id}
+              onReply={onReply}
+              messageRefs={messageRefs}
+              onReplyClick={handleReplyClick}
+              onStartCall={onStartCall}
+              chat={chat}
+            />
+            ;
+          </div>
+        );
+      })}
       {previewImage && (
         <ImagePreview
           url={previewImage}
@@ -502,5 +515,13 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn }) => {
     </a>
   );
 };
+
+const DateDivider = ({ label }) => (
+  <div className="flex justify-center my-3">
+    <span className="text-[11px] font-medium text-gray-500 dark:text-slate-400 px-3 py-1 rounded-full bg-gray-200/70 dark:bg-slate-700/60 shadow-sm">
+      {label}
+    </span>
+  </div>
+);
 
 export default MessageList;
