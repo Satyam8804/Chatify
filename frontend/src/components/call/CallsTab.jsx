@@ -13,7 +13,6 @@ import {
 import { Loader } from "lucide-react";
 
 const CallLog = ({ log, currentUserId, onCall }) => {
-  console.log(log);
   const isMissed = log.status?.toLowerCase() === "missed";
   const isOutgoing = String(log.sender?._id) === String(currentUserId);
   const type = log.callType;
@@ -95,8 +94,6 @@ const CallLog = ({ log, currentUserId, onCall }) => {
     return `${m}:${String(s).padStart(2, "0")}`;
   };
   const duration = formatDuration(log.duration);
-
-  console.log("otherParticipants", otherParticipants);
 
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800/40 transition-all duration-200 group cursor-pointer">
@@ -269,6 +266,8 @@ const CallsTab = ({
     .reverse()
     .find(({ key }) => groupedLogs[key].length > 0)?.key;
 
+  console.log("📺 CallsTab ongoingCall:", ongoingCall);
+
   return (
     <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar py-2 space-y-3">
       {ongoingCall && (
@@ -285,6 +284,8 @@ const CallsTab = ({
 
           <button
             onClick={() => {
+              console.log("🔍 Chats list:", chats);
+              console.log("🔍 Looking for chatId:", ongoingCall?.chatId);
               const chat = chats.find(
                 (c) => String(c._id) === String(ongoingCall.chatId)
               );
@@ -292,6 +293,8 @@ const CallsTab = ({
                 console.log("❌ Chat not found for ongoing call");
                 return;
               }
+
+              console.log("👆 Join clicked:", ongoingCall);
 
               onStartCall(chat, ongoingCall.callType || "video");
             }}

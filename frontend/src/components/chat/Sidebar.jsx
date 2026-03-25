@@ -215,6 +215,8 @@ const Sidebar = ({
   const directChats = chats.filter((chat) => !chat.isGroupChat);
   const groupChats = chats.filter((chat) => chat.isGroupChat);
 
+  console.log("🧠 Sidebar state ongoingCall:", ongoingCall);
+
   return (
     <div className="relative h-full flex flex-col bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-700 transition-colors">
       <div className="flex justify-between items-center px-5 py-4 border-b-2 border-gray-300 dark:border-slate-500 inset">
