@@ -20,6 +20,12 @@ const formatDuration = (secs) => {
   return `${m}:${s}`;
 };
 
+const SIDEBAR_DEFAULT_WIDTH = 320;
+const SIDEBAR_MIN_WIDTH = 260;
+const SIDEBAR_MAX_WIDTH = 520;
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
 const ChatLayout = () => {
   const [selectedChat, setSelectedChat] = useState(null);
   const [isCalling, setIsCalling] = useState(false);
@@ -31,6 +37,8 @@ const ChatLayout = () => {
   const [chats, setChats] = useState([]);
   const [initiator, setInitiator] = useState(null);
   const [callType, setCallType] = useState("video");
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
+  const [isDesktop, setIsDesktop] = useState(true);
 
   const { socket } = useSocket();
   const { user } = useAuth();
@@ -50,6 +58,26 @@ const ChatLayout = () => {
   const callConnectedRef = useRef(false);
   const initiatorRef = useRef(null);
   const audioCtxRef = useRef(null);
+
+  const sidebarResizeRef = useRef({
+    active: false,
+    startX: 0,
+    startWidth: SIDEBAR_DEFAULT_WIDTH,
+  });
+
+  useEffect(() => {
+    const updateViewport = () => {
+      if (typeof window === "undefined") return;
+      setIsDesktop(window.innerWidth >= 768);
+    };
+
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+
+    return () => {
+      window.removeEventListener("resize", updateViewport);
+    };
+  }, []);
 
   useEffect(() => {
     const call = JSON.parse(localStorage.getItem("ongoingCall"));
@@ -227,7 +255,6 @@ const ChatLayout = () => {
       stopRing();
       clearTimeout(ringTimeoutRef.current);
 
-      // 🔥 IMPORTANT
       if (String(chatId) !== String(callChatIdRef.current)) return;
 
       if (!isGroupCallRef.current) {
@@ -396,12 +423,10 @@ const ChatLayout = () => {
       setIsCalling(true);
       setCallTargetName("");
 
-      // 🔥 IMPORTANT: join socket room
       socket.emit("join-call-room", {
         roomId: chat._id,
       });
 
-      // 🔥 IMPORTANT: trigger re-negotiation
       socket.emit("ping-rejoin", {
         chatId: chat._id,
       });
@@ -414,13 +439,70 @@ const ChatLayout = () => {
     [socket]
   );
 
+  const startSidebarResize = useCallback(
+    (e) => {
+      if (!isDesktop) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      sidebarResizeRef.current.active = true;
+      sidebarResizeRef.current.startX = e.clientX;
+      sidebarResizeRef.current.startWidth = sidebarWidth;
+
+      document.body.style.userSelect = "none";
+      document.body.style.cursor = "col-resize";
+    },
+    [isDesktop, sidebarWidth]
+  );
+
+  const handleSidebarResizeMove = useCallback((e) => {
+    if (!sidebarResizeRef.current.active) return;
+
+    const deltaX = e.clientX - sidebarResizeRef.current.startX;
+    const nextWidth = clamp(
+      sidebarResizeRef.current.startWidth + deltaX,
+      SIDEBAR_MIN_WIDTH,
+      SIDEBAR_MAX_WIDTH
+    );
+
+    setSidebarWidth(nextWidth);
+  }, []);
+
+  const stopSidebarResize = useCallback(() => {
+    if (!sidebarResizeRef.current.active) return;
+
+    sidebarResizeRef.current.active = false;
+    document.body.style.userSelect = "";
+    document.body.style.cursor = "";
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("pointermove", handleSidebarResizeMove);
+    window.addEventListener("pointerup", stopSidebarResize);
+    window.addEventListener("pointercancel", stopSidebarResize);
+
+    return () => {
+      window.removeEventListener("pointermove", handleSidebarResizeMove);
+      window.removeEventListener("pointerup", stopSidebarResize);
+      window.removeEventListener("pointercancel", stopSidebarResize);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    };
+  }, [handleSidebarResizeMove, stopSidebarResize]);
+
+  const sidebarStyle = isDesktop
+    ? { width: `${sidebarWidth}px` }
+    : { width: "100%" };
+
   return (
     <div className="h-screen w-full flex bg-gray-100 dark:bg-slate-950 transition-colors">
       {/* Sidebar */}
       <div
         className={`${
           selectedChat ? "hidden md:block" : "block"
-        } w-full md:w-80 bg-white dark:bg-slate-900 shrink-0`}
+        } relative shrink-0 overflow-hidden bg-white dark:bg-slate-900`}
+        style={sidebarStyle}
       >
         <Suspense fallback={<SidebarSkeleton fullscreen={false} />}>
           <Sidebar
@@ -432,6 +514,17 @@ const ChatLayout = () => {
             onJoinCall={joinCall}
           />
         </Suspense>
+
+        {/* Drag handle */}
+        <div
+          onPointerDown={startSidebarResize}
+          className="absolute right-0 top-0 z-20 hidden h-full w-2 cursor-col-resize touch-none md:flex items-stretch justify-center"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize sidebar"
+        >
+          <div className="h-full w-[2px] bg-transparent transition-colors hover:bg-sky-500/50" />
+        </div>
       </div>
 
       {/* Chat Area */}
