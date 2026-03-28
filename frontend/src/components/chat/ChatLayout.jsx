@@ -420,8 +420,9 @@ const ChatLayout = () => {
       {/* ── Sidebar ── */}
       <div
         className={`${
-          selectedChat ? "hidden md:flex" : "flex"
-        } flex-col shrink-0 bg-white dark:bg-slate-900`}
+          selectedChat ? "hidden md:block" : "block"
+        } w-full md:w-80 bg-white dark:bg-slate-900 shrink-0`}
+        
         style={{ width: sidebarWidth }}
       >
         <Suspense fallback={<SidebarSkeleton fullscreen={false} />}>
