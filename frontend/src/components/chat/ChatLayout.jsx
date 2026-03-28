@@ -171,7 +171,7 @@ const ChatLayout = () => {
     audio.currentTime = 0;
   }, []);
 
-  const resetCall = useCallback(() => {
+   const resetCall = useCallback(() => {
     videoCallRef.current?.cleanup?.();
     stopRing();
     clearTimeout(ringTimeoutRef.current);
@@ -423,10 +423,12 @@ const ChatLayout = () => {
       setIsCalling(true);
       setCallTargetName("");
 
+      // 🔥 IMPORTANT: join socket room
       socket.emit("join-call-room", {
         roomId: chat._id,
       });
 
+      // 🔥 IMPORTANT: trigger re-negotiation
       socket.emit("ping-rejoin", {
         chatId: chat._id,
       });
@@ -456,18 +458,22 @@ const ChatLayout = () => {
     [isDesktop, sidebarWidth]
   );
 
-  const handleSidebarResizeMove = useCallback((e) => {
-    if (!sidebarResizeRef.current.active) return;
+  const handleSidebarResizeMove = useCallback(
+    (e) => {
+      if (!sidebarResizeRef.current.active) return;
 
-    const deltaX = e.clientX - sidebarResizeRef.current.startX;
-    const nextWidth = clamp(
-      sidebarResizeRef.current.startWidth + deltaX,
-      SIDEBAR_MIN_WIDTH,
-      SIDEBAR_MAX_WIDTH
-    );
+      const deltaX = e.clientX - sidebarResizeRef.current.startX;
 
-    setSidebarWidth(nextWidth);
-  }, []);
+      const nextWidth = clamp(
+        sidebarResizeRef.current.startWidth + deltaX,
+        SIDEBAR_MIN_WIDTH,
+        SIDEBAR_MAX_WIDTH
+      );
+
+      setSidebarWidth(nextWidth);
+    },
+    [setSidebarWidth]
+  );
 
   const stopSidebarResize = useCallback(() => {
     if (!sidebarResizeRef.current.active) return;
@@ -557,7 +563,6 @@ const ChatLayout = () => {
         }
       />
 
-      {/* Video Call Overlay */}
       {isCalling && (
         <div
           className="fixed inset-0 z-[100] bg-slate-950 flex flex-col"
