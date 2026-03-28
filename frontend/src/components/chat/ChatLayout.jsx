@@ -1,11 +1,13 @@
-import { useEffect, useCallback, useRef, useState } from "react";
-import { useAuth } from "../context/authContext.jsx";
-import { useSocket } from "../context/socketContext.jsx";
-
-import { Routes, Route, Navigate } from "react-router-dom";
-import { Toaster } from "react-hot-toast";
-
-import { lazy, Suspense } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  lazy,
+  Suspense,
+} from "react";
+import { useSocket } from "../../context/socketContext.jsx";
+import { useAuth } from "../../context/authContext.jsx";
 import Loader from "../../utils/Loader";
 import SidebarSkeleton from "../../utils/SidebarSkeleton.jsx";
 import VideoCall from "../call/VideoCall.jsx";
