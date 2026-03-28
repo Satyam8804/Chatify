@@ -156,11 +156,9 @@ export const SocketProvider = ({ children }) => {
     return () => {
       newSocket.disconnect();
     };
-  }, [user?._id]); // ✅ FIX: removed activeChatId — socket now lives for the
-  // entire session, not recreated on every chat switch
+  }, [user?._id,activeChatId]);
 
-  // ✅ Improvement 1: memoize context value — prevents unnecessary re-renders
-  // in every consumer (Sidebar, CallsTab, ChatWindow, etc.)
+
   const contextValue = useMemo(
     () => ({
       socket,
