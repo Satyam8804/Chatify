@@ -444,7 +444,7 @@ const ChatLayout = () => {
         {/* Invisible wider hit area */}
         <div className="absolute inset-y-0 -left-1.5 -right-1.5" />
         {/* Visible line — shows on hover/drag */}
-        <div className="w-px h-full bg-gray-200 dark:bg-slate-700 group-hover:bg-emerald-400 dark:group-hover:bg-emerald-500 transition-colors duration-150" />
+        <div className="w-px h-full bg-emerald-400/40 dark:bg-emerald-500/30 group-hover:bg-emerald-400 dark:group-hover:bg-emerald-500 transition-colors duration-150" />
         {/* Grip dots */}
         <div className="absolute top-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
           {[0, 1, 2].map((i) => (
@@ -456,10 +456,9 @@ const ChatLayout = () => {
         </div>
       </div>
 
-      {/* ── Chat area ── */}
       <div
         className={`${
-          selectedChat ? "flex" : "hidden md:flex"
+          selectedChat ? "block" : "hidden md:block"
         } flex-1 items-center justify-between bg-gray-100 dark:bg-slate-950 min-w-0`}
       >
         {selectedChat ? (
