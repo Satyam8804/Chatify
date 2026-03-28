@@ -33,19 +33,14 @@ export const AuthProvider = ({ children }) => {
 
   const startLoaderRotation = () => {
     let i = 0;
-
     const el = document.getElementById("loader-text");
     if (!el) return;
-
     el.innerText = loaderMessages[0];
 
     intervalRef.current = setInterval(() => {
       const el = document.getElementById("loader-text");
       if (!el) return;
-
-      // ✨ smooth fade effect
       el.style.opacity = "0";
-
       setTimeout(() => {
         i = (i + 1) % loaderMessages.length;
         el.innerText = loaderMessages[i];
@@ -69,33 +64,27 @@ export const AuthProvider = ({ children }) => {
         const token = getToken();
 
         if (token) {
+          // ✅ Token exists — fetch user directly
           const { data } = await api.get("/users/me");
           setUser(data.user);
         } else {
-          refreshAccessToken()
-            .then(async () => {
-              const { data } = await api.get("/users/me");
-              setUser(data.user);
-            })
-            .catch(() => {
-              setUser(null);
-            });
+          await refreshAccessToken();
+          const { data } = await api.get("/users/me");
+          setUser(data.user);
         }
       } catch (error) {
+        // Covers both the token-exists failure path and the refresh failure path
         logger(error);
         clearToken();
         setUser(null);
       } finally {
+        // ✅ Only runs after ALL async work above is done
         setLoading(false);
         setAppReady(true);
-
         stopLoaderRotation();
 
-        // final message
         const el = document.getElementById("loader-text");
-        if (el) {
-          el.innerText = "Almost ready...";
-        }
+        if (el) el.innerText = "Almost ready...";
       }
     };
 

@@ -3,12 +3,11 @@ import { useAuth } from "../context/authContext.jsx";
 import Loader from "../utils/Loader.jsx";
 
 const PublicRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated } = useAuth();
 
-  if (loading) return null;
-  if (isAuthenticated) return <Navigate to="/chat" replace />; 
+  if (isAuthenticated) return <Navigate to="/chat" replace />;
 
-  return children; 
+  return children;
 };
 
 export default PublicRoute;
