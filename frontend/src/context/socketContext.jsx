@@ -77,6 +77,7 @@ export const SocketProvider = ({ children }) => {
       onlineUser,
       unreadCounts,
       typingUser,
+      setUnreadCounts,
       activeChatId,
       setActiveChatId,
       messageSeen,
