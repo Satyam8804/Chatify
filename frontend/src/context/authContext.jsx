@@ -29,20 +29,31 @@ export const AuthProvider = ({ children }) => {
     "Connecting securely...",
     "Syncing conversations...",
     "Almost ready...",
+    "Still working...",
   ];
 
   const startLoaderRotation = () => {
     let i = 0;
     const el = document.getElementById("loader-text");
     if (!el) return;
+
     el.innerText = loaderMessages[0];
 
     intervalRef.current = setInterval(() => {
       const el = document.getElementById("loader-text");
       if (!el) return;
+
+      // ✅ Stop when last message reached
+      if (i >= loaderMessages.length - 1) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+        return;
+      }
+
       el.style.opacity = "0";
+
       setTimeout(() => {
-        i = (i + 1) % loaderMessages.length;
+        i += 1; // ✅ no modulo
         el.innerText = loaderMessages[i];
         el.style.opacity = "1";
       }, 200);

@@ -75,7 +75,6 @@ const MessageList = ({ messages, onReply, onStartCall, chat }) => {
               onStartCall={onStartCall}
               chat={chat}
             />
-            ;
           </div>
         );
       })}

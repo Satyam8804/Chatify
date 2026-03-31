@@ -38,10 +38,6 @@ export const refreshAccessToken = () => {
       logger(err);
       clearToken();
 
-      if (window.location.pathname !== "/login") {
-        window.location.href = "/login";
-      }
-
       return Promise.reject(err);
     })
     .finally(() => {
