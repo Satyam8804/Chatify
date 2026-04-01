@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import api from "../../api/axios";
 import ChatSection from "./ChatSection";
 import { useSocket } from "../../context/socketContext";
@@ -359,4 +359,4 @@ const Sidebar = ({
   );
 };
 
-export default Sidebar;
+export default memo(Sidebar);
