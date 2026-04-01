@@ -5,7 +5,6 @@ import {
   MicOff,
   PhoneOff,
   RefreshCcw,
-  UserPlus,
 } from "lucide-react";
 
 const idleBtn =
@@ -17,12 +16,10 @@ const CallControls = ({
   isMuted,
   isVideoOff,
   isSwitching,
-  showAddParticipant,
   callType,
   onToggleMute,
   onToggleVideo,
   onSwitchCamera,
-  onToggleAddParticipant,
   onEndCall,
 }) => {
   return (
@@ -52,12 +49,8 @@ const CallControls = ({
         </>
       )}
 
-      <button
-        onClick={onToggleAddParticipant}
-        className={showAddParticipant ? warnBtn : idleBtn}
-      >
-        <UserPlus size={20} />
-      </button>
+      {/* ✅ UserPlus removed — now lives in ParticipantsPanel */}
+
       <button
         onClick={onEndCall}
         className="flex items-center justify-center w-14 h-14 rounded-full bg-rose-600 text-white active:scale-95 transition-all"

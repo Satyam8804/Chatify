@@ -23,6 +23,7 @@ import { MicOff, Wifi, WifiOff, AlertTriangle } from "lucide-react";
 import ParticipantCard from "./ParticipantCard";
 import { getAvatarColor } from "../../utils/getAvatarColor";
 import PiPThumbnail from "./PiPThumbnail";
+import ParticipantsPanel from "./ParticipantsPanel";
 
 const log = (...args) => console.log("[VideoCall]", ...args);
 
@@ -113,7 +114,15 @@ const startWatchdog = ({
 
 const VideoCall = forwardRef(
   (
-    { chatId, onEndCall, onConnected, chats, initiator, callType = "video",setIsGroupCall },
+    {
+      chatId,
+      onEndCall,
+      onConnected,
+      chats,
+      initiator,
+      callType = "video",
+      setIsGroupCall,
+    },
     ref
   ) => {
     const { socket } = useSocket();
@@ -155,12 +164,15 @@ const VideoCall = forwardRef(
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
     const [facingMode, setFacingMode] = useState("user");
-    const [showAddParticipant, setShowAddParticipant] = useState(false);
     const [invitedUsers, setInvitedUsers] = useState(new Set());
     const [isSwitching, setIsSwitching] = useState(false);
     const [swapped, setSwapped] = useState(false);
     const [selectedRemoteIndex, setSelectedRemoteIndex] = useState(0);
     const [activeSpeakerId, setActiveSpeakerId] = useState(null);
+
+    const [showParticipantsPanel, setShowParticipantsPanel] = useState(false);
+    const [showAddList, setShowAddList] = useState(false);
+
     const [connectionFailed, setConnectionFailed] = useState(false);
     const [networkStatus, setNetworkStatus] = useState("connected");
     const [networkLabel, setNetworkLabel] = useState("");
@@ -1273,6 +1285,35 @@ const VideoCall = forwardRef(
       return Array.from(allUsers.values());
     }, [callChat, chats, remoteStreams, invitedUsers, user?._id]);
 
+    const joinedParticipants = [
+      { ...user, isSelf: true },
+      ...remoteStreams
+        .filter((s) => s?.userId)
+        .map((s) => ({
+          _id: s.userId,
+          fName: s.fName,
+          lName: s.lName,
+          avatar: s.avatar,
+          isSelf: false,
+        })),
+    ];
+
+    const pendingParticipants = Array.from(invitedUsers)
+      .filter(
+        (id) => !remoteStreams.some((s) => String(s.userId) === String(id))
+      )
+      .map((id) => {
+        const u = chats
+          ?.flatMap((c) => c.users || [])
+          .find((u) => String(u._id) === String(id));
+        return {
+          _id: id,
+          fName: u?.fName || "User",
+          lName: u?.lName,
+          avatar: u?.avatar,
+        };
+      });
+
     const handleInvite = (inviteeId) => {
       // 🔥 CONVERT TO GROUP CALL
       setIsGroupCall(true);
@@ -1288,8 +1329,15 @@ const VideoCall = forwardRef(
         updated.add(inviteeId);
         return updated;
       });
+      setShowAddList(false);
+    };
 
-      setShowAddParticipant(false);
+    const handleNotify = (inviteeId) => {
+      socket.emit("invite-to-call", {
+        chatId,
+        inviteeIds: [inviteeId],
+        callType,
+      });
     };
 
     const isFrontCamera = facingMode === "user";
@@ -1467,11 +1515,14 @@ const VideoCall = forwardRef(
               <NetworkBar />
             </div>
           </div>
-          <div className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md">
+          <button
+            onClick={() => setShowParticipantsPanel((p) => !p)}
+            className="flex items-center gap-2 bg-slate-900/70 border border-white/10 rounded-full px-3 py-1.5 backdrop-blur-md hover:bg-slate-800/80 transition-colors"
+          >
             <span className="text-[10px] text-slate-400">
               {remoteStreams.length + 1} participants
             </span>
-          </div>
+          </button>
         </div>
 
         {/* ── PiP thumbnail ── */}
@@ -1593,27 +1644,31 @@ const VideoCall = forwardRef(
           </div>
         )}
 
-        {/* ── Controls ── */}
         <CallControls
           isMuted={isMuted}
           isVideoOff={isVideoOff}
           isSwitching={isSwitching}
-          showAddParticipant={showAddParticipant}
           callType={callType}
           onToggleMute={toggleMute}
           onToggleVideo={toggleVideo}
           onSwitchCamera={switchCamera}
-          onToggleAddParticipant={() => setShowAddParticipant((p) => !p)}
           onEndCall={onEndCall}
         />
 
-        {showAddParticipant && (
-          <AddParticipant
-            addableUsers={addableUsers}
-            onInvite={handleInvite}
-            onClose={() => setShowAddParticipant(false)}
-          />
-        )}
+        <ParticipantsPanel
+          isOpen={showParticipantsPanel}
+          onClose={() => {
+            setShowParticipantsPanel(false);
+            setShowAddList(false);
+          }}
+          joinedParticipants={joinedParticipants}
+          pendingParticipants={pendingParticipants}
+          addableUsers={addableUsers}
+          onInvite={handleInvite}
+          onNotify={handleNotify}
+          showAddList={showAddList}
+          setShowAddList={setShowAddList}
+        />
       </div>
     );
   }
