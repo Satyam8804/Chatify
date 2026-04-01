@@ -29,35 +29,36 @@ export const AuthProvider = ({ children }) => {
     "Connecting securely...",
     "Syncing conversations...",
     "Almost ready...",
-    "Still working...",
+    "Waking up server...", // ✅ shown on cold start retry
+    "Almost there...",
   ];
+
+  const setLoaderText = (text) => {
+    const el = document.getElementById("loader-text");
+    if (!el) return;
+    el.style.opacity = "0";
+    setTimeout(() => {
+      el.innerText = text;
+      el.style.opacity = "1";
+    }, 200);
+  };
 
   const startLoaderRotation = () => {
     let i = 0;
     const el = document.getElementById("loader-text");
     if (!el) return;
-
     el.innerText = loaderMessages[0];
 
     intervalRef.current = setInterval(() => {
       const el = document.getElementById("loader-text");
       if (!el) return;
-
-      // ✅ Stop when last message reached
-      if (i >= loaderMessages.length - 1) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-        return;
-      }
-
       el.style.opacity = "0";
-
       setTimeout(() => {
-        i += 1; // ✅ no modulo
+        i = (i + 1) % loaderMessages.length;
         el.innerText = loaderMessages[i];
         el.style.opacity = "1";
       }, 200);
-    }, 800);
+    }, 2500); // ✅ slower rotation — 2.5s gives time to read each message
   };
 
   const stopLoaderRotation = () => {
@@ -75,27 +76,37 @@ export const AuthProvider = ({ children }) => {
         const token = getToken();
 
         if (token) {
-          // ✅ Token exists — fetch user directly
           const { data } = await api.get("/users/me");
           setUser(data.user);
         } else {
-          await refreshAccessToken();
+          // ✅ First attempt
+          try {
+            await refreshAccessToken();
+          } catch (firstErr) {
+            // ✅ First attempt failed (likely cold start timeout)
+            // Show hint and retry once after a short pause
+            logger("First refresh attempt failed, retrying...", firstErr);
+            setLoaderText("Server waking up, retrying...");
+
+            await new Promise((r) => setTimeout(r, 3000));
+
+            // ✅ Second attempt — server should be warm by now
+            await refreshAccessToken();
+          }
+
           const { data } = await api.get("/users/me");
           setUser(data.user);
         }
       } catch (error) {
-        // Covers both the token-exists failure path and the refresh failure path
+        // Both attempts failed — genuinely not authenticated
         logger(error);
         clearToken();
         setUser(null);
       } finally {
-        // ✅ Only runs after ALL async work above is done
         setLoading(false);
         setAppReady(true);
         stopLoaderRotation();
-
-        const el = document.getElementById("loader-text");
-        if (el) el.innerText = "Almost ready...";
+        setLoaderText("Almost ready...");
       }
     };
 

@@ -23,8 +23,7 @@ export const SocketProvider = ({ children }) => {
   const [messageSeen, setMessageSeen] = useState({});
   const [incomingCall, setIncomingCall] = useState(null);
 
-  const activeChatIdRef = useRef(null);
-
+  const activeChatIdRef = useRef(activeChatId);
   useEffect(() => {
     activeChatIdRef.current = activeChatId;
   }, [activeChatId]);
@@ -32,7 +31,14 @@ export const SocketProvider = ({ children }) => {
   useEffect(() => {
     if (!user?._id) {
       socket?.disconnect();
-      setSocket(null);
+
+      queueMicrotask(() => {
+        setSocket(null);
+        setOnlineUser(new Set());
+        setUnreadCounts({});
+        setIncomingCall(null);
+      });
+
       return;
     }
 
@@ -42,26 +48,104 @@ export const SocketProvider = ({ children }) => {
     const newSocket = io("https://chatify-jux9.onrender.com", {
       auth: { token },
       transports: ["websocket"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      pingInterval: 10000,
+      pingTimeout: 5000,
     });
 
     setSocket(newSocket);
 
+    newSocket.off("connect");
     newSocket.on("connect", () => {
+      console.log("✅ Socket connected:", newSocket.id);
       newSocket.emit("request-ongoing-call");
     });
 
+    newSocket.off("disconnect");
+    newSocket.on("disconnect", (reason) => {
+      console.log("❌ Socket disconnected:", reason);
+    });
+
+    newSocket.off("reconnect");
     newSocket.on("reconnect", () => {
-      const chatId = activeChatIdRef.current;
-      if (chatId) {
-        newSocket.emit("join-call-room", { roomId: chatId });
-        newSocket.emit("ping-rejoin", { chatId });
+      // ✅ use ref — no stale closure, no socket recreation needed
+      const currentChatId = activeChatIdRef.current;
+      if (currentChatId) {
+        newSocket.emit("join-call-room", { roomId: currentChatId });
+        newSocket.emit("ping-rejoin", { chatId: currentChatId });
       }
     });
 
-    newSocket.on("incoming-call", (data) => {
-      setIncomingCall(data); // ✅ FIXED
+    newSocket.off("online-users");
+    newSocket.on("online-users", (users) => {
+      setOnlineUser(new Set(users));
     });
 
+    // ✅ Improvement 3: explicit add() then return — avoids same-reference mutation
+    newSocket.off("user-online");
+    newSocket.on("user-online", ({ userId }) => {
+      setOnlineUser((prev) => {
+        const updated = new Set(prev);
+        updated.add(userId);
+        return updated;
+      });
+    });
+
+    newSocket.off("user-offline");
+    newSocket.on("user-offline", ({ userId }) => {
+      setOnlineUser((prev) => {
+        const updated = new Set(prev);
+        updated.delete(userId);
+        return updated;
+      });
+    });
+
+    newSocket.off("message-notification");
+    newSocket.on("message-notification", ({ chatId }) => {
+      setActiveChatId((current) => {
+        if (chatId !== current) {
+          setUnreadCounts((prev) => ({
+            ...prev,
+            [chatId]: (prev[chatId] || 0) + 1,
+          }));
+        }
+        return current;
+      });
+    });
+
+    newSocket.off("typing");
+    newSocket.on("typing", ({ chatId, user: typingUser }) => {
+      setActiveChatId((current) => {
+        if (chatId === current) setTypingUser(typingUser);
+        return current;
+      });
+    });
+
+    newSocket.off("stop-typing");
+    newSocket.on("stop-typing", ({ chatId }) => {
+      setActiveChatId((current) => {
+        if (chatId === current) setTypingUser(null);
+        return current;
+      });
+    });
+
+    newSocket.off("message-seen");
+    newSocket.on("message-seen", ({ chatId, userId }) => {
+      setMessageSeen((prev) => ({
+        ...prev,
+        [chatId]: [...(prev[chatId] || []), userId],
+      }));
+    });
+
+    newSocket.off("incoming-call");
+    newSocket.on("incoming-call", (data) => {
+      setIncomingCall((prev) => prev ?? data);
+    });
+
+    newSocket.off("call-ended");
     newSocket.on("call-ended", () => {
       setIncomingCall(null);
     });
@@ -69,15 +153,16 @@ export const SocketProvider = ({ children }) => {
     return () => {
       newSocket.disconnect();
     };
-  }, [user?._id]); // ✅ FIXED (no activeChatId)
+  }, [user?._id]);
 
-  const value = useMemo(
+
+  const contextValue = useMemo(
     () => ({
       socket,
       onlineUser,
       unreadCounts,
-      typingUser,
       setUnreadCounts,
+      typingUser,
       activeChatId,
       setActiveChatId,
       messageSeen,
@@ -96,7 +181,9 @@ export const SocketProvider = ({ children }) => {
   );
 
   return (
-    <SocketContext.Provider value={value}>{children}</SocketContext.Provider>
+    <SocketContext.Provider value={contextValue}>
+      {children}
+    </SocketContext.Provider>
   );
 };
 

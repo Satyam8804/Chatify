@@ -16,7 +16,6 @@ export const clearToken = () => {
 
 let refreshPromise = null;
 
-// 🔥 SAFE REFRESH WITH TIMEOUT
 export const refreshAccessToken = () => {
   if (refreshPromise) return refreshPromise;
 
@@ -27,7 +26,8 @@ export const refreshAccessToken = () => {
       { withCredentials: true }
     ),
     new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Refresh timeout")), 8000)
+      // ✅ 25s — Render free tier cold starts can take 15-30s
+      setTimeout(() => reject(new Error("Refresh timeout")), 25000)
     ),
   ])
     .then(({ data }) => {
@@ -37,7 +37,12 @@ export const refreshAccessToken = () => {
     .catch((err) => {
       logger(err);
       clearToken();
-
+      // ✅ FIX: removed window.location.href = "/login"
+      // That was causing a full page reload on every expired session:
+      //   refresh fails → hard redirect → app re-initializes → loader
+      //   runs again → looks like a loop → lands on login anyway.
+      // Now we just reject and let authContext's catch + PublicRoute
+      // handle the redirect cleanly via React Router (no reload).
       return Promise.reject(err);
     })
     .finally(() => {
@@ -52,7 +57,7 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// ✅ Attach token
+// Attach token
 api.interceptors.request.use((config) => {
   const token = getToken();
   if (token) {
@@ -61,7 +66,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// ✅ Response interceptor
+// Response interceptor
 api.interceptors.response.use(
   (response) => {
     const { method, url } = response.config;
@@ -80,12 +85,12 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     const status = error.response?.status;
 
-    // ❌ No token → don't try refresh
+    // No token → don't try refresh
     if (!getToken()) {
       return Promise.reject(error);
     }
 
-    // 🔁 Retry once
+    // Retry once on 401
     if (status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
