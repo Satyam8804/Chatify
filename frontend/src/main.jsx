@@ -10,16 +10,19 @@ import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
 import { ThemeProvider } from "./context/themeContext";
 import AppWrapper from "./utils/AppWrapper.jsx";
+import { CallProvider } from "./context/callContext.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <BrowserRouter>
     <ThemeProvider>
       <AuthProvider>
-        <SocketProvider>
-          <AppWrapper>
-            <App />
-          </AppWrapper>
-        </SocketProvider>
+        <CallProvider>
+          <SocketProvider>
+            <AppWrapper>
+              <App />
+            </AppWrapper>
+          </SocketProvider>
+        </CallProvider>
       </AuthProvider>
     </ThemeProvider>
   </BrowserRouter>

@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSocket } from "../../context/socketContext";
 import { useAuth } from "../../context/authContext";
+import { useCallContext } from "../../context/callContext"; // ← NEW
 import EmptyChatState from "./EmptyChatState";
 import VideoCall from "../call/VideoCall.jsx";
+import MiniCallPlayer from "../call/MiniCallPlayer.jsx"; // ← NEW
 import outgoingRingFile from "../../assets/sound/outgoing-ring.mp3";
 import IncomingCallModal from "../common/IncomingCallModal.jsx";
 import api from "../../api/axios.js";
+import { Minimize2 } from "lucide-react"; // ← NEW
 
 import { lazy, Suspense } from "react";
 import Loader from "../../utils/Loader";
@@ -40,6 +43,16 @@ const ChatLayout = () => {
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [isDesktop, setIsDesktop] = useState(true);
 
+  // ── Mini call state ──────────────────────────────────────────────────────
+  // Streams captured at minimize time. MediaStream refs are stable so the
+  // mini video keeps playing even though VideoCall owns the track lifecycle.
+  const [miniStreams, setMiniStreams] = useState({ local: null, remotes: [] });
+  const [miniIsMuted, setMiniIsMuted] = useState(false);
+  const [miniIsVideoOff, setMiniIsVideoOff] = useState(false);
+
+  const { isMinimized, minimizeCall, maximizeCall, resetMinimize } =
+    useCallContext(); // ← NEW
+
   const { socket } = useSocket();
   const { user } = useAuth();
 
@@ -65,35 +78,27 @@ const ChatLayout = () => {
     startWidth: SIDEBAR_DEFAULT_WIDTH,
   });
 
+  // ── Viewport detection ───────────────────────────────────────────────────
   useEffect(() => {
     const updateViewport = () => {
       if (typeof window === "undefined") return;
       setIsDesktop(window.innerWidth >= 768);
     };
-
     updateViewport();
     window.addEventListener("resize", updateViewport);
-
-    return () => {
-      window.removeEventListener("resize", updateViewport);
-    };
+    return () => window.removeEventListener("resize", updateViewport);
   }, []);
 
+  // ── Restore ongoing call on mount ────────────────────────────────────────
   useEffect(() => {
     const call = JSON.parse(localStorage.getItem("ongoingCall"));
-
     if (call?.chatId && chats.length > 0) {
-      console.log("♻️ Restoring call in chat");
-
       const chat = chats.find((c) => c._id === call.chatId);
-
       if (chat) {
         setSelectedChat(chat);
-
         setCallChatId(call.chatId);
         setIsCalling(true);
         setCallType(call.type || "video");
-
         setCallTargetName(
           chat.users?.find((u) => u._id !== user._id)?.fName || "User"
         );
@@ -122,6 +127,7 @@ const ChatLayout = () => {
     };
   }, []);
 
+  // ── Timer helpers ────────────────────────────────────────────────────────
   const startTimer = useCallback(() => {
     if (timerRef.current) return;
     callConnectedRef.current = true;
@@ -143,20 +149,16 @@ const ChatLayout = () => {
     setCallConnected(false);
   }, []);
 
+  // ── Participant helpers ──────────────────────────────────────────────────
   const getParticipants = useCallback(() => {
     const participants = videoCallRef.current?.getParticipants?.() || [];
-
     if (participants.length === 1 && receiverIdRef.current) {
-      return [
-        {
-          _id: receiverIdRef.current,
-        },
-      ];
+      return [{ _id: receiverIdRef.current }];
     }
-
     return participants;
   }, []);
 
+  // ── Audio ring ───────────────────────────────────────────────────────────
   const playRing = useCallback(() => {
     const audio = outgoingRingRef.current;
     if (!audio) return;
@@ -171,29 +173,38 @@ const ChatLayout = () => {
     audio.currentTime = 0;
   }, []);
 
-   const resetCall = useCallback(() => {
+  // ── Reset everything ─────────────────────────────────────────────────────
+  const resetCall = useCallback(() => {
     videoCallRef.current?.cleanup?.();
     stopRing();
     clearTimeout(ringTimeoutRef.current);
     ringTimeoutRef.current = null;
     stopTimer();
+
     setIsCalling(false);
     setCallTargetName("");
     setCallChatId(null);
     setIsGroupCall(false);
     setInitiator(null);
     setCallType("video");
+    setMiniStreams({ local: null, remotes: [] }); // ← NEW: clear captured streams
+    setMiniIsMuted(false);
+    setMiniIsVideoOff(false);
+    resetMinimize(); // ← NEW: always un-minimize on end
+
     isCallingRef.current = false;
     callChatIdRef.current = null;
     isGroupCallRef.current = false;
     receiverIdRef.current = null;
     initiatorRef.current = null;
+
     localStorage.removeItem("ongoingCall");
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     }
-  }, [stopTimer, stopRing]);
+  }, [stopTimer, stopRing, resetMinimize]);
 
+  // ── Save call log ────────────────────────────────────────────────────────
   const saveCallLog = useCallback(
     async (status, duration = 0) => {
       if (callSavedRef.current || !initiatorRef.current?.isInitiator) return;
@@ -210,28 +221,26 @@ const ChatLayout = () => {
           ? participants.length > 0
             ? participants
             : initiatorRef.current?.receiverIds?.map((id) => {
-                const user = chats
+                const u = chats
                   ?.flatMap((c) => c.users || [])
                   .find((u) => String(u._id) === String(id));
-
                 return {
                   _id: id,
-                  fName: user?.fName,
-                  lName: user?.lName,
-                  avatar: user?.avatar,
+                  fName: u?.fName,
+                  lName: u?.lName,
+                  avatar: u?.avatar,
                 };
               }) || []
           : (() => {
-              const user = chats
+              const u = chats
                 ?.flatMap((c) => c.users || [])
                 .find((u) => String(u._id) === String(receiverIdRef.current));
-
               return [
                 {
                   _id: receiverIdRef.current,
-                  fName: user?.fName,
-                  lName: user?.lName,
-                  avatar: user?.avatar,
+                  fName: u?.fName,
+                  lName: u?.lName,
+                  avatar: u?.avatar,
                 },
               ];
             })(),
@@ -241,6 +250,7 @@ const ChatLayout = () => {
     [getParticipants, chats]
   );
 
+  // ── Socket call events ───────────────────────────────────────────────────
   useEffect(() => {
     if (!socket) return;
 
@@ -250,13 +260,9 @@ const ChatLayout = () => {
     };
 
     const onRejected = async ({ chatId, from }) => {
-      console.log("❌ User rejected:", from, "chat: ", chatId);
-
       stopRing();
       clearTimeout(ringTimeoutRef.current);
-
       if (String(chatId) !== String(callChatIdRef.current)) return;
-
       if (!isGroupCallRef.current) {
         await saveCallLog("rejected", 0);
         resetCall();
@@ -293,13 +299,13 @@ const ChatLayout = () => {
     };
   }, [socket, resetCall, saveCallLog]);
 
+  // ── Start / accept / end / join ──────────────────────────────────────────
   const startCall = useCallback(
     (chat, type = "video") => {
       if (!audioCtxRef.current) {
         audioCtxRef.current = new (window.AudioContext ||
           window.webkitAudioContext)();
       }
-
       audioCtxRef.current.resume();
 
       if (isCallingRef.current || !socket || !chat?._id) return;
@@ -326,21 +332,14 @@ const ChatLayout = () => {
 
       localStorage.setItem(
         "ongoingCall",
-        JSON.stringify({
-          chatId: chat._id,
-          type,
-        })
+        JSON.stringify({ chatId: chat._id, type })
       );
 
       if (!isGroup) {
         receiverIdRef.current = receiverIds[0];
         playRing();
-
         ringTimeoutRef.current = setTimeout(async () => {
-          socket.emit("call-ended", {
-            roomId: chat._id,
-            isGroup: false,
-          });
+          socket.emit("call-ended", { roomId: chat._id, isGroup: false });
           await saveCallLog("missed", 0);
           resetCall();
         }, 30000);
@@ -350,27 +349,22 @@ const ChatLayout = () => {
   );
 
   const acceptCall = useCallback(
-    (callerId, callerName, chatId, isGroup, callType) => {
+    (callerId, callerName, chatId, isGroup, type) => {
       callSavedRef.current = false;
-      callTypeRef.current = callType || "video";
+      callTypeRef.current = type || "video";
       callChatIdRef.current = chatId;
       isCallingRef.current = true;
       isGroupCallRef.current = isGroup;
       initiatorRef.current = { isInitiator: false };
-      setCallType(callType || "video");
+
+      setCallType(type || "video");
       setCallChatId(chatId);
       setCallTargetName(callerName);
       setIsGroupCall(isGroup);
       setIsCalling(true);
       setInitiator({ isInitiator: false });
 
-      localStorage.setItem(
-        "ongoingCall",
-        JSON.stringify({
-          chatId,
-          type: callType,
-        })
-      );
+      localStorage.setItem("ongoingCall", JSON.stringify({ chatId, type }));
 
       if (!isGroup) {
         receiverIdRef.current = callerId;
@@ -423,15 +417,8 @@ const ChatLayout = () => {
       setIsCalling(true);
       setCallTargetName("");
 
-      // 🔥 IMPORTANT: join socket room
-      socket.emit("join-call-room", {
-        roomId: chat._id,
-      });
-
-      // 🔥 IMPORTANT: trigger re-negotiation
-      socket.emit("ping-rejoin", {
-        chatId: chat._id,
-      });
+      socket.emit("join-call-room", { roomId: chat._id });
+      socket.emit("ping-rejoin", { chatId: chat._id });
 
       localStorage.setItem(
         "ongoingCall",
@@ -441,43 +428,52 @@ const ChatLayout = () => {
     [socket]
   );
 
+  // ── Minimize handler — captures stream snapshots before hiding ───────────
+  /**
+   * We snapshot the MediaStream references from VideoCall's exposed ref API.
+   * MediaStream objects are stable references; the underlying tracks keep
+   * flowing regardless of UI visibility, so the mini video stays live.
+   */
+  const handleMinimize = useCallback(() => {
+    if (videoCallRef.current) {
+      setMiniStreams({
+        local: videoCallRef.current.getLocalStream?.() ?? null,
+        remotes: videoCallRef.current.getRemoteStreams?.() ?? [],
+      });
+      setMiniIsMuted(videoCallRef.current.getMuted?.() ?? false);
+      setMiniIsVideoOff(videoCallRef.current.getVideoOff?.() ?? false);
+    }
+    minimizeCall();
+  }, [minimizeCall]);
+
+  // ── Sidebar resize ───────────────────────────────────────────────────────
   const startSidebarResize = useCallback(
     (e) => {
       if (!isDesktop) return;
-
       e.preventDefault();
       e.stopPropagation();
-
       sidebarResizeRef.current.active = true;
       sidebarResizeRef.current.startX = e.clientX;
       sidebarResizeRef.current.startWidth = sidebarWidth;
-
       document.body.style.userSelect = "none";
       document.body.style.cursor = "col-resize";
     },
     [isDesktop, sidebarWidth]
   );
 
-  const handleSidebarResizeMove = useCallback(
-    (e) => {
-      if (!sidebarResizeRef.current.active) return;
-
-      const deltaX = e.clientX - sidebarResizeRef.current.startX;
-
-      const nextWidth = clamp(
-        sidebarResizeRef.current.startWidth + deltaX,
-        SIDEBAR_MIN_WIDTH,
-        SIDEBAR_MAX_WIDTH
-      );
-
-      setSidebarWidth(nextWidth);
-    },
-    [setSidebarWidth]
-  );
+  const handleSidebarResizeMove = useCallback((e) => {
+    if (!sidebarResizeRef.current.active) return;
+    const nextWidth = clamp(
+      sidebarResizeRef.current.startWidth +
+        (e.clientX - sidebarResizeRef.current.startX),
+      SIDEBAR_MIN_WIDTH,
+      SIDEBAR_MAX_WIDTH
+    );
+    setSidebarWidth(nextWidth);
+  }, []);
 
   const stopSidebarResize = useCallback(() => {
     if (!sidebarResizeRef.current.active) return;
-
     sidebarResizeRef.current.active = false;
     document.body.style.userSelect = "";
     document.body.style.cursor = "";
@@ -487,7 +483,6 @@ const ChatLayout = () => {
     window.addEventListener("pointermove", handleSidebarResizeMove);
     window.addEventListener("pointerup", stopSidebarResize);
     window.addEventListener("pointercancel", stopSidebarResize);
-
     return () => {
       window.removeEventListener("pointermove", handleSidebarResizeMove);
       window.removeEventListener("pointerup", stopSidebarResize);
@@ -503,7 +498,7 @@ const ChatLayout = () => {
 
   return (
     <div className="h-screen w-full flex bg-gray-100 dark:bg-slate-950 transition-colors">
-      {/* Sidebar */}
+      {/* ── Sidebar ──────────────────────────────────────────────────────── */}
       <div
         className={`${
           selectedChat ? "hidden md:block" : "block"
@@ -533,7 +528,7 @@ const ChatLayout = () => {
         </div>
       </div>
 
-      {/* Chat Area */}
+      {/* ── Chat area ────────────────────────────────────────────────────── */}
       <div
         className={`${
           selectedChat ? "block" : "hidden md:block"
@@ -555,64 +550,115 @@ const ChatLayout = () => {
         )}
       </div>
 
-      {/* Incoming Call Modal */}
+      {/* ── Incoming call modal ───────────────────────────────────────────── */}
       <IncomingCallModal
         isCalling={isCalling}
-        onAccept={(callerId, callerName, chatId, isGroup, callType) =>
-          acceptCall(callerId, callerName, chatId, isGroup, callType)
+        onAccept={(callerId, callerName, chatId, isGroup, type) =>
+          acceptCall(callerId, callerName, chatId, isGroup, type)
         }
       />
 
+      {/* ─────────────────────────────────────────────────────────────────────
+          CALL LAYER
+          VideoCall is NEVER unmounted while a call is active.
+          When minimized we hide the full overlay with CSS only, so WebRTC
+          connections, media tracks, and socket listeners stay intact.
+      ───────────────────────────────────────────────────────────────────── */}
       {isCalling && (
-        <div
-          className="fixed inset-0 z-[100] bg-slate-950 flex flex-col"
-          style={{ height: "100dvh" }}
-        >
-          <div className="flex items-center justify-between px-5 py-3 bg-slate-900 border-b border-white/5 shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2.5">
-                <span
-                  className={`w-2 h-2 rounded-full animate-pulse shrink-0 ${
-                    callConnected ? "bg-emerald-400" : "bg-amber-400"
-                  }`}
-                />
-                <span
-                  className="text-sm font-medium text-slate-300 font-mono tabular-nums"
-                  style={{ minWidth: "6.5rem" }}
+        <>
+          {/* ── Full-screen call overlay ──────────────────────────────────── */}
+          <div
+            className={`fixed inset-0 z-[100] bg-slate-950 flex flex-col
+              transition-all duration-300 ease-in-out
+              ${
+                isMinimized
+                  ? "opacity-0 pointer-events-none scale-[0.98]"
+                  : "opacity-100 scale-100"
+              }`}
+            style={{ height: "100dvh" }}
+          >
+            {/* Header bar */}
+            <div className="flex items-center justify-between px-5 py-3 bg-slate-900 border-b border-white/5 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span
+                    className={`w-2 h-2 rounded-full animate-pulse shrink-0 ${
+                      callConnected ? "bg-emerald-400" : "bg-amber-400"
+                    }`}
+                  />
+                  <span
+                    className="text-sm font-medium text-slate-300 font-mono tabular-nums"
+                    style={{ minWidth: "6.5rem" }}
+                  >
+                    {callConnected
+                      ? formatDuration(callDuration)
+                      : `Calling ${callTargetName}…`}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Minimize button */}
+                <button
+                  onClick={handleMinimize}
+                  className="flex items-center gap-1.5 text-xs font-medium text-slate-400
+                    hover:text-slate-200 bg-slate-800/80 hover:bg-slate-700/80
+                    px-3 py-1.5 rounded-lg transition-colors"
+                  title="Minimize call"
                 >
-                  {callConnected
-                    ? formatDuration(callDuration)
-                    : `Calling ${callTargetName}…`}
-                </span>
+                  <Minimize2 size={13} />
+                  <span className="hidden sm:inline">Minimize</span>
+                </button>
+
+                {/* End call button */}
+                <button
+                  onClick={endCall}
+                  className="text-xs font-semibold text-rose-400 hover:text-rose-300
+                    bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg
+                    transition-colors shrink-0"
+                >
+                  End Call
+                </button>
               </div>
             </div>
 
-            <button
-              onClick={endCall}
-              className="text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg transition-colors shrink-0"
-            >
-              End Call
-            </button>
+            {/* VideoCall body — always mounted, streams stay alive */}
+            <div className="flex-1 min-h-0 w-full">
+              <Suspense
+                fallback={
+                  <Loader text="Connecting call..." fullscreen={false} />
+                }
+              >
+                <VideoCall
+                  ref={videoCallRef}
+                  chatId={callChatId}
+                  chats={chats}
+                  onEndCall={endCall}
+                  onConnected={startTimer}
+                  initiator={initiator}
+                  callType={callType}
+                  setIsGroupCall={setIsGroupCall}
+                />
+              </Suspense>
+            </div>
           </div>
 
-          {/* Video Call */}
-          <div className="flex-1 min-h-0 w-full">
-            <Suspense
-              fallback={<Loader text="Connecting call..." fullscreen={false} />}
-            >
-              <VideoCall
-                ref={videoCallRef}
-                chatId={callChatId}
-                chats={chats}
-                onEndCall={endCall}
-                onConnected={startTimer}
-                initiator={initiator}
-                callType={callType}
-                setIsGroupCall={setIsGroupCall}
-              />
-            </Suspense>
-          </div>
-        </div>
+          {/* ── Floating mini player (rendered when minimized) ────────────── */}
+          {isMinimized && (
+            <MiniCallPlayer
+              callTargetName={callTargetName}
+              callConnected={callConnected}
+              callDuration={callDuration}
+              callType={callType}
+              localStream={miniStreams.local}
+              remoteStreams={miniStreams.remotes}
+              isMuted={miniIsMuted}
+              isVideoOff={miniIsVideoOff}
+              onMaximize={maximizeCall}
+              onEndCall={endCall}
+            />
+          )}
+        </>
       )}
     </div>
   );

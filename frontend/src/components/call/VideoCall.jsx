@@ -1230,9 +1230,14 @@ const VideoCall = forwardRef(
 
     cleanupRef.current = cleanup;
     useEffect(() => () => cleanupRef.current?.(), []);
+
     useImperativeHandle(ref, () => ({
       cleanup: () => cleanupRef.current?.(),
       getParticipants: () => getFinalParticipants(),
+      getLocalStream: () => localStreamRef.current,
+      getRemoteStreams: () => remoteStreams,
+      getMuted: () => isMutedRef.current,
+      getVideoOff: () => isVideoOffRef.current,
     }));
 
     const callChat = useMemo(
