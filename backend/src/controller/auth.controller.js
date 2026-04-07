@@ -304,9 +304,8 @@ export const googleCallback = async (req, res) => {
 
       const frontendUrl = process.env.CLIENT_URL || "http://localhost:5173";
 
-      // 🔥 Redirect with query params (since OAuth flow uses redirect)
       return res.redirect(
-        `${frontendUrl}/login?error=ACCOUNT_BANNED` +
+        `${frontendUrl}/auth/google/success?error=ACCOUNT_BANNED` +
           `&reason=${encodeURIComponent(
             user.banReason || "No reason provided"
           )}` +
