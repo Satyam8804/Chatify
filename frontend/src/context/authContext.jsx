@@ -78,24 +78,22 @@ export const AuthProvider = ({ children }) => {
         if (token) {
           const { data } = await api.get("/users/me");
           setUser(data.user);
+          
         } else {
           // ✅ First attempt
           try {
             await refreshAccessToken();
           } catch (firstErr) {
-            // ✅ First attempt failed (likely cold start timeout)
-            // Show hint and retry once after a short pause
             logger("First refresh attempt failed, retrying...", firstErr);
             setLoaderText("Server waking up, retrying...");
 
             await new Promise((r) => setTimeout(r, 3000));
 
-            // ✅ Second attempt — server should be warm by now
             await refreshAccessToken();
           }
-
           const { data } = await api.get("/users/me");
           setUser(data.user);
+          console.log(data.user)
         }
       } catch (error) {
         // Both attempts failed — genuinely not authenticated
@@ -119,12 +117,16 @@ export const AuthProvider = ({ children }) => {
     const { data } = await api.post("/users/login-user", credentials);
     setToken(data.accessToken);
     setUser(data.user);
+    console.log(data.user)
+
+    return data;
   }, []);
 
   const loginWithToken = useCallback(async (accessToken) => {
     setToken(accessToken);
     const { data } = await api.get("/users/me");
     setUser(data.user);
+    return data;
   }, []);
 
   const logout = useCallback(async () => {

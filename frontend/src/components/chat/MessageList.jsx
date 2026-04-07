@@ -299,7 +299,7 @@ const MessageBubble = ({
         )}
 
         {/* MEDIA MESSAGE */}
-        {message.messageType !== "call" &&
+        { message.messageType !== "call" &&
           message.media.map((m, i) => (
             <MediaRenderer
               key={i}

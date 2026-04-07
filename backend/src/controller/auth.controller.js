@@ -4,6 +4,7 @@ import getInitials from "../utils/getInitials.js";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
 import cloudinary from "../utils/cloudinary.js"; // ✅ needed for destroy in updateMe
 import jwt from "jsonwebtoken";
+import Appeal from "../models/appeal.model.js";
 
 import {
   generateAccessToken,
@@ -84,6 +85,23 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
+    // ✅ Ban check — before password verification
+    if (user.isBanned) {
+      const existingAppeal = await Appeal.findOne({
+        user: user._id,
+        status: "pending",
+      });
+
+      return res.status(403).json({
+        code: "ACCOUNT_BANNED",
+        message: "Your account has been banned",
+        reason: user.banReason || "No reason provided",
+        bannedAt: user.bannedAt,
+        userId: user._id,
+        hasActiveAppeal: !!existingAppeal,
+      });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
@@ -112,6 +130,7 @@ export const loginUser = async (req, res) => {
         fName: user.fName,
         lName: user.lName,
         email: user.email,
+        isAdmin: user.isAdmin,
       },
       message: "Logged in successfully",
     });
@@ -187,6 +206,7 @@ export const meRoute = async (req, res) => {
         lName: user.lName,
         email: user.email,
         avatar: user.avatar,
+        isAdmin: user.isAdmin,
       },
       accessToken,
     });

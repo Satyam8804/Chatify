@@ -3,9 +3,13 @@ import { useAuth } from "../context/authContext.jsx";
 import Loader from "../utils/Loader.jsx";
 
 const PublicRoute = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, appReady } = useAuth();
 
-  if (isAuthenticated) return <Navigate to="/chat" replace />;
+  if (!appReady) return <Loader />;
+
+  if (isAuthenticated) {
+    return <Navigate to={user?.isAdmin ? "/admin" : "/chat"} replace />;
+  }
 
   return children;
 };

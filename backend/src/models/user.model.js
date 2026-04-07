@@ -19,21 +19,19 @@ const UserSchema = new mongoose.Schema(
       lowercase: true,
     },
 
-    // ✅ no longer required — Google users won't have a password
     password: {
       type: String,
       required: false,
       select: false,
     },
 
-    // ✅ OAuth fields
     googleId: {
       type: String,
       default: null,
     },
     authProvider: {
       type: String,
-      enum: ["local", "google", "both"], // ← add "both"
+      enum: ["local", "google", "both"],
       default: "local",
     },
 
@@ -52,6 +50,26 @@ const UserSchema = new mongoose.Schema(
     lastSeen: {
       type: Date,
       default: null,
+    },
+
+    // ✅ Admin flag
+    isAdmin: {
+      type: Boolean,
+      default: false,
+    },
+
+    // ✅ Ban support
+    isBanned: {
+      type: Boolean,
+      default: false,
+    },
+    bannedAt: {
+      type: Date,
+      default: null,
+    },
+    banReason: {
+      type: String,
+      default: "",
     },
   },
   { timestamps: true }
