@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/authContext";
 
 import { useState } from "react";
-import { logger } from "../utils/logger";
 
 const Login = () => {
   const { login } = useAuth();

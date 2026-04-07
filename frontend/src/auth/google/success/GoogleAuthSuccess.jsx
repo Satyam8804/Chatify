@@ -3,29 +3,51 @@ import { useNavigate } from "react-router-dom";
 import { Loader } from "lucide-react";
 import { useAuth } from "../../../context/authContext";
 
-// This page lives at /auth/google/success
-// Google → backend → redirects here with ?token=xxx
-// We read the token, store it, then redirect to chat
-
 const GoogleAuthSuccess = () => {
   const { loginWithToken } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const token  = params.get("token");
 
-    if (!token) {
-      navigate("/login?error=oauth_failed");
+    const token = params.get("token");
+    const error = params.get("error");
+
+    // 🔴 Handle banned user (from backend redirect)
+    if (error === "ACCOUNT_BANNED") {
+      navigate("/banned", {
+        replace: true,
+        state: {
+          userId: params.get("userId"),
+          reason: params.get("reason"),
+          bannedAt: params.get("bannedAt"),
+          hasActiveAppeal: params.get("hasActiveAppeal") === "true",
+        },
+      });
       return;
     }
 
-    // Hand token to auth context (same as normal login)
-    loginWithToken(token).then(() => {
-      navigate("/chat");
-    }).catch(() => {
-      navigate("/login?error=oauth_failed");
-    });
+    // ❌ No token → fail
+    if (!token) {
+      navigate("/login?error=oauth_failed", { replace: true });
+      return;
+    }
+
+    // ✅ Normal login flow
+    loginWithToken(token)
+      .then((res) => {
+        const user = res?.user;
+
+        // 🔥 SAME LOGIC AS NORMAL LOGIN
+        if (user?.isAdmin) {
+          navigate("/admin", { replace: true });
+        } else {
+          navigate("/chat", { replace: true });
+        }
+      })
+      .catch(() => {
+        navigate("/login?error=oauth_failed", { replace: true });
+      });
   }, []);
 
   return (
