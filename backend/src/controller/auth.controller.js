@@ -295,6 +295,28 @@ export const googleCallback = async (req, res) => {
   try {
     const user = req.user; // set by passport
 
+    // 🔴 ✅ BAN CHECK (same as loginUser)
+    if (user.isBanned) {
+      const existingAppeal = await Appeal.findOne({
+        user: user._id,
+        status: "pending",
+      });
+
+      const frontendUrl = process.env.CLIENT_URL || "http://localhost:5173";
+
+      // 🔥 Redirect with query params (since OAuth flow uses redirect)
+      return res.redirect(
+        `${frontendUrl}/login?error=ACCOUNT_BANNED` +
+          `&reason=${encodeURIComponent(
+            user.banReason || "No reason provided"
+          )}` +
+          `&bannedAt=${user.bannedAt}` +
+          `&userId=${user._id}` +
+          `&hasActiveAppeal=${!!existingAppeal}`
+      );
+    }
+
+    // ✅ Normal login flow
     const accessToken = generateAccessToken(user._id);
     const refreshToken = generateRefreshToken(user._id);
 
@@ -311,6 +333,7 @@ export const googleCallback = async (req, res) => {
     });
 
     const frontendUrl = process.env.CLIENT_URL || "http://localhost:5173";
+
     res.redirect(`${frontendUrl}/auth/google/success?token=${accessToken}`);
   } catch (error) {
     console.error("GOOGLE CALLBACK ERROR 👉", error);

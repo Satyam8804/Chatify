@@ -270,6 +270,7 @@ export const getCallAnalytics = async (req, res) => {
       { $sort: { count: -1 } },
       { $limit: 1 },
     ]);
+    
     const peakHour = hourAgg[0]?._id ?? null;
     const formatHour = (h) => {
       if (h === null) return "—";
