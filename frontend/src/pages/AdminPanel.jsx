@@ -25,7 +25,7 @@ import {
   Sun,
   Moon,
   Monitor,
-  X
+  X,
 } from "lucide-react";
 import AdminAppeals from "./AdminAppeals";
 
@@ -62,7 +62,6 @@ const ThemeToggle = () => {
     </button>
   );
 };
-
 
 const Avatar = ({ user, size = "md" }) => {
   const initials = `${user?.fName?.[0] ?? ""}${
@@ -117,53 +116,11 @@ const StatCard = ({ icon: Icon, label, value, colorClass, iconBg }) => (
   </div>
 );
 
-const Badge = ({ children, variant = "gray" }) => {
-  const variants = {
-    green:
-      "bg-emerald-500/15 text-emerald-600 ring-emerald-500/25 dark:text-emerald-400",
-    blue: "bg-blue-500/15 text-blue-600 ring-blue-500/25 dark:text-blue-400",
-    amber:
-      "bg-amber-500/15 text-amber-600 ring-amber-500/25 dark:text-amber-400",
-    red: "bg-rose-500/15 text-rose-600 ring-rose-500/25 dark:text-rose-400",
-    purple:
-      "bg-purple-500/15 text-purple-600 ring-purple-500/25 dark:text-purple-400",
-    gray: "bg-gray-100 text-gray-500 ring-gray-200 dark:bg-white/5 dark:text-gray-400 dark:ring-white/10",
-  };
-  return (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ring-[0.5px] ${variants[variant]}`}
-    >
-      {children}
-    </span>
-  );
-};
-
 const Spinner = () => (
   <div className="w-7 h-7 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
 );
 
-const Pagination = ({ page, totalPages, onPrev, onNext }) => (
-  <div className="flex items-center justify-center gap-2">
-    <button
-      onClick={onPrev}
-      disabled={page === 1}
-      className="w-8 h-8 rounded-lg flex items-center justify-center bg-white border border-gray-200 text-gray-500 hover:text-gray-900 disabled:opacity-40 transition-opacity dark:bg-gray-900 dark:border-white/[0.06] dark:text-gray-400 dark:hover:text-white"
-    >
-      <ChevronLeft size={15} />
-    </button>
-    <span className="text-xs text-gray-500">
-      Page {page} of {totalPages}
-    </span>
-    <button
-      onClick={onNext}
-      disabled={page === totalPages}
-      className="w-8 h-8 rounded-lg flex items-center justify-center bg-white border border-gray-200 text-gray-500 hover:text-gray-900 disabled:opacity-40 transition-opacity dark:bg-gray-900 dark:border-white/[0.06] dark:text-gray-400 dark:hover:text-white"
-    >
-      <ChevronRight size={15} />
-    </button>
-  </div>
-);
-
+// ─── Dashboard ───────────────────────────────────────────────────────────────
 
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
@@ -284,6 +241,8 @@ const Dashboard = () => {
   );
 };
 
+// ─── Users Page ───────────────────────────────────────────────────────────────
+
 const FILTERS = [
   { id: "all", label: "All" },
   { id: "online", label: "Online" },
@@ -320,6 +279,7 @@ const UsersPage = () => {
     return () => clearTimeout(t);
   }, [search]);
 
+  // FIX 1: include fetchUsers in useCallback and useEffect deps to avoid stale closures
   const fetchUsers = useCallback(
     async (p = 1) => {
       setLoading(true);
@@ -344,9 +304,10 @@ const UsersPage = () => {
     [debouncedSearch, activeFilter, sort]
   );
 
+  // FIX 2: fetchUsers is now a stable dep — no stale-closure risk
   useEffect(() => {
     fetchUsers(1);
-  }, [debouncedSearch, activeFilter, sort]);
+  }, [fetchUsers]);
 
   const handleBan = async (u) => {
     setActionId(u._id);
@@ -378,12 +339,20 @@ const UsersPage = () => {
     }
   };
 
+  // FIX 3: skip already-banned users in bulk ban to avoid unnecessary API errors
   const handleBulkBan = async () => {
-    if (!window.confirm(`Ban ${selected.size} users?`)) return;
+    const unbannedIds = [...selected].filter(
+      (id) => !users.find((u) => u._id === id)?.isBanned
+    );
+    if (unbannedIds.length === 0) {
+      alert("All selected users are already banned.");
+      return;
+    }
+    if (!window.confirm(`Ban ${unbannedIds.length} user(s)?`)) return;
     setBulkLoading(true);
     try {
       await Promise.all(
-        [...selected].map((id) =>
+        unbannedIds.map((id) =>
           api.patch(`/admin/users/${id}/ban`, { reason: "Bulk admin action" })
         )
       );
@@ -447,43 +416,45 @@ const UsersPage = () => {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Header */}
+      {/* Header — FIX 4: use dark: prefix for theme support, not hardcoded text-white */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-white">Users</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Users
+          </h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Manage and monitor all registered users
           </p>
         </div>
       </div>
 
-      {/* Summary stat cards */}
+      {/* Summary stat cards — FIX 4 cont: light/dark variants on all cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           {
             label: "Total",
             value: filterCounts.all ?? total,
-            color: "text-white",
+            color: "text-gray-900 dark:text-white",
           },
           {
             label: "Online",
             value: filterCounts.online ?? 0,
-            color: "text-emerald-400",
+            color: "text-emerald-600 dark:text-emerald-400",
           },
           {
             label: "Banned",
             value: filterCounts.banned ?? 0,
-            color: "text-rose-400",
+            color: "text-rose-600 dark:text-rose-400",
           },
           {
             label: "Google auth",
             value: filterCounts.google ?? 0,
-            color: "text-blue-400",
+            color: "text-blue-600 dark:text-blue-400",
           },
         ].map(({ label, value, color }) => (
           <div
             key={label}
-            className="bg-gray-900 border border-white/[0.06] rounded-xl p-3.5"
+            className="bg-white border border-gray-200 rounded-xl p-3.5 dark:bg-gray-900 dark:border-white/[0.06]"
           >
             <p className="text-xs text-gray-500 mb-1">{label}</p>
             <p className={`text-xl font-semibold ${color}`}>{fmt(value)}</p>
@@ -503,8 +474,8 @@ const UsersPage = () => {
               }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                 activeFilter === id
-                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                  : "bg-transparent text-gray-500 border-white/[0.08] hover:text-gray-300 hover:bg-white/[0.04]"
+                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 dark:text-emerald-400"
+                  : "bg-transparent text-gray-500 border-gray-200 hover:text-gray-700 hover:bg-gray-100 dark:border-white/[0.08] dark:hover:text-gray-300 dark:hover:bg-white/[0.04]"
               }`}
             >
               {label}
@@ -512,8 +483,8 @@ const UsersPage = () => {
                 <span
                   className={`px-1.5 rounded-full text-[10px] ${
                     activeFilter === id
-                      ? "bg-emerald-500/20 text-emerald-400"
-                      : "bg-white/[0.06] text-gray-600"
+                      ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                      : "bg-gray-100 text-gray-500 dark:bg-white/[0.06] dark:text-gray-600"
                   }`}
                 >
                   {filterCounts[id]}
@@ -528,18 +499,18 @@ const UsersPage = () => {
           <div className="relative">
             <Search
               size={13}
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
             />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search users..."
-              className="h-9 pl-8 pr-3 rounded-lg text-sm bg-gray-900 border border-white/[0.08] text-white placeholder-gray-600 outline-none focus:border-emerald-500/40 w-48 transition-colors"
+              className="h-9 pl-8 pr-3 rounded-lg text-sm bg-white border border-gray-200 text-gray-900 placeholder-gray-400 outline-none focus:border-emerald-500/60 w-48 transition-colors dark:bg-gray-900 dark:border-white/[0.08] dark:text-white dark:placeholder-gray-600 dark:focus:border-emerald-500/40"
             />
             {search && (
               <button
                 onClick={() => setSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
               >
                 <X size={12} />
               </button>
@@ -550,7 +521,7 @@ const UsersPage = () => {
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value)}
-            className="h-9 px-3 rounded-lg text-sm bg-gray-900 border border-white/[0.08] text-gray-400 outline-none focus:border-emerald-500/40 transition-colors"
+            className="h-9 px-3 rounded-lg text-sm bg-white border border-gray-200 text-gray-600 outline-none focus:border-emerald-500/60 transition-colors dark:bg-gray-900 dark:border-white/[0.08] dark:text-gray-400 dark:focus:border-emerald-500/40"
           >
             {SORT_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -565,10 +536,10 @@ const UsersPage = () => {
       {selected.size > 0 && (
         <div className="flex items-center justify-between bg-emerald-500/[0.07] border border-emerald-500/20 rounded-xl px-4 py-2.5">
           <div className="flex items-center gap-2">
-            <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-semibold flex items-center justify-center">
+            <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[11px] font-semibold flex items-center justify-center">
               {selected.size}
             </span>
-            <span className="text-sm text-emerald-400 font-medium">
+            <span className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">
               {selected.size} user{selected.size > 1 ? "s" : ""} selected
             </span>
           </div>
@@ -576,20 +547,20 @@ const UsersPage = () => {
             <button
               onClick={handleBulkBan}
               disabled={bulkLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/10 border border-amber-500/25 text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/10 border border-amber-500/25 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-50"
             >
               <Ban size={12} /> Ban all
             </button>
             <button
               onClick={handleBulkDelete}
               disabled={bulkLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-rose-500/10 border border-rose-500/25 text-rose-400 hover:bg-rose-500/20 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-rose-500/10 border border-rose-500/25 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition-colors disabled:opacity-50"
             >
               <Trash2 size={12} /> Delete all
             </button>
             <button
               onClick={() => setSelected(new Set())}
-              className="flex items-center justify-center w-7 h-7 rounded-lg bg-white/[0.04] text-gray-500 hover:text-gray-300 transition-colors"
+              className="flex items-center justify-center w-7 h-7 rounded-lg bg-gray-100 dark:bg-white/[0.04] text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
             >
               <X size={13} />
             </button>
@@ -598,32 +569,32 @@ const UsersPage = () => {
       )}
 
       {/* Users list */}
-      <div className="bg-gray-900 border border-white/[0.06] rounded-xl overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden dark:bg-gray-900 dark:border-white/[0.06]">
         {/* Table header */}
         {!loading && users.length > 0 && (
-          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-white/[0.06]">
+          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-100 dark:border-white/[0.06]">
             <input
               type="checkbox"
               checked={selected.size === users.length && users.length > 0}
               onChange={toggleSelectAll}
               className="accent-emerald-500 flex-shrink-0"
             />
-            <span className="text-xs font-medium text-gray-600 flex-1">
+            <span className="text-xs font-medium text-gray-400 flex-1">
               User
             </span>
-            <span className="text-xs font-medium text-gray-600 w-32 hidden sm:block">
+            <span className="text-xs font-medium text-gray-400 w-32 hidden sm:block">
               Email
             </span>
-            <span className="text-xs font-medium text-gray-600 w-20 hidden md:block">
+            <span className="text-xs font-medium text-gray-400 w-20 hidden md:block">
               Provider
             </span>
-            <span className="text-xs font-medium text-gray-600 w-20">
+            <span className="text-xs font-medium text-gray-400 w-20">
               Status
             </span>
-            <span className="text-xs font-medium text-gray-600 w-24 hidden lg:block">
+            <span className="text-xs font-medium text-gray-400 w-24 hidden lg:block">
               Joined
             </span>
-            <span className="text-xs font-medium text-gray-600 w-16 text-right">
+            <span className="text-xs font-medium text-gray-400 w-16 text-right">
               Actions
             </span>
           </div>
@@ -632,18 +603,18 @@ const UsersPage = () => {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <div className="w-7 h-7 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
-            <span className="text-sm text-gray-600">Loading users...</span>
+            <span className="text-sm text-gray-400">Loading users...</span>
           </div>
         ) : users.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <div className="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center">
-              <Users size={20} className="text-gray-600" />
+            <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+              <Users size={20} className="text-gray-400" />
             </div>
             <div className="text-center">
-              <p className="text-sm font-medium text-gray-400">
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
                 No users found
               </p>
-              <p className="text-xs text-gray-600 mt-1">
+              <p className="text-xs text-gray-400 mt-1">
                 Try adjusting your search or filter
               </p>
             </div>
@@ -653,7 +624,7 @@ const UsersPage = () => {
                   setSearch("");
                   setActiveFilter("all");
                 }}
-                className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                className="text-xs text-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-300 transition-colors"
               >
                 Clear filters
               </button>
@@ -673,12 +644,14 @@ const UsersPage = () => {
                   onClick={() => toggleSelect(u._id)}
                   className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors
                     ${
-                      i < users.length - 1 ? "border-b border-white/[0.04]" : ""
+                      i < users.length - 1
+                        ? "border-b border-gray-100 dark:border-white/[0.04]"
+                        : ""
                     }
                     ${
                       isSelected
                         ? "bg-emerald-500/[0.06]"
-                        : "hover:bg-white/[0.02]"
+                        : "hover:bg-gray-50 dark:hover:bg-white/[0.02]"
                     }
                   `}
                 >
@@ -696,7 +669,7 @@ const UsersPage = () => {
                       <img
                         src={u.avatar}
                         alt={u.fName}
-                        className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10 flex-shrink-0"
+                        className="w-8 h-8 rounded-full object-cover ring-1 ring-black/10 dark:ring-white/10 flex-shrink-0"
                       />
                     ) : (
                       <div
@@ -708,10 +681,10 @@ const UsersPage = () => {
                       </div>
                     )}
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-white truncate">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                         {u.fName} {u.lName}
                       </p>
-                      <p className="text-xs text-gray-600 truncate sm:hidden">
+                      <p className="text-xs text-gray-400 truncate sm:hidden">
                         {u.email}
                       </p>
                     </div>
@@ -727,8 +700,8 @@ const UsersPage = () => {
                     <span
                       className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ring-[0.5px] ${
                         u.authProvider === "google"
-                          ? "bg-blue-500/10 text-blue-400 ring-blue-500/25"
-                          : "bg-emerald-500/10 text-emerald-400 ring-emerald-500/25"
+                          ? "bg-blue-500/10 text-blue-600 ring-blue-500/25 dark:text-blue-400"
+                          : "bg-emerald-500/10 text-emerald-600 ring-emerald-500/25 dark:text-emerald-400"
                       }`}
                     >
                       {u.authProvider}
@@ -738,25 +711,25 @@ const UsersPage = () => {
                   {/* Status */}
                   <div className="w-20">
                     {u.isBanned ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-500/10 text-rose-400 ring-[0.5px] ring-rose-500/25">
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400 flex-shrink-0" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-500/10 text-rose-600 ring-[0.5px] ring-rose-500/25 dark:text-rose-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 dark:bg-rose-400 flex-shrink-0" />
                         Banned
                       </span>
                     ) : u.isOnline ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 ring-[0.5px] ring-emerald-500/25">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-600 ring-[0.5px] ring-emerald-500/25 dark:text-emerald-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse flex-shrink-0" />
                         Online
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-white/[0.04] text-gray-500 ring-[0.5px] ring-white/10">
-                        <span className="w-1.5 h-1.5 rounded-full bg-gray-600 flex-shrink-0" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-500 ring-[0.5px] ring-gray-200 dark:bg-white/[0.04] dark:ring-white/10">
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-600 flex-shrink-0" />
                         Offline
                       </span>
                     )}
                   </div>
 
                   {/* Joined */}
-                  <p className="text-xs text-gray-600 w-24 whitespace-nowrap hidden lg:block">
+                  <p className="text-xs text-gray-400 w-24 whitespace-nowrap hidden lg:block">
                     {new Date(u.createdAt).toLocaleDateString("en-US", {
                       month: "short",
                       day: "numeric",
@@ -775,8 +748,8 @@ const UsersPage = () => {
                       title={u.isBanned ? "Unban user" : "Ban user"}
                       className={`w-7 h-7 rounded-lg flex items-center justify-center ring-[0.5px] transition-all disabled:opacity-40 ${
                         u.isBanned
-                          ? "bg-emerald-500/10 ring-emerald-500/25 text-emerald-400 hover:bg-emerald-500/20"
-                          : "bg-rose-500/10 ring-rose-500/25 text-rose-400 hover:bg-rose-500/20"
+                          ? "bg-emerald-500/10 ring-emerald-500/25 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20"
+                          : "bg-rose-500/10 ring-rose-500/25 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20"
                       }`}
                     >
                       {actionId === u._id ? (
@@ -791,7 +764,7 @@ const UsersPage = () => {
                       onClick={() => handleDelete(u._id)}
                       disabled={actionId === u._id}
                       title="Delete user"
-                      className="w-7 h-7 rounded-lg flex items-center justify-center ring-[0.5px] bg-rose-500/10 ring-rose-500/25 text-rose-400 hover:bg-rose-500/20 transition-all disabled:opacity-40"
+                      className="w-7 h-7 rounded-lg flex items-center justify-center ring-[0.5px] bg-rose-500/10 ring-rose-500/25 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition-all disabled:opacity-40"
                     >
                       <Trash2 size={13} />
                     </button>
@@ -806,7 +779,7 @@ const UsersPage = () => {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-600">
+          <span className="text-xs text-gray-400">
             Showing {(page - 1) * 15 + 1}–{Math.min(page * 15, total)} of{" "}
             {fmt(total)} users
           </span>
@@ -814,7 +787,7 @@ const UsersPage = () => {
             <button
               onClick={() => fetchUsers(page - 1)}
               disabled={page === 1}
-              className="w-8 h-8 rounded-lg flex items-center justify-center bg-gray-900 border border-white/[0.06] text-gray-400 hover:text-white disabled:opacity-30 transition-all"
+              className="w-8 h-8 rounded-lg flex items-center justify-center bg-white border border-gray-200 text-gray-500 hover:text-gray-900 disabled:opacity-30 transition-all dark:bg-gray-900 dark:border-white/[0.06] dark:text-gray-400 dark:hover:text-white"
             >
               <ChevronLeft size={14} />
             </button>
@@ -825,7 +798,7 @@ const UsersPage = () => {
                 className={`w-8 h-8 rounded-lg text-xs font-medium transition-all ${
                   n === page
                     ? "bg-emerald-600 text-white border-none"
-                    : "bg-gray-900 border border-white/[0.06] text-gray-400 hover:text-white"
+                    : "bg-white border border-gray-200 text-gray-500 hover:text-gray-900 dark:bg-gray-900 dark:border-white/[0.06] dark:text-gray-400 dark:hover:text-white"
                 }`}
               >
                 {n}
@@ -834,7 +807,7 @@ const UsersPage = () => {
             <button
               onClick={() => fetchUsers(page + 1)}
               disabled={page === totalPages}
-              className="w-8 h-8 rounded-lg flex items-center justify-center bg-gray-900 border border-white/[0.06] text-gray-400 hover:text-white disabled:opacity-30 transition-all"
+              className="w-8 h-8 rounded-lg flex items-center justify-center bg-white border border-gray-200 text-gray-500 hover:text-gray-900 disabled:opacity-30 transition-all dark:bg-gray-900 dark:border-white/[0.06] dark:text-gray-400 dark:hover:text-white"
             >
               <ChevronRight size={14} />
             </button>
@@ -844,6 +817,8 @@ const UsersPage = () => {
     </div>
   );
 };
+
+// ─── Call Analytics ───────────────────────────────────────────────────────────
 
 const CallAnalytics = () => {
   const [data, setData] = useState(null);
@@ -1056,7 +1031,7 @@ const CallAnalytics = () => {
           </div>
         </div>
 
-        {/* Daily activity chart */}
+        {/* Daily activity chart — FIX 5: total bar is the background, completed overlays it */}
         <div className="bg-white border border-gray-200 rounded-xl p-5 lg:col-span-2 dark:bg-gray-900 dark:border-white/[0.06]">
           <div className="flex items-center gap-2 mb-5">
             <TrendingUp size={15} className="text-purple-400" />
@@ -1065,7 +1040,7 @@ const CallAnalytics = () => {
             </span>
             <div className="ml-auto flex items-center gap-3">
               <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-purple-500" />
+                <div className="w-2 h-2 rounded-full bg-purple-500/40" />
                 <span className="text-[10px] text-gray-400">Total</span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -1075,30 +1050,30 @@ const CallAnalytics = () => {
             </div>
           </div>
           <div className="flex items-end gap-1.5 h-32">
-            {data?.dailyActivity?.map((d, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1">
+            {data?.dailyActivity?.map((d, i) => {
+              const totalH = Math.max(2, (d.total / maxBar) * 96);
+              const completedH = Math.max(2, (d.completed / maxBar) * 96);
+              return (
                 <div
-                  className="w-full flex flex-col justify-end gap-0.5"
-                  style={{ height: 96 }}
+                  key={i}
+                  className="flex-1 flex flex-col items-center gap-1"
                 >
+                  {/* FIX: total bar as background, completed overlaid using relative positioning */}
                   <div
-                    className="w-full rounded-sm bg-purple-500/40 transition-all"
-                    style={{
-                      height: `${Math.max(2, (d.total / maxBar) * 96)}px`,
-                    }}
-                  />
-                  <div
-                    className="w-full rounded-sm bg-emerald-500 transition-all relative"
-                    style={{
-                      height: `${Math.max(2, (d.completed / maxBar) * 96)}px`,
-                    }}
-                  />
+                    className="w-full rounded-sm bg-purple-500/30 relative transition-all"
+                    style={{ height: `${totalH}px` }}
+                  >
+                    <div
+                      className="absolute bottom-0 left-0 right-0 rounded-sm bg-emerald-500 transition-all"
+                      style={{ height: `${Math.min(completedH, totalH)}px` }}
+                    />
+                  </div>
+                  <span className="text-[9px] text-gray-400 whitespace-nowrap">
+                    {d.date.split(" ")[0]}
+                  </span>
                 </div>
-                <span className="text-[9px] text-gray-400 whitespace-nowrap">
-                  {d.date.split(" ")[0]}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -1106,6 +1081,7 @@ const CallAnalytics = () => {
   );
 };
 
+// ─── Admin Panel Shell ────────────────────────────────────────────────────────
 
 const PAGES = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -1158,7 +1134,6 @@ const AdminPanel = () => {
 
         {/* Bottom: theme + user + logout */}
         <div className="border-t border-gray-200 dark:border-white/[0.06] p-2">
-          {/* Theme toggle */}
           <ThemeToggle />
 
           <div className="flex items-center gap-2 px-2 py-2 mt-1 mb-1">
