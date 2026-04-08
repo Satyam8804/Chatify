@@ -164,7 +164,6 @@ const Pagination = ({ page, totalPages, onPrev, onNext }) => (
   </div>
 );
 
-// ─── Dashboard ───────────────────────────────────────────────────────────────
 
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
@@ -1107,7 +1106,6 @@ const CallAnalytics = () => {
   );
 };
 
-// ─── Shell ───────────────────────────────────────────────────────────────────
 
 const PAGES = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },

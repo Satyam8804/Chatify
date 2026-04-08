@@ -29,6 +29,13 @@ app.set("trust proxy", 1);
 // ✅ security headers
 app.use(helmet());
 
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    credentials: true,
+  })
+);
+
 // ✅ force HTTPS
 app.use((req, res, next) => {
   if (req.headers["x-forwarded-proto"] !== "https") {
@@ -37,13 +44,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// ✅ correct CORS
-app.use(
-  cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
-    credentials: true,
-  })
-);
 
 app.use(express.json());
 app.use(cookieParser());
