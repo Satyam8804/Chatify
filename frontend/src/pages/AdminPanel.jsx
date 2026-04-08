@@ -25,6 +25,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  X
 } from "lucide-react";
 import AdminAppeals from "./AdminAppeals";
 
@@ -62,7 +63,6 @@ const ThemeToggle = () => {
   );
 };
 
-// ─── Shared primitives ───────────────────────────────────────────────────────
 
 const Avatar = ({ user, size = "md" }) => {
   const initials = `${user?.fName?.[0] ?? ""}${
@@ -285,7 +285,20 @@ const Dashboard = () => {
   );
 };
 
-// ─── Users ───────────────────────────────────────────────────────────────────
+const FILTERS = [
+  { id: "all", label: "All" },
+  { id: "online", label: "Online" },
+  { id: "banned", label: "Banned" },
+  { id: "google", label: "Google" },
+  { id: "local", label: "Local" },
+];
+
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "name", label: "Name A–Z" },
+  { value: "online", label: "Online first" },
+];
 
 const UsersPage = () => {
   const [users, setUsers] = useState([]);
@@ -293,37 +306,48 @@ const UsersPage = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState(null);
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [sort, setSort] = useState("newest");
+  const [selected, setSelected] = useState(new Set());
+  const [filterCounts, setFilterCounts] = useState({});
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  // Debounce search
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 350);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const fetchUsers = useCallback(
-    async (p = 1, q = search) => {
+    async (p = 1) => {
       setLoading(true);
       try {
-        const r = await api.get(
-          `/admin/users?page=${p}&limit=15&search=${encodeURIComponent(q)}`
-        );
+        const params = new URLSearchParams({ page: p, limit: 15, sort });
+        if (debouncedSearch) params.append("search", debouncedSearch);
+        if (activeFilter !== "all") params.append("filter", activeFilter);
+
+        const r = await api.get(`/admin/users?${params}`);
         setUsers(r.data.users);
         setTotal(r.data.total);
         setTotalPages(r.data.totalPages);
+        setFilterCounts(r.data.filterCounts || {});
         setPage(p);
+        setSelected(new Set());
       } catch (e) {
         console.error(e);
       } finally {
         setLoading(false);
       }
     },
-    [search]
+    [debouncedSearch, activeFilter, sort]
   );
 
   useEffect(() => {
-    fetchUsers(1, "");
-  }, []);
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    fetchUsers(1, search);
-  };
+    fetchUsers(1);
+  }, [debouncedSearch, activeFilter, sort]);
 
   const handleBan = async (u) => {
     setActionId(u._id);
@@ -333,7 +357,7 @@ const UsersPage = () => {
         await api.patch(`/admin/users/${u._id}/ban`, {
           reason: "Admin action",
         });
-      fetchUsers(page, search);
+      fetchUsers(page);
     } catch (e) {
       console.error(e);
     } finally {
@@ -342,11 +366,12 @@ const UsersPage = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Delete this user permanently?")) return;
+    if (!window.confirm("Delete this user permanently? This cannot be undone."))
+      return;
     setActionId(id);
     try {
       await api.delete(`/admin/users/${id}`);
-      fetchUsers(page, search);
+      fetchUsers(page);
     } catch (e) {
       console.error(e);
     } finally {
@@ -354,154 +379,472 @@ const UsersPage = () => {
     }
   };
 
+  const handleBulkBan = async () => {
+    if (!window.confirm(`Ban ${selected.size} users?`)) return;
+    setBulkLoading(true);
+    try {
+      await Promise.all(
+        [...selected].map((id) =>
+          api.patch(`/admin/users/${id}/ban`, { reason: "Bulk admin action" })
+        )
+      );
+      fetchUsers(page);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Permanently delete ${selected.size} users?`)) return;
+    setBulkLoading(true);
+    try {
+      await Promise.all(
+        [...selected].map((id) => api.delete(`/admin/users/${id}`))
+      );
+      fetchUsers(page);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const toggleSelect = (id) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selected.size === users.length) setSelected(new Set());
+    else setSelected(new Set(users.map((u) => u._id)));
+  };
+
+  const avatarColors = [
+    "bg-emerald-500/20 text-emerald-400",
+    "bg-blue-500/20 text-blue-400",
+    "bg-amber-500/20 text-amber-400",
+    "bg-rose-500/20 text-rose-400",
+    "bg-purple-500/20 text-purple-400",
+    "bg-pink-500/20 text-pink-400",
+  ];
+
+  const getColor = (name) =>
+    avatarColors[(name?.charCodeAt(0) ?? 0) % avatarColors.length];
+
+  const pageNumbers = Array.from(
+    { length: Math.min(totalPages, 5) },
+    (_, i) => {
+      if (totalPages <= 5) return i + 1;
+      if (page <= 3) return i + 1;
+      if (page >= totalPages - 2) return totalPages - 4 + i;
+      return page - 2 + i;
+    }
+  );
+
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      {/* Header */}
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Users
-          </h1>
+          <h1 className="text-xl font-semibold text-white">Users</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {fmt(total)} total users
+            Manage and monitor all registered users
           </p>
         </div>
-        <form onSubmit={handleSearch} className="flex gap-2">
+      </div>
+
+      {/* Summary stat cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          {
+            label: "Total",
+            value: filterCounts.all ?? total,
+            color: "text-white",
+          },
+          {
+            label: "Online",
+            value: filterCounts.online ?? 0,
+            color: "text-emerald-400",
+          },
+          {
+            label: "Banned",
+            value: filterCounts.banned ?? 0,
+            color: "text-rose-400",
+          },
+          {
+            label: "Google auth",
+            value: filterCounts.google ?? 0,
+            color: "text-blue-400",
+          },
+        ].map(({ label, value, color }) => (
+          <div
+            key={label}
+            className="bg-gray-900 border border-white/[0.06] rounded-xl p-3.5"
+          >
+            <p className="text-xs text-gray-500 mb-1">{label}</p>
+            <p className={`text-xl font-semibold ${color}`}>{fmt(value)}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter tabs + search + sort */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex gap-1.5 flex-wrap">
+          {FILTERS.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => {
+                setActiveFilter(id);
+                setPage(1);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                activeFilter === id
+                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                  : "bg-transparent text-gray-500 border-white/[0.08] hover:text-gray-300 hover:bg-white/[0.04]"
+              }`}
+            >
+              {label}
+              {filterCounts[id] != null && (
+                <span
+                  className={`px-1.5 rounded-full text-[10px] ${
+                    activeFilter === id
+                      ? "bg-emerald-500/20 text-emerald-400"
+                      : "bg-white/[0.06] text-gray-600"
+                  }`}
+                >
+                  {filterCounts[id]}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Search */}
           <div className="relative">
             <Search
               size={13}
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
             />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search users..."
-              className="h-9 pl-8 pr-3 rounded-lg text-sm bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 outline-none focus:border-emerald-500/50 w-52 transition-colors dark:bg-gray-900 dark:border-white/[0.08] dark:text-white dark:placeholder-gray-600"
+              className="h-9 pl-8 pr-3 rounded-lg text-sm bg-gray-900 border border-white/[0.08] text-white placeholder-gray-600 outline-none focus:border-emerald-500/40 w-48 transition-colors"
             />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+              >
+                <X size={12} />
+              </button>
+            )}
           </div>
-          <button
-            type="submit"
-            className="h-9 px-4 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors"
+
+          {/* Sort */}
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+            className="h-9 px-3 rounded-lg text-sm bg-gray-900 border border-white/[0.08] text-gray-400 outline-none focus:border-emerald-500/40 transition-colors"
           >
-            Search
-          </button>
-        </form>
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden dark:bg-gray-900 dark:border-white/[0.06]">
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center justify-between bg-emerald-500/[0.07] border border-emerald-500/20 rounded-xl px-4 py-2.5">
+          <div className="flex items-center gap-2">
+            <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-semibold flex items-center justify-center">
+              {selected.size}
+            </span>
+            <span className="text-sm text-emerald-400 font-medium">
+              {selected.size} user{selected.size > 1 ? "s" : ""} selected
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleBulkBan}
+              disabled={bulkLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500/10 border border-amber-500/25 text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-50"
+            >
+              <Ban size={12} /> Ban all
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              disabled={bulkLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-rose-500/10 border border-rose-500/25 text-rose-400 hover:bg-rose-500/20 transition-colors disabled:opacity-50"
+            >
+              <Trash2 size={12} /> Delete all
+            </button>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="flex items-center justify-center w-7 h-7 rounded-lg bg-white/[0.04] text-gray-500 hover:text-gray-300 transition-colors"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Users list */}
+      <div className="bg-gray-900 border border-white/[0.06] rounded-xl overflow-hidden">
+        {/* Table header */}
+        {!loading && users.length > 0 && (
+          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-white/[0.06]">
+            <input
+              type="checkbox"
+              checked={selected.size === users.length && users.length > 0}
+              onChange={toggleSelectAll}
+              className="accent-emerald-500 flex-shrink-0"
+            />
+            <span className="text-xs font-medium text-gray-600 flex-1">
+              User
+            </span>
+            <span className="text-xs font-medium text-gray-600 w-32 hidden sm:block">
+              Email
+            </span>
+            <span className="text-xs font-medium text-gray-600 w-20 hidden md:block">
+              Provider
+            </span>
+            <span className="text-xs font-medium text-gray-600 w-20">
+              Status
+            </span>
+            <span className="text-xs font-medium text-gray-600 w-24 hidden lg:block">
+              Joined
+            </span>
+            <span className="text-xs font-medium text-gray-600 w-16 text-right">
+              Actions
+            </span>
+          </div>
+        )}
+
         {loading ? (
-          <div className="flex justify-center py-12">
-            <Spinner />
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <div className="w-7 h-7 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+            <span className="text-sm text-gray-600">Loading users...</span>
           </div>
         ) : users.length === 0 ? (
-          <p className="text-center py-12 text-sm text-gray-500">
-            No users found
-          </p>
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <div className="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center">
+              <Users size={20} className="text-gray-600" />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-medium text-gray-400">
+                No users found
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                Try adjusting your search or filter
+              </p>
+            </div>
+            {(search || activeFilter !== "all") && (
+              <button
+                onClick={() => {
+                  setSearch("");
+                  setActiveFilter("all");
+                }}
+                className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 dark:border-white/[0.06]">
-                  {[
-                    "User",
-                    "Email",
-                    "Provider",
-                    "Status",
-                    "Joined",
-                    "Actions",
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 whitespace-nowrap"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr
-                    key={u._id}
-                    className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors dark:border-white/[0.04] dark:hover:bg-white/[0.02]"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar user={u} size="sm" />
-                        <span className="font-medium text-gray-900 dark:text-white">
-                          {u.fName} {u.lName}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
-                      {u.email}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge
-                        variant={u.authProvider === "google" ? "blue" : "green"}
+          <div>
+            {users.map((u, i) => {
+              const isSelected = selected.has(u._id);
+              const initials = `${u.fName?.[0] ?? ""}${
+                u.lName?.[0] ?? ""
+              }`.toUpperCase();
+
+              return (
+                <div
+                  key={u._id}
+                  onClick={() => toggleSelect(u._id)}
+                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors
+                    ${
+                      i < users.length - 1 ? "border-b border-white/[0.04]" : ""
+                    }
+                    ${
+                      isSelected
+                        ? "bg-emerald-500/[0.06]"
+                        : "hover:bg-white/[0.02]"
+                    }
+                  `}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleSelect(u._id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="accent-emerald-500 flex-shrink-0"
+                  />
+
+                  {/* Avatar + name */}
+                  <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                    {u.avatar ? (
+                      <img
+                        src={u.avatar}
+                        alt={u.fName}
+                        className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10 flex-shrink-0"
+                      />
+                    ) : (
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold flex-shrink-0 ${getColor(
+                          u.fName
+                        )}`}
                       >
-                        {u.authProvider}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      {u.isBanned ? (
-                        <Badge variant="red">Banned</Badge>
-                      ) : u.isOnline ? (
-                        <Badge variant="green">Online</Badge>
-                      ) : (
-                        <Badge variant="gray">Offline</Badge>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                      {new Date(u.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1.5">
-                        <button
-                          onClick={() => handleBan(u)}
-                          disabled={actionId === u._id}
-                          title={u.isBanned ? "Unban" : "Ban"}
-                          className={`w-7 h-7 rounded-md flex items-center justify-center ring-[0.5px] transition-opacity disabled:opacity-40 ${
-                            u.isBanned
-                              ? "bg-emerald-500/10 ring-emerald-500/25 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
-                              : "bg-rose-500/10 ring-rose-500/25 text-rose-600 hover:bg-rose-500/20 dark:text-rose-400"
-                          }`}
-                        >
-                          {u.isBanned ? (
-                            <CheckCircle size={13} />
-                          ) : (
-                            <Ban size={13} />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(u._id)}
-                          disabled={actionId === u._id}
-                          title="Delete user"
-                          className="w-7 h-7 rounded-md flex items-center justify-center ring-[0.5px] bg-rose-500/10 ring-rose-500/25 text-rose-600 hover:bg-rose-500/20 dark:text-rose-400 transition-opacity disabled:opacity-40"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                        {initials}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-white truncate">
+                        {u.fName} {u.lName}
+                      </p>
+                      <p className="text-xs text-gray-600 truncate sm:hidden">
+                        {u.email}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Email */}
+                  <p className="text-xs text-gray-500 w-32 truncate hidden sm:block">
+                    {u.email}
+                  </p>
+
+                  {/* Provider */}
+                  <div className="w-20 hidden md:block">
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ring-[0.5px] ${
+                        u.authProvider === "google"
+                          ? "bg-blue-500/10 text-blue-400 ring-blue-500/25"
+                          : "bg-emerald-500/10 text-emerald-400 ring-emerald-500/25"
+                      }`}
+                    >
+                      {u.authProvider}
+                    </span>
+                  </div>
+
+                  {/* Status */}
+                  <div className="w-20">
+                    {u.isBanned ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-rose-500/10 text-rose-400 ring-[0.5px] ring-rose-500/25">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400 flex-shrink-0" />
+                        Banned
+                      </span>
+                    ) : u.isOnline ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 ring-[0.5px] ring-emerald-500/25">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+                        Online
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-white/[0.04] text-gray-500 ring-[0.5px] ring-white/10">
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-600 flex-shrink-0" />
+                        Offline
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Joined */}
+                  <p className="text-xs text-gray-600 w-24 whitespace-nowrap hidden lg:block">
+                    {new Date(u.createdAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "2-digit",
+                    })}
+                  </p>
+
+                  {/* Actions */}
+                  <div
+                    className="flex gap-1.5 w-16 justify-end"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      onClick={() => handleBan(u)}
+                      disabled={actionId === u._id}
+                      title={u.isBanned ? "Unban user" : "Ban user"}
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center ring-[0.5px] transition-all disabled:opacity-40 ${
+                        u.isBanned
+                          ? "bg-emerald-500/10 ring-emerald-500/25 text-emerald-400 hover:bg-emerald-500/20"
+                          : "bg-rose-500/10 ring-rose-500/25 text-rose-400 hover:bg-rose-500/20"
+                      }`}
+                    >
+                      {actionId === u._id ? (
+                        <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                      ) : u.isBanned ? (
+                        <CheckCircle size={13} />
+                      ) : (
+                        <Ban size={13} />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(u._id)}
+                      disabled={actionId === u._id}
+                      title="Delete user"
+                      className="w-7 h-7 rounded-lg flex items-center justify-center ring-[0.5px] bg-rose-500/10 ring-rose-500/25 text-rose-400 hover:bg-rose-500/20 transition-all disabled:opacity-40"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
+
+      {/* Pagination */}
       {totalPages > 1 && (
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          onPrev={() => fetchUsers(page - 1)}
-          onNext={() => fetchUsers(page + 1)}
-        />
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-gray-600">
+            Showing {(page - 1) * 15 + 1}–{Math.min(page * 15, total)} of{" "}
+            {fmt(total)} users
+          </span>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => fetchUsers(page - 1)}
+              disabled={page === 1}
+              className="w-8 h-8 rounded-lg flex items-center justify-center bg-gray-900 border border-white/[0.06] text-gray-400 hover:text-white disabled:opacity-30 transition-all"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            {pageNumbers.map((n) => (
+              <button
+                key={n}
+                onClick={() => fetchUsers(n)}
+                className={`w-8 h-8 rounded-lg text-xs font-medium transition-all ${
+                  n === page
+                    ? "bg-emerald-600 text-white border-none"
+                    : "bg-gray-900 border border-white/[0.06] text-gray-400 hover:text-white"
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+            <button
+              onClick={() => fetchUsers(page + 1)}
+              disabled={page === totalPages}
+              className="w-8 h-8 rounded-lg flex items-center justify-center bg-gray-900 border border-white/[0.06] text-gray-400 hover:text-white disabled:opacity-30 transition-all"
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
 };
-
-// ─── Call Analytics ──────────────────────────────────────────────────────────
 
 const CallAnalytics = () => {
   const [data, setData] = useState(null);
