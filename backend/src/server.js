@@ -22,8 +22,6 @@ connectDB();
 
 const app = express();
 
-// ✅ trust proxy (IMPORTANT for HTTPS on Render)
-app.set("trust proxy", 1);
 
 // ✅ security headers
 app.use(helmet());
