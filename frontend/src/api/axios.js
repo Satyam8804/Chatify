@@ -37,12 +37,7 @@ export const refreshAccessToken = () => {
     .catch((err) => {
       logger(err);
       clearToken();
-      // ✅ FIX: removed window.location.href = "/login"
-      // That was causing a full page reload on every expired session:
-      //   refresh fails → hard redirect → app re-initializes → loader
-      //   runs again → looks like a loop → lands on login anyway.
-      // Now we just reject and let authContext's catch + PublicRoute
-      // handle the redirect cleanly via React Router (no reload).
+    
       return Promise.reject(err);
     })
     .finally(() => {

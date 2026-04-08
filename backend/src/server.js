@@ -16,7 +16,6 @@ import path from "path";
 import adminRoute from "./routes/admin.route.js";
 import appealRoute from "./routes/appeal.route.js";
 
-
 const __dirname = path.resolve();
 
 connectDB();
@@ -35,8 +34,6 @@ app.use(
     credentials: true,
   })
 );
-
-
 
 app.use(express.json());
 app.use(cookieParser());
@@ -67,9 +64,12 @@ app.use("/api/users", userRoute);
 app.use("/api/chats", chatRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/admin", adminRoute);
-app.use("/api/appeals",appealRoute)
+app.use("/api/appeals", appealRoute);
 
 setupSocket(io);
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT}`);
+});
