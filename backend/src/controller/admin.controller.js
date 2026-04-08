@@ -2,6 +2,8 @@ import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
 import Chat from "../models/chat.model.js";
 
+import { onlineUsers } from "../sockets/presence.socket.js";
+
 export const getStats = async (req, res) => {
   try {
     const now = new Date();
@@ -13,7 +15,6 @@ export const getStats = async (req, res) => {
 
     const [
       totalUsers,
-      activeUsers,
       bannedUsers,
       totalChats,
       messagesToday,
@@ -21,7 +22,6 @@ export const getStats = async (req, res) => {
       totalCalls,
     ] = await Promise.all([
       User.countDocuments({ isAdmin: { $ne: true } }),
-      User.countDocuments({ isOnline: true, isAdmin: { $ne: true } }),
       User.countDocuments({ isBanned: true }),
       Chat.countDocuments(),
       Message.countDocuments({
@@ -35,7 +35,9 @@ export const getStats = async (req, res) => {
       Message.countDocuments({ messageType: "call" }),
     ]);
 
-    // Messages per day for last 7 days
+    // ✅ Real-time count from in-memory map — always accurate
+    const activeUsers = onlineUsers.size;
+
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const d = new Date();
       d.setDate(d.getDate() - (6 - i));
@@ -43,28 +45,42 @@ export const getStats = async (req, res) => {
       return d;
     });
 
-    const messageActivity = await Promise.all(
-      last7Days.map(async (day) => {
-        const nextDay = new Date(day);
-        nextDay.setDate(nextDay.getDate() + 1);
-        const count = await Message.countDocuments({
-          createdAt: { $gte: day, $lt: nextDay },
+    const messageAgg = await Message.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: last7Days[0] },
           messageType: { $ne: "call" },
-        });
-        return {
-          date: day.toLocaleDateString("en-US", {
-            weekday: "short",
-            month: "short",
-            day: "numeric",
-          }),
-          messages: count,
-        };
-      })
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
+          },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const messageMap = Object.fromEntries(
+      messageAgg.map((m) => [m._id, m.count])
     );
+
+    const messageActivity = last7Days.map((day) => {
+      const key = day.toISOString().slice(0, 10);
+      return {
+        date: day.toLocaleDateString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        }),
+        messages: messageMap[key] || 0,
+      };
+    });
 
     res.json({
       totalUsers,
-      activeUsers,
+      activeUsers, // ✅ from onlineUsers Map
       bannedUsers,
       totalChats,
       messagesToday,
@@ -81,25 +97,50 @@ export const getStats = async (req, res) => {
 
 export const getUsers = async (req, res) => {
   try {
-    const { page = 1, limit = 20, search = "" } = req.query;
+    const {
+      page = 1,
+      limit = 20,
+      search = "",
+      filter = "all",
+      sort = "newest",
+    } = req.query;
 
-    const query = {
-      isAdmin: { $ne: true },
-      ...(search && {
-        $or: [
-          { fName: { $regex: search, $options: "i" } },
-          { lName: { $regex: search, $options: "i" } },
-          { email: { $regex: search, $options: "i" } },
-        ],
-      }),
+    const base = { isAdmin: { $ne: true } };
+
+    if (search) {
+      base.$or = [
+        { fName: { $regex: search, $options: "i" } },
+        { lName: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+      ];
+    }
+    const onlineIds = Array.from(onlineUsers.keys());
+
+    const filterMap = {
+      online: onlineIds.length ? { _id: { $in: onlineIds } } : { _id: null },
+      banned: { isBanned: true },
+      google: { authProvider: { $in: ["google", "both"] } },
+      local: { authProvider: "local" },
     };
+    const query = { ...base, ...(filterMap[filter] ?? {}) };
+
+    const sortMap = {
+      newest: { createdAt: -1 },
+      oldest: { createdAt: 1 },
+      name: { fName: 1, lName: 1 },
+      online: { createdAt: -1 }, // sorted client-side after online overlay
+    };
+    const sortOption = sortMap[sort] ?? { createdAt: -1 };
+
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
 
     const [users, total] = await Promise.all([
       User.find(query)
         .select("-password -refreshToken")
-        .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(Number(limit)),
+        .sort(sortOption)
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum),
       User.countDocuments(query),
     ]);
 
@@ -108,6 +149,8 @@ export const getUsers = async (req, res) => {
       total,
       page: Number(page),
       totalPages: Math.ceil(total / limit),
+      // ✅ Always send the live online set so frontend can override DB field
+      onlineUserIds: Array.from(onlineUsers.keys()),
     });
   } catch (error) {
     res
@@ -119,13 +162,10 @@ export const getUsers = async (req, res) => {
 export const deleteUser = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
-
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.isAdmin)
       return res.status(403).json({ message: "Cannot delete admin" });
-
     await User.findByIdAndDelete(req.params.id);
-
     res.json({ message: "User deleted successfully" });
   } catch (error) {
     res
@@ -138,16 +178,13 @@ export const banUser = async (req, res) => {
   try {
     const { reason = "" } = req.body;
     const user = await User.findById(req.params.id);
-
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.isAdmin)
       return res.status(403).json({ message: "Cannot ban admin" });
-
     user.isBanned = true;
     user.bannedAt = new Date();
     user.banReason = reason;
     await user.save();
-
     res.json({ message: "User banned", user });
   } catch (error) {
     res
@@ -159,14 +196,11 @@ export const banUser = async (req, res) => {
 export const unbanUser = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
-
     if (!user) return res.status(404).json({ message: "User not found" });
-
     user.isBanned = false;
     user.bannedAt = null;
     user.banReason = "";
     await user.save();
-
     res.json({ message: "User unbanned", user });
   } catch (error) {
     res
@@ -177,54 +211,43 @@ export const unbanUser = async (req, res) => {
 
 export const getCallAnalytics = async (req, res) => {
   try {
-    const now = new Date();
-    const startOfDay = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate()
-    );
-
-    // ── Totals ──
     const [total, completed, missed, rejected, audio, video] =
       await Promise.all([
         Message.countDocuments({ messageType: "call" }),
         Message.countDocuments({
           messageType: "call",
-          "callData.status": "completed", // ✅ was callDetails.status
+          "callData.status": "completed",
         }),
         Message.countDocuments({
           messageType: "call",
-          "callData.status": "missed", // ✅
+          "callData.status": "missed",
         }),
         Message.countDocuments({
           messageType: "call",
-          "callData.status": "rejected", // ✅
+          "callData.status": "rejected",
         }),
         Message.countDocuments({
           messageType: "call",
-          "callData.callType": "audio", // ✅ was callDetails.callType
+          "callData.callType": "audio",
         }),
         Message.countDocuments({
           messageType: "call",
-          "callData.callType": "video", // ✅
+          "callData.callType": "video",
         }),
       ]);
 
-    // ── Average duration (completed calls only) ──
     const durationAgg = await Message.aggregate([
-      { $match: { messageType: "call", "callData.status": "completed" } }, // ✅
+      { $match: { messageType: "call", "callData.status": "completed" } },
       {
         $group: {
           _id: null,
-          avg: { $avg: "$callData.duration" }, // ✅ was $callDetails.duration
-          total: { $sum: "$callData.duration" }, // ✅
+          avg: { $avg: "$callData.duration" },
+          total: { $sum: "$callData.duration" },
         },
       },
     ]);
     const avgDuration = Math.round(durationAgg[0]?.avg ?? 0);
-    const totalDuration = durationAgg[0]?.total ?? 0;
 
-    // ── Calls per day — last 14 days ──
     const last14Days = Array.from({ length: 14 }, (_, i) => {
       const d = new Date();
       d.setDate(d.getDate() - (13 - i));
@@ -243,7 +266,7 @@ export const getCallAnalytics = async (req, res) => {
           }),
           Message.countDocuments({
             messageType: "call",
-            "callData.status": "completed", // ✅
+            "callData.status": "completed",
             createdAt: { $gte: day, $lt: nextDay },
           }),
         ]);
@@ -258,19 +281,17 @@ export const getCallAnalytics = async (req, res) => {
       })
     );
 
-    // ── Average calls per day (last 14 days) ──
     const avgCallsPerDay = +(
       dailyActivity.reduce((s, d) => s + d.total, 0) / 14
     ).toFixed(1);
 
-    // ── Peak hour (hour of day with most calls) ──
     const hourAgg = await Message.aggregate([
       { $match: { messageType: "call" } },
       { $group: { _id: { $hour: "$createdAt" }, count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 1 },
     ]);
-    
+
     const peakHour = hourAgg[0]?._id ?? null;
     const formatHour = (h) => {
       if (h === null) return "—";
@@ -287,7 +308,6 @@ export const getCallAnalytics = async (req, res) => {
       audio,
       video,
       avgDuration,
-      totalDuration,
       avgCallsPerDay,
       peakHour: formatHour(peakHour),
       connectionRate: total > 0 ? +((completed / total) * 100).toFixed(1) : 0,

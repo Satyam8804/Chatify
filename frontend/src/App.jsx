@@ -8,13 +8,13 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Chat from "./pages/Chat.jsx";
 import GoogleAuthSuccess from "./auth/google/success/GoogleAuthSuccess";
-import AdminPanel from "./pages/AdminPanel.jsx";
+import AdminPanel from "./pages/Admin/AdminPanel.jsx";
 import AdminRoute from "./routes/AdminRoute.jsx";
 
 import { useAuth } from "./context/authContext";
 import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
-import AdminAppeals from "./pages/AdminAppeals.jsx";
+import AdminAppeals from "./pages/Admin/AdminAppeals.jsx";
 import BannedPage from "./pages/BannedPage.jsx";
 
 function App() {
