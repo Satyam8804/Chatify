@@ -406,7 +406,7 @@ const MessageBubble = ({
         }`}
       >
         {!isOwn && isGroup && (
-          <div className="self-end mb-1 shrink-0 mr-1">
+          <div className="self-start mb-1 shrink-0 mr-1">
             <Avatar user={message?.sender} size={24} IsInside />
           </div>
         )}
