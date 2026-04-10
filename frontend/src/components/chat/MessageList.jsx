@@ -12,6 +12,8 @@ import {
   Trash2,
   AlertTriangle,
   Ban,
+  Image as ImageIcon,
+  Video as VideoIcon,
 } from "lucide-react";
 import { getAvatarColor } from "../../utils/getAvatarColor";
 import { FaFilePdf } from "react-icons/fa";
@@ -648,7 +650,20 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn, time }) => {
     return mb >= 1 ? `${mb.toFixed(1)} MB` : `${kb.toFixed(0)} KB`;
   };
 
+  const getFileType = (extension, type) => {
+    if (type?.startsWith("image/")) return "IMG";
+    if (type?.startsWith("video/")) return "VIDEO";
+    if (type?.startsWith("audio/")) return "AUDIO";
+
+    if (extension === "pdf") return "PDF";
+    if (["doc", "docx"].includes(extension)) return "DOC";
+    if (["zip", "rar"].includes(extension)) return "ZIP";
+
+    return "FILE";
+  };
+
   const fileSize = formatSize(media?.size);
+  const fileType = getFileType(extension, media?.type);
 
   const isImage =
     ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(extension) ||
@@ -677,11 +692,24 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn, time }) => {
           onClick={() => !uploading && setPreviewImage(url)}
           className="w-full max-h-[250px] rounded-lg cursor-pointer object-cover block"
         />
-        <div className="absolute bottom-2 right-2 z-20">
-          <span className="text-[9px] px-2 py-[2px] rounded-full bg-black/45 text-white backdrop-blur-sm">
-            {time}
-          </span>
+
+        {/* 🔥 BOTTOM OVERLAY */}
+        <div
+          className="absolute bottom-0 left-0 right-0 z-20 
+    flex items-center justify-between px-3 py-1.5
+    bg-gradient-to-t from-black/70 via-black/40 to-transparent
+    text-white text-[10px] backdrop-blur-sm rounded-b-xl"
+        >
+          {/* LEFT */}
+          <div className="flex items-center gap-1">
+            <ImageIcon size={12} />
+            {fileSize && <span>{fileSize}</span>}
+          </div>
+
+          {/* RIGHT */}
+          <span className="text-[9px]">{time}</span>
         </div>
+
         {uploading && uploadingOverlay}
       </div>
     );
@@ -695,11 +723,24 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn, time }) => {
         >
           <source src={url} />
         </video>
-        <div className="absolute bottom-2 right-2 z-20">
-          <span className="text-[9px] px-2 py-[2px] rounded-full bg-black/45 text-white backdrop-blur-sm">
-            {time}
-          </span>
+
+        {/* 🔥 BOTTOM OVERLAY */}
+        <div
+          className="absolute bottom-0 left-0 right-0 z-20 
+    flex items-center justify-between px-3 py-1.5
+    bg-gradient-to-t from-black/70 via-black/40 to-transparent
+    text-white text-[10px] backdrop-blur-sm rounded-b-xl"
+        >
+          {/* LEFT */}
+          <div className="flex items-center gap-1">
+            <VideoIcon size={12} />
+            {fileSize && <span>{fileSize}</span>}
+          </div>
+
+          {/* RIGHT */}
+          <span className="text-[9px]">{time}</span>
         </div>
+
         {uploading && uploadingOverlay}
       </div>
     );
