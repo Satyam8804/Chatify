@@ -115,7 +115,7 @@ const MessageList = ({
   }, [messages, typingUser]);
 
   return (
-    <div className="h-full overflow-y-auto hide-scrollbar p-2 pb-4 bg-slate-50 dark:bg-slate-950 transition-colors">
+    <div className="h-full overflow-y-auto gap-2 hide-scrollbar p-2 pb-4 bg-slate-50 dark:bg-slate-950 transition-colors">
       {messages.map((msg, index) => {
         const currentLabel = getDateLabel(msg.createdAt);
         const prevLabel =
@@ -293,14 +293,10 @@ const MessageBubble = ({
         {/* Message bubble */}
         <div
           className={`relative max-w-[70%] min-w-[60px] text-sm break-words
-            ${
-              isCall
-                ? ""
-                : `shadow px-2 py-1 ${
-                    isOwn
-                      ? "bg-emerald-100 dark:bg-emerald-900 text-black dark:text-emerald-50 rounded-tl-xl rounded-bl-xl rounded-br-sm"
-                      : "bg-white dark:bg-slate-800 text-black dark:text-slate-100 rounded-tr-xl rounded-br-xl rounded-bl-sm"
-                  }`
+            shadow px-2 py-1 ${
+              isOwn
+                ? "bg-emerald-100 dark:bg-emerald-900 text-black dark:text-emerald-50 rounded-tl-xl rounded-bl-xl rounded-br-xl"
+                : "bg-white dark:bg-slate-800 text-black dark:text-slate-100 rounded-tr-xl rounded-br-xl rounded-bl-xl"
             }`}
         >
           {/* Sender name: group + received only */}
@@ -448,31 +444,34 @@ const MessageBubble = ({
             </div>
           )}
 
-          {/* Bubble tail (non-call only) */}
-          {!isCall && (
-            <div
-              className={`absolute top-0 w-0 h-0
+          {/* Bubble tail — shown for all message types including calls */}
+          <div
+            className={`absolute top-0 w-0 h-0
               ${
                 isOwn
                   ? "right-[-6px] border-l-[8px] border-l-emerald-100 dark:border-l-emerald-900 border-b-[8px] border-b-transparent"
                   : "left-[-6px] border-r-[8px] border-r-white dark:border-r-slate-800 border-b-[8px] border-b-transparent"
               }`}
-            />
-          )}
+          />
         </div>
 
         {/* Context menu trigger — hidden when no items */}
         {menuItems.length > 0 && (
-          <div className="relative self-center" ref={menuRef}>
+          <div
+            className="relative self-center w-0 overflow-visible"
+            ref={menuRef}
+          >
             <button
               onClick={() => setMenuOpen((p) => !p)}
-              style={{
-                transform: menuOpen ? "rotate(180deg)" : "rotate(0deg)",
-                transition: "transform 0.2s ease, opacity 0.15s",
-              }}
-              className={`opacity-0 group-hover:opacity-100 text-gray-400 hover:text-emerald-500 cursor-pointer p-1 rounded-full
-                hover:bg-gray-100 dark:hover:bg-slate-700 transition-all duration-150
-                ${menuOpen ? "!opacity-100 text-emerald-500" : ""}`}
+              className={`scale-0 opacity-0
+                group-hover:scale-100 group-hover:opacity-100
+                text-gray-400 hover:text-emerald-500 cursor-pointer p-1 rounded-full
+                hover:bg-gray-100 dark:hover:bg-slate-700 transition-all duration-200
+                ${
+                  menuOpen
+                    ? "!scale-100 !opacity-100 rotate-180 text-emerald-500"
+                    : "rotate-0"
+                }`}
             >
               <ChevronDown size={14} />
             </button>
@@ -549,62 +548,72 @@ const CallBubble = ({ message, isOwn, onStartCall, chat, time }) => {
   };
 
   return (
+    // Outer border div — slightly darker shade than the inner bubble
     <div
-      onClick={handleCall}
-      className={`flex items-center gap-2 px-3 py-2 rounded-2xl min-w-[190px] max-w-[240px] cursor-pointer active:opacity-70 transition-opacity shadow-sm
+      className={`p-[2.5px] rounded-2xl
         ${
           isOwn
-            ? "bg-emerald-100 dark:bg-emerald-900 hover:bg-emerald-200/80 dark:hover:bg-emerald-800/80"
-            : "bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700"
+            ? "bg-emerald-300 dark:bg-emerald-700"
+            : "bg-gray-200 dark:bg-slate-600"
         }`}
     >
       <div
-        className={`flex items-center justify-center w-9 h-9 rounded-full shrink-0
-        ${
-          isOwn
-            ? "bg-emerald-200 dark:bg-emerald-800"
-            : "bg-gray-100 dark:bg-slate-700"
-        }`}
+        onClick={handleCall}
+        className={`flex items-center gap-2 px-3 py-2 rounded-[13px] min-w-[190px] max-w-[240px] cursor-pointer active:opacity-70 transition-opacity
+          ${
+            isOwn
+              ? "bg-emerald-100 dark:bg-emerald-900 hover:bg-emerald-200/80 dark:hover:bg-emerald-800/80"
+              : "bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700"
+          }`}
       >
-        {isVideo ? (
-          <Video size={15} className={iconColor} />
-        ) : (
-          <PhoneCall size={15} className={iconColor} />
-        )}
-      </div>
-
-      <div className="flex flex-col flex-1 min-w-0">
-        <div className="flex items-center gap-1">
-          {isIncoming ? (
-            <ArrowDownLeft size={11} className="text-slate-400 shrink-0" />
+        <div
+          className={`flex items-center justify-center w-9 h-9 rounded-full shrink-0
+          ${
+            isOwn
+              ? "bg-emerald-200 dark:bg-emerald-800"
+              : "bg-gray-100 dark:bg-slate-700"
+          }`}
+        >
+          {isVideo ? (
+            <Video size={15} className={iconColor} />
           ) : (
-            <ArrowUpRight size={11} className="text-slate-400 shrink-0" />
+            <PhoneCall size={15} className={iconColor} />
           )}
-          <span className="text-[12px] font-semibold text-gray-900 dark:text-white truncate">
-            {isGroup
-              ? isVideo
-                ? "Group video call"
-                : "Group audio call"
-              : isVideo
-              ? "Video call"
-              : "Audio call"}
+        </div>
+
+        <div className="flex flex-col flex-1 min-w-0">
+          <div className="flex items-center gap-1">
+            {isIncoming ? (
+              <ArrowDownLeft size={11} className="text-slate-400 shrink-0" />
+            ) : (
+              <ArrowUpRight size={11} className="text-slate-400 shrink-0" />
+            )}
+            <span className="text-[12px] font-semibold text-gray-900 dark:text-white truncate">
+              {isGroup
+                ? isVideo
+                  ? "Group video call"
+                  : "Group audio call"
+                : isVideo
+                ? "Video call"
+                : "Audio call"}
+            </span>
+          </div>
+          <span className="text-[10px] text-slate-400 dark:text-slate-500 pl-[15px]">
+            {statusLabel}
           </span>
         </div>
-        <span className="text-[10px] text-slate-400 dark:text-slate-500 pl-[15px]">
-          {statusLabel}
-        </span>
-      </div>
 
-      <div className="flex flex-col items-end gap-[2px] shrink-0 self-end pb-[1px]">
-        <span className="text-[9px] text-gray-400 dark:text-slate-500 whitespace-nowrap">
-          {time}
-        </span>
-        {isOwn &&
-          (message.readBy?.length > 1 ? (
-            <BsCheckAll color="#34d399" size={12} />
-          ) : (
-            <BsCheck color="gray" size={12} />
-          ))}
+        <div className="flex flex-col items-end gap-[2px] shrink-0 self-end pb-[1px]">
+          <span className="text-[9px] text-gray-400 dark:text-slate-500 whitespace-nowrap">
+            {time}
+          </span>
+          {isOwn &&
+            (message.readBy?.length > 1 ? (
+              <BsCheckAll color="#34d399" size={12} />
+            ) : (
+              <BsCheck color="gray" size={12} />
+            ))}
+        </div>
       </div>
     </div>
   );

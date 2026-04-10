@@ -5,6 +5,7 @@ import {
   clearChat,
   sendCallMessage,
   getCallLogs,
+  deleteMessage,
 } from "../controller/message.controller.js";
 
 import { Router } from "express";
@@ -30,5 +31,7 @@ router.post("/call", protect, sendCallMessage);
 router.delete("/clear/:chatId", protect, clearChat);
 
 router.get("/calls/logs", protect, getCallLogs);
+
+router.delete("/:id", protect, deleteMessage);
 
 export default router;
