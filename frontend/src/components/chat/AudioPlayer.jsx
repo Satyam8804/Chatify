@@ -57,8 +57,9 @@ const AudioPlayer = ({ url }) => {
         {playing ? <FaPause size={12} /> : <FaPlay size={12} />}
       </button>
 
-      {/* Progress + Timer */}
-      <div className="flex flex-col flex-1 min-w-0 gap-1">
+      {/* ✅ CENTERED BLOCK */}
+      <div className="flex flex-col justify-center flex-1 min-w-0 gap-[2px] py-[2px]">
+        {/* Seekbar */}
         <input
           type="range"
           min="0"
@@ -70,8 +71,9 @@ const AudioPlayer = ({ url }) => {
             background: `linear-gradient(to right, #3b82f6 ${progress}%, #d1d5db ${progress}%)`,
           }}
         />
-        {/* ✅ timers below progress bar */}
-        <div className="flex justify-between">
+
+        {/* Timers */}
+        <div className="flex justify-between leading-none">
           <span className="text-[10px] text-gray-500 dark:text-slate-400">
             {formatTime(currentTime)}
           </span>
