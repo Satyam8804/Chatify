@@ -431,7 +431,7 @@ const MessageBubble = ({
               {menuOpen && (
                 <div
                   role="menu"
-                  className={`absolute top-1/2 -translate-y-1/2 min-w-[150px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-800 ${
+                  className={`absolute top-1/2 -translate-y-1/2  max-w-[120px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-800 ${
                     isOwn ? "right-8" : "left-8"
                   }`}
                 >
@@ -457,7 +457,7 @@ const MessageBubble = ({
           )}
 
           <div
-            className={`relative rounded-2xl px-2 py-1 text-sm shadow-sm break-words ${
+            className={`relative rounded-xl px-2 py-1 text-sm shadow-sm break-words ${
               isOwn
                 ? "bg-emerald-100 text-black dark:bg-emerald-900 dark:text-emerald-50 rounded-tr-none"
                 : "bg-white text-black dark:bg-slate-800 dark:text-slate-100 rounded-tl-none"
@@ -575,7 +575,7 @@ const CallBubble = ({ message, isOwn, onStartCall, chat, time }) => {
   return (
     // 🔥 OUTER LAYER (subtle darker tone)
     <div
-      className={`p-[2px] rounded-2xl
+      className={`p-[2px] rounded-xl
         ${
           isOwn ? "bg-emerald-800/60" : "bg-slate-700/60 dark:bg-slate-700/70"
         }`}
@@ -583,7 +583,7 @@ const CallBubble = ({ message, isOwn, onStartCall, chat, time }) => {
       {/* 🔥 INNER LAYER (main bubble) */}
       <div
         onClick={handleCall}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-[14px] min-w-[200px] max-w-[260px]
+        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl min-w-[200px] max-w-[260px]
           cursor-pointer transition-colors duration-200 active:scale-[0.98]
           ${
             isOwn
@@ -661,7 +661,7 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn, time }) => {
 
   if (isImage)
     return (
-      <div className="relative w-full overflow-hidden rounded-lg">
+      <div className="relative w-full overflow-hidden rounded-xl">
         <img
           src={url}
           alt="media"
@@ -679,7 +679,7 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn, time }) => {
 
   if (isVideo)
     return (
-      <div className="relative w-full overflow-hidden rounded-lg">
+      <div className="relative w-full overflow-hidden rounded-xl">
         <video
           controls
           className="w-full max-h-[250px] rounded-lg object-cover"
@@ -698,7 +698,7 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn, time }) => {
   if (isAudio)
     return (
       <div
-        className={`relative w-full rounded-lg px-2 py-2 ${
+        className={`relative w-full rounded-xl px-2 py-2 ${
           isOwn
             ? "bg-emerald-200 dark:bg-emerald-800"
             : "bg-gray-100 dark:bg-slate-700"
@@ -719,7 +719,7 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn, time }) => {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`relative p-2 rounded-lg max-w-[70vw] sm:max-w-[250px] flex items-center gap-2 cursor-pointer transition-colors
+      className={`relative p-2 rounded-xl max-w-[70vw] sm:max-w-[250px] flex items-center gap-2 cursor-pointer transition-colors
         ${
           isOwn
             ? "bg-emerald-200 dark:bg-emerald-800 hover:bg-emerald-300 dark:hover:bg-emerald-700"
