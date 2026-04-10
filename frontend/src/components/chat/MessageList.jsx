@@ -14,6 +14,7 @@ import {
   Ban,
   Image as ImageIcon,
   Video as VideoIcon,
+  Music 
 } from "lucide-react";
 import { getAvatarColor } from "../../utils/getAvatarColor";
 import { FaFilePdf } from "react-icons/fa";
@@ -748,18 +749,29 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn, time }) => {
   if (isAudio)
     return (
       <div
-        className={`relative w-full rounded-xl px-2 py-2 ${
+        className={`relative w-full rounded-xl px-3 py-2.5 ${
           isOwn
             ? "bg-emerald-200 dark:bg-emerald-800"
             : "bg-gray-100 dark:bg-slate-700"
         }`}
       >
+        {/* AUDIO PLAYER */}
         <AudioPlayer url={url} />
-        <div className="mt-1 flex justify-end">
+
+        {/* 🔥 BOTTOM ROW (inside) */}
+        <div className="mt-1 flex items-center justify-between text-[10px] text-gray-500 dark:text-slate-400">
+          {/* LEFT: icon + size */}
+          <div className="flex items-center gap-1.5">
+            <Music size={12} className="opacity-80" />
+            {fileSize && <span>{fileSize}</span>}
+          </div>
+
+          {/* RIGHT: time */}
           <span className="text-[9px] text-gray-400 dark:text-slate-500">
             {time}
           </span>
         </div>
+
         {uploading && uploadingOverlay}
       </div>
     );
