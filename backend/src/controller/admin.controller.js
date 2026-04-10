@@ -165,7 +165,34 @@ export const deleteUser = async (req, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.isAdmin)
       return res.status(403).json({ message: "Cannot delete admin" });
-    await User.findByIdAndDelete(req.params.id);
+
+    const userId = req.params.id;
+
+    // 1. Find all chats this user is part of
+    const userChats = await Chat.find({ users: userId });
+    const chatIds = userChats.map((chat) => chat._id);
+
+    // 2. Delete all messages in those chats
+    await Message.deleteMany({ chat: { $in: chatIds } });
+
+    // 3. Delete 1-on-1 chats — remove group chats user from users array instead
+    await Chat.deleteMany({ isGroupChat: false, users: userId });
+
+    // 4. For group chats, just pull the user out
+    await Chat.updateMany(
+      { isGroupChat: true, users: userId },
+      { $pull: { users: userId } }
+    );
+
+    // 5. Delete user's sent messages in any other chats
+    await Message.deleteMany({ sender: userId });
+
+    // 6. Delete user's appeals
+    await Appeal.deleteMany({ user: userId });
+
+    // 7. Finally delete the user
+    await User.findByIdAndDelete(userId);
+
     res.json({ message: "User deleted successfully" });
   } catch (error) {
     res

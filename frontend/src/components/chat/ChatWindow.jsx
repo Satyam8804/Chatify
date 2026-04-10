@@ -86,20 +86,19 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
       });
     };
 
-    
     const handleSeen = ({ chatId, userId }) => {
       if (chatId.toString() !== chat._id.toString()) return;
-      
+
       setMessages((prev) =>
         prev.map((msg) => {
           const alreadySeen = msg.readBy?.includes(userId);
-          
+
           // ✅ play sound only once for your message
           if (!alreadySeen && msg.sender?._id === user?._id) {
             seenSoundRef.current.currentTime = 0;
             seenSoundRef.current.play().catch(() => {});
           }
-          
+
           return {
             ...msg,
             readBy: alreadySeen ? msg.readBy : [...(msg.readBy || []), userId],
@@ -107,19 +106,49 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
         })
       );
     };
-    
+
+    const handleMessageDeleted = ({
+      messageId,
+      deletedPermanently,
+      updatedMessage,
+    }) => {
+      setMessages((prev) =>
+        deletedPermanently
+          ? prev.filter((m) => m._id !== messageId)
+          : prev.map((m) => (m._id === messageId ? updatedMessage : m))
+      );
+    };
+
+    socket.on("message-deleted", handleMessageDeleted);
     socket.on("receive-message", handleReceiveMessage);
     socket.on("message-seen", handleSeen);
     socket.on("call-log-saved", handleCallLog);
-    
+
     return () => {
       socket.off("receive-message", handleReceiveMessage);
       socket.off("message-seen", handleSeen);
       socket.off("call-log-saved", handleCallLog);
+      socket.off("message-deleted", handleMessageDeleted); // 👈 add this
 
       setActiveChatId(null);
     };
   }, [chat?._id, socket, user?._id]); // ✅ safe access in deps
+
+  const handleDeleteMessage = async (messageId) => {
+    try {
+      const res = await api.delete(`/messages/${messageId}`); // removed extra /api/
+      const { deletedPermanently, updatedMessage } = res.data;
+
+      setMessages(
+        (prev) =>
+          deletedPermanently
+            ? prev.filter((m) => m._id !== messageId) // hard delete → remove
+            : prev.map((m) => (m._id === messageId ? updatedMessage : m)) // soft delete → update
+      );
+    } catch (err) {
+      console.error("Delete message error:", err);
+    }
+  };
 
   return (
     <div className="h-full flex flex-col bg-white dark:bg-slate-900">
@@ -138,6 +167,7 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
           onReply={setReplyTo}
           onStartCall={startCall}
           chat={chat}
+          onDeleteMessage={handleDeleteMessage}
         />
       </div>
 

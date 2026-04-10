@@ -249,3 +249,47 @@ export const getCallLogs = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const deleteMessage = async (req, res) => {
+  const message = await Message.findById(req.params.id).populate("chat");
+
+  if (!message) return res.status(404).json({ message: "Not found" });
+
+  const isSender = message.sender.toString() === req.user._id.toString();
+  const isGroupAdmin =
+    message.chat.isGroupChat &&
+    message.chat.groupAdmin.toString() === req.user._id.toString();
+
+  if (!isSender && !isGroupAdmin)
+    return res.status(403).json({ message: "Not authorized" });
+
+  if (message.isDeleted && isSender) {
+    await Message.findByIdAndDelete(req.params.id);
+
+    // 👇 notify all chat members
+    req.io.to(message.chat._id.toString()).emit("message-deleted", {
+      messageId: req.params.id,
+      deletedPermanently: true,
+    });
+
+    return res.json({
+      message: "Deleted permanently",
+      deletedPermanently: true,
+    });
+  }
+
+  message.isDeleted = true;
+  message.deletedBy = req.user._id;
+  message.deletedAt = new Date();
+  message.content = "This message was deleted";
+  await message.save();
+
+  // 👇 notify all chat members
+  req.io.to(message.chat._id.toString()).emit("message-deleted", {
+    messageId: message._id,
+    deletedPermanently: false,
+    updatedMessage: message,
+  });
+
+  res.json({ deletedPermanently: false, updatedMessage: message });
+};

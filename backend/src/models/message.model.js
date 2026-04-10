@@ -34,7 +34,7 @@ const messageSchema = new mongoose.Schema(
 
     messageType: {
       type: String,
-      enum: ["text", "media", "call"], // ✅ added
+      enum: ["text", "media", "call"],
       default: "text",
     },
 
@@ -70,6 +70,23 @@ const messageSchema = new mongoose.Schema(
     replyTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Message",
+      default: null,
+    },
+
+    // 👇 Soft delete fields
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    deletedAt: {
+      type: Date,
       default: null,
     },
   },
