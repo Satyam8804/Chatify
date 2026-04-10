@@ -57,7 +57,7 @@ const AudioPlayer = ({ url }) => {
         {playing ? <FaPause size={12} /> : <FaPlay size={12} />}
       </button>
 
-      <div className="flex flex-col justify-center flex-1 min-w-0 gap-1 py-1">
+      <div className="flex flex-col justify-center flex-1 min-w-0 gap-2 py-1">
         {/* Seekbar */}
         <input
           type="range"
