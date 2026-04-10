@@ -14,7 +14,8 @@ import {
   Ban,
   Image as ImageIcon,
   Video as VideoIcon,
-  Music 
+  Music ,
+  Paperclip 
 } from "lucide-react";
 import { getAvatarColor } from "../../utils/getAvatarColor";
 import { FaFilePdf } from "react-icons/fa";
