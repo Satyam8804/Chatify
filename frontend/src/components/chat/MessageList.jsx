@@ -264,10 +264,8 @@ const MessageBubble = ({
     },
   ].filter((i) => i.show);
 
-  const menuSideClass = isOwn
-    ? "left-0 -translate-x-full"
-    : "right-0 translate-x-full";
-  const menuPanelSide = isOwn ? "right-0" : "left-0";
+  const menuSideClass = isOwn ? "-left-6" : "-right-6";
+  const menuPanelSide = isOwn ? "left-0" : "right-0";
 
   return (
     <>
@@ -297,7 +295,6 @@ const MessageBubble = ({
           <div
             ref={menuRef}
             className={`absolute top-1/2 -translate-y-1/2 z-20 ${menuSideClass}`}
-            style={{ maxWidth: "calc(100vw - 40px)" }}
           >
             <button
               onClick={() => setMenuOpen((p) => !p)}
@@ -319,11 +316,15 @@ const MessageBubble = ({
                   <button
                     key={i}
                     onClick={item.onClick}
-                    className={`w-full flex items-center gap-2 px-3 py-[7px] text-[12px] text-left cursor-pointer ${
-                      item.danger
-                        ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                        : "text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700"
-                    }`}
+                    className={`transition-all duration-200
+                    ${
+                      menuOpen
+                        ? "opacity-100"
+                        : "opacity-0 group-hover:opacity-100"
+                    }
+                    text-gray-400 hover:text-emerald-500
+                    cursor-pointer p-1 rounded-full
+                    hover:bg-gray-100 dark:hover:bg-slate-700`}
                   >
                     {item.icon}
                     {item.label}
