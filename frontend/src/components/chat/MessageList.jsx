@@ -171,6 +171,7 @@ const MessageBubble = ({
   const [menuOpen, setMenuOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const menuRef = useRef(null);
+  const triggerRef = useRef(null);
 
   const { user } = useAuth();
 
@@ -183,15 +184,28 @@ const MessageBubble = ({
 
   const isCall = message.messageType === "call";
 
-  const copyMessage = (text) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(message._id);
-    setTimeout(() => setCopiedId(null), 1500);
+  const time = useMemo(
+    () =>
+      new Date(message.createdAt).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    [message.createdAt]
+  );
+
+  const copyMessage = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(message._id);
+      setTimeout(() => setCopiedId(null), 1500);
+    } catch {
+      // noop
+    }
     setMenuOpen(false);
   };
 
   const handleReply = () => {
-    onReply(message);
+    onReply?.(message);
     setMenuOpen(false);
   };
 
@@ -208,36 +222,49 @@ const MessageBubble = ({
   useEffect(() => {
     if (!menuOpen) return;
 
-    const handler = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
+    const onPointerDown = (e) => {
+      const target = e.target;
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(target) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(target)
+      ) {
         setMenuOpen(false);
       }
     };
 
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [menuOpen]);
 
-  const time = new Date(message.createdAt).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
   const renderMessage = (text) => {
+    if (!text) return null;
     const urlRegex = /(https?:\/\/[^\s]+)/g;
-    return text.split(urlRegex).map((part, i) =>
+    const parts = text.split(urlRegex);
+
+    return parts.map((part, i) =>
       urlRegex.test(part) ? (
         <a
-          key={i}
+          key={`${part}-${i}`}
           href={part}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-500 underline"
+          className="text-blue-500 underline break-all"
+          onClick={(e) => e.stopPropagation()}
         >
           {part}
         </a>
       ) : (
-        part
+        <span key={`${part}-${i}`}>{part}</span>
       )
     );
   };
@@ -245,27 +272,117 @@ const MessageBubble = ({
   const menuItems = [
     {
       label: "Reply",
-      icon: <Reply size={13} />,
+      icon: <Reply size={14} />,
       onClick: handleReply,
       show: !message.isDeleted,
     },
     {
-      label: copiedId === message._id ? "Copied!" : "Copy",
-      icon: copiedId === message._id ? <Check size={13} /> : <Copy size={13} />,
-      onClick: () => copyMessage(message.content),
+      label: copiedId === message._id ? "Copied" : "Copy",
+      icon: copiedId === message._id ? <Check size={14} /> : <Copy size={14} />,
+      onClick: () => copyMessage(message.content || ""),
       show: !!message.content && !isCall && !message.isDeleted,
     },
     {
       label: "Delete",
-      icon: <Trash2 size={13} />,
+      icon: <Trash2 size={14} />,
       onClick: handleDeleteClick,
       show: (isOwn || isGroupAdmin) && !isCall,
       danger: true,
     },
-  ].filter((i) => i.show);
+  ].filter((item) => item.show);
 
-  const menuSideClass = isOwn ? "-left-6" : "-right-6";
-  const menuPanelSide = isOwn ? "left-0" : "right-0";
+  const replyBlock = message.replyTo && (
+    <div
+      onClick={() => onReplyClick?.(message.replyTo._id)}
+      className={`border-l-4 border-emerald-500 pl-2 mb-1 rounded-md p-1 cursor-pointer hover:opacity-80 flex items-center gap-2 min-w-0 ${
+        isOwn
+          ? "bg-emerald-200/50 dark:bg-emerald-800/50"
+          : "bg-gray-100 dark:bg-slate-700"
+      }`}
+    >
+      {message.replyTo.media?.length > 0 &&
+        (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(
+          message.replyTo.media[0].name?.split(".").pop()?.toLowerCase()
+        ) || message.replyTo.media[0].type?.startsWith("image/") ? (
+          <img
+            src={message.replyTo.media[0].url}
+            alt="reply preview"
+            className="w-10 h-10 rounded object-cover shrink-0"
+          />
+        ) : (
+          <span className="shrink-0">📎</span>
+        ))}
+
+      <div className="min-w-0 flex-1">
+        <p className="text-emerald-500 font-medium text-[10px] truncate">
+          {message.replyTo.sender?.fName}
+        </p>
+
+        <div className="text-gray-500 dark:text-slate-400 truncate text-[11px] flex items-center gap-2">
+          {message.replyTo.messageType === "call" ? (
+            (() => {
+              const {
+                status,
+                callType: type,
+                duration = 0,
+              } = message.replyTo.callData || {};
+
+              const isIncoming =
+                message.replyTo.sender?._id !== message.sender?._id;
+
+              const cc =
+                status === "missed" && isIncoming
+                  ? "text-red-500"
+                  : status === "completed"
+                  ? "text-green-500"
+                  : "text-gray-400";
+
+              return (
+                <span className="flex items-center gap-1 min-w-0">
+                  {type === "video" ? (
+                    <Video size={12} className={cc} />
+                  ) : (
+                    <PhoneCall size={12} className={cc} />
+                  )}
+
+                  <span className="truncate">
+                    {status === "missed"
+                      ? isIncoming
+                        ? "Missed call"
+                        : "Call not answered"
+                      : status === "completed"
+                      ? type === "video"
+                        ? "Video call"
+                        : "Voice call"
+                      : "Call declined"}
+                  </span>
+
+                  {duration > 0 && (
+                    <span className="ml-1 text-[10px] text-gray-400 whitespace-nowrap">
+                      • {Math.floor(duration / 60)}:
+                      {(duration % 60).toString().padStart(2, "0")}
+                    </span>
+                  )}
+                </span>
+              );
+            })()
+          ) : message.replyTo.isDeleted ? (
+            <span className="flex items-center gap-1 text-gray-400">
+              <Ban size={12} className="opacity-70" />
+              Deleted message
+            </span>
+          ) : message.replyTo.content ? (
+            <span className="truncate">{message.replyTo.content}</span>
+          ) : message.replyTo.media?.length > 0 ? (
+            <span className="flex items-center gap-1 text-gray-500">
+              <Paperclip size={12} className="opacity-70" />
+              Media
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -281,7 +398,7 @@ const MessageBubble = ({
         ref={(el) => {
           if (el) messageRefs.current[message._id] = el;
         }}
-        className={`group relative flex mb-1 items-center ${
+        className={`group relative flex mb-1 items-end gap-1 ${
           isOwn ? "justify-end" : "justify-start"
         }`}
       >
@@ -291,220 +408,132 @@ const MessageBubble = ({
           </div>
         )}
 
-        {menuItems.length > 0 && (
-          <div
-            ref={menuRef}
-            className={`absolute top-1/2 -translate-y-1/2 z-20 ${menuSideClass}`}
-          >
-            <button
-              onClick={() => setMenuOpen((p) => !p)}
-              className="text-gray-400 hover:text-emerald-500 cursor-pointer p-1 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700"
-              aria-label="Open message menu"
-            >
-              <ChevronDown size={14} />
-            </button>
-
-            {menuOpen && (
-              <div
-                className={`absolute top-[calc(100%+6px)] ${menuPanelSide}
-      min-w-[130px] max-w-[200px]
-      bg-white dark:bg-slate-800
-      rounded-lg shadow-lg border border-gray-100 dark:border-slate-700
-      overflow-hidden py-1`}
-              >
-                {menuItems.map((item, i) => (
-                  <button
-                    key={i}
-                    onClick={item.onClick}
-                    className={`transition-all duration-200
-                    ${
-                      menuOpen
-                        ? "opacity-100"
-                        : "opacity-0 group-hover:opacity-100"
-                    }
-                    text-gray-400 hover:text-emerald-500
-                    cursor-pointer p-1 rounded-full
-                    hover:bg-gray-100 dark:hover:bg-slate-700`}
-                  >
-                    {item.icon}
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div
-          className={`relative max-w-[70%] min-w-[60px] text-sm break-words shadow px-2 py-1 ${
-            isOwn
-              ? "bg-emerald-100 dark:bg-emerald-900 text-black dark:text-emerald-50 rounded-tl-xl rounded-bl-xl rounded-br-xl"
-              : "bg-white dark:bg-slate-800 text-black dark:text-slate-100 rounded-tr-xl rounded-br-xl rounded-bl-xl"
-          }`}
-        >
-          {!isOwn && isGroup && !isCall && (
-            <p
-              className="text-[10px] font-semibold mb-[2px]"
-              style={{ color: userColor }}
-            >
-              {message.sender?.fName}
-            </p>
-          )}
-
-          {message.replyTo && (
+        <div className="relative max-w-[70%] min-w-[60px] shrink-0">
+          {menuItems.length > 0 && (
             <div
-              onClick={() => onReplyClick(message.replyTo._id)}
-              className={`border-l-4 border-emerald-500 pl-2 mb-1 rounded p-1 cursor-pointer hover:opacity-80 flex items-center gap-2 min-w-0 ${
-                isOwn
-                  ? "bg-emerald-200/50 dark:bg-emerald-800/50"
-                  : "bg-gray-100 dark:bg-slate-700"
+              ref={menuRef}
+              className={`absolute top-1/2 -translate-y-1/2 z-30 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 ${
+                isOwn ? "-left-9" : "-right-9"
               }`}
             >
-              {message.replyTo.media?.length > 0 &&
-                (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(
-                  message.replyTo.media[0].name?.split(".").pop()?.toLowerCase()
-                ) || message.replyTo.media[0].type?.startsWith("image/") ? (
-                  <img
-                    src={message.replyTo.media[0].url}
-                    alt="reply preview"
-                    className="w-10 h-10 rounded object-cover shrink-0"
-                  />
-                ) : (
-                  <span className="shrink-0">📎</span>
-                ))}
+              <button
+                ref={triggerRef}
+                onClick={() => setMenuOpen((p) => !p)}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-700/80 text-slate-200 shadow-lg ring-1 ring-white/10 hover:bg-slate-600 transition"
+                aria-label="Open message menu"
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
+                type="button"
+              >
+                <ChevronDown size={14} />
+              </button>
 
-              <div className="min-w-0 flex-1">
-                <p className="text-emerald-500 font-medium text-[10px] truncate">
-                  {message.replyTo.sender?.fName}
-                </p>
-
-                <div className="text-gray-500 dark:text-slate-400 truncate text-[11px] flex items-center gap-2">
-                  {message.replyTo.messageType === "call" ? (
-                    (() => {
-                      const {
-                        status,
-                        callType: type,
-                        duration = 0,
-                      } = message.replyTo.callData || {};
-
-                      const isIncoming =
-                        message.replyTo.sender?._id !== message.sender?._id;
-
-                      const cc =
-                        status === "missed" && isIncoming
+              {menuOpen && (
+                <div
+                  role="menu"
+                  className={`absolute top-1/2 -translate-y-1/2 min-w-[150px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-800 ${
+                    isOwn ? "right-8" : "left-8"
+                  }`}
+                >
+                  {menuItems.map((item) => (
+                    <button
+                      key={item.label}
+                      role="menuitem"
+                      onClick={item.onClick}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-gray-100 dark:hover:bg-slate-700 ${
+                        item.danger
                           ? "text-red-500"
-                          : status === "completed"
-                          ? "text-green-500"
-                          : "text-gray-400";
-
-                      return (
-                        <span className="flex items-center gap-1 min-w-0">
-                          {type === "video" ? (
-                            <Video size={12} className={cc} />
-                          ) : (
-                            <PhoneCall size={12} className={cc} />
-                          )}
-
-                          <span className="truncate">
-                            {status === "missed"
-                              ? isIncoming
-                                ? "Missed call"
-                                : "Call not answered"
-                              : status === "completed"
-                              ? type === "video"
-                                ? "Video call"
-                                : "Voice call"
-                              : "Call declined"}
-                          </span>
-
-                          {duration > 0 && (
-                            <span className="ml-1 text-[10px] text-gray-400 whitespace-nowrap">
-                              • {Math.floor(duration / 60)}:
-                              {(duration % 60).toString().padStart(2, "0")}
-                            </span>
-                          )}
-                        </span>
-                      );
-                    })()
-                  ) : message.replyTo.isDeleted ? (
-                    <span className="flex items-center gap-1 text-gray-400">
-                      <Ban size={12} className="opacity-70" />
-                      Deleted message
-                    </span>
-                  ) : message.replyTo.content ? (
-                    message.replyTo.content
-                  ) : message.replyTo.media?.length > 0 ? (
-                    <span className="flex items-center gap-1 text-gray-500">
-                      <Paperclip size={12} className="opacity-70" />
-                      Media
-                    </span>
-                  ) : null}
+                          : "text-gray-700 dark:text-gray-200"
+                      }`}
+                      type="button"
+                    >
+                      {item.icon}
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
                 </div>
-              </div>
-            </div>
-          )}
-
-          {isCall && (
-            <CallBubble
-              message={message}
-              isOwn={isOwn}
-              onStartCall={onStartCall}
-              chat={chat}
-              time={time}
-            />
-          )}
-
-          {message.isDeleted ? (
-            <span className="flex items-center gap-1 text-[12px] italic text-gray-400 dark:text-slate-500 px-1 py-[2px]">
-              <Ban size={14} className="shrink-0" />
-              {message.deletedBy?.toString() === user?._id?.toString() || isOwn
-                ? "You deleted this message"
-                : "This message was deleted"}
-            </span>
-          ) : (
-            <>
-              {!isCall && message.content && (
-                <span className="whitespace-pre-wrap break-all text-[13px] leading-relaxed">
-                  {renderMessage(message.content)}
-                </span>
               )}
-
-              {!isCall &&
-                message.media.map((m, i) => (
-                  <MediaRenderer
-                    key={i}
-                    media={m}
-                    uploading={message.uploading}
-                    setPreviewImage={setPreviewImage}
-                    isOwn={isOwn}
-                    time={time}
-                  />
-                ))}
-            </>
-          )}
-
-          {/* Time + tick (only for text messages, NOT media) */}
-          {!isCall && !(message.media?.length > 0) && (
-            <div className="flex justify-end items-center gap-1 mt-[2px]">
-              <span className="text-[9px] text-gray-400 dark:text-slate-500">
-                {time}
-              </span>
-              {isOwn &&
-                (message.readBy?.length > 1 ? (
-                  <BsCheckAll color="#34d399" size={14} />
-                ) : (
-                  <BsCheck color="gray" size={14} />
-                ))}
             </div>
           )}
 
           <div
-            className={`absolute top-0 w-0 h-0 ${
+            className={`relative rounded-2xl px-2 py-1 text-sm shadow-sm break-words ${
               isOwn
-                ? "right-[-6px] border-l-[8px] border-l-emerald-100 dark:border-l-emerald-900 border-b-[8px] border-b-transparent"
-                : "left-[-6px] border-r-[8px] border-r-white dark:border-r-slate-800 border-b-[8px] border-b-transparent"
+                ? "bg-emerald-100 text-black dark:bg-emerald-900 dark:text-emerald-50 rounded-tr-none"
+                : "bg-white text-black dark:bg-slate-800 dark:text-slate-100 rounded-tl-none"
             }`}
-          />
+          >
+            {!isOwn && isGroup && !isCall && (
+              <p
+                className="mb-[2px] text-[10px] font-semibold"
+                style={{ color: userColor }}
+              >
+                {message.sender?.fName}
+              </p>
+            )}
+
+            {message.replyTo && replyBlock}
+
+            {isCall ? (
+              <CallBubble
+                message={message}
+                isOwn={isOwn}
+                onStartCall={onStartCall}
+                chat={chat}
+                time={time}
+              />
+            ) : message.isDeleted ? (
+              <span className="flex items-center gap-1 px-1 py-[2px] text-[12px] italic text-gray-400 dark:text-slate-500">
+                <Ban size={14} className="shrink-0" />
+                {message.deletedBy?.toString() === user?._id?.toString() ||
+                isOwn
+                  ? "You deleted this message"
+                  : "This message was deleted"}
+              </span>
+            ) : (
+              <>
+                {message.content && (
+                  <span className="whitespace-pre-wrap break-words text-[13px] leading-relaxed">
+                    {renderMessage(message.content)}
+                  </span>
+                )}
+
+                {message.media?.length > 0 &&
+                  message.media.map((m, i) => (
+                    <MediaRenderer
+                      key={m?._id || i}
+                      media={m}
+                      uploading={message.uploading}
+                      setPreviewImage={setPreviewImage}
+                      isOwn={isOwn}
+                      time={time}
+                    />
+                  ))}
+              </>
+            )}
+
+            {!isCall && !(message.media?.length > 0) && !message.isDeleted && (
+              <div className="mt-[2px] flex items-center justify-end gap-1">
+                <span className="text-[9px] text-gray-400 dark:text-slate-500">
+                  {time}
+                </span>
+                {isOwn &&
+                  (message.readBy?.length > 1 ? (
+                    <BsCheckAll color="#34d399" size={14} />
+                  ) : (
+                    <BsCheck color="gray" size={14} />
+                  ))}
+              </div>
+            )}
+
+            <div
+              className={`absolute top-0 h-0 w-0 ${
+                isOwn
+                  ? "-right-[6px] border-l-[8px] border-l-emerald-100 dark:border-l-emerald-900 border-b-[8px] border-b-transparent"
+                  : "-left-[6px] border-r-[8px] border-r-white dark:border-r-slate-800 border-b-[8px] border-b-transparent"
+              }`}
+            />
+          </div>
         </div>
       </div>
     </>
