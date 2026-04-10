@@ -58,7 +58,7 @@ const AudioPlayer = ({ url }) => {
       </button>
 
       {/* ✅ CENTERED BLOCK */}
-      <div className="flex flex-col justify-center flex-1 min-w-0 gap-[2px] py-[2px]">
+      <div className="flex flex-col justify-center flex-1 min-w-0 gap-2 py-2">
         {/* Seekbar */}
         <input
           type="range"
