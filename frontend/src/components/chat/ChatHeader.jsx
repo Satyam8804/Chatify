@@ -14,6 +14,8 @@ const ChatHeader = ({
   onClearChat,
   startCall,
   isCalling,
+  isBlockedByMe, // ✅ add
+  isBlockedByThem,
 }) => {
   const { user } = useAuth();
   const { onlineUser } = useSocket();
@@ -30,8 +32,10 @@ const ChatHeader = ({
     });
   }
 
+  const isBlocked = isBlockedByMe || isBlockedByThem;
+
   const friendObj = typeof friend === "object" ? friend : null;
-  const isOnline = onlineUser?.has(friendObj?._id?.toString());
+  const isOnline =!isBlocked &&  onlineUser?.has(friendObj?._id?.toString());
 
   return (
     <>
@@ -93,13 +97,17 @@ const ChatHeader = ({
         <div className="flex justify-center items-center border-2 dark:border-gray-800 border-gray-100  rounded-3xl gap-4 px-1 py-0.5 outline-gray-700 outline-1">
           {startCall && (
             <button
-              onClick={() => startCall(chat, "video")} // ✅ disabled handles the guard
-              disabled={isCalling}
+              onClick={() => !isBlocked && startCall(chat, "video")}
+              disabled={isCalling || isBlocked}
               title={
-                isCalling ? "Call already in progress" : "Start video call"
+                isBlocked
+                  ? "Can't call a blocked user"
+                  : isCalling
+                  ? "Call already in progress"
+                  : "Start video call"
               }
               className={`flex items-center cursor-pointer justify-center w-9 h-9 rounded-full transition-colors ${
-                isCalling
+                isCalling || isBlocked
                   ? "text-gray-400 cursor-not-allowed opacity-50"
                   : "text-slate-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-emerald-500 dark:hover:text-emerald-400"
               }`}
@@ -110,13 +118,17 @@ const ChatHeader = ({
 
           {startCall && (
             <button
-              onClick={() => startCall(chat, "audio")}
-              disabled={isCalling}
+              onClick={() => !isBlocked && startCall(chat, "audio")}
+              disabled={isCalling || isBlocked}
               title={
-                isCalling ? "Call already in progress" : "Start Audio call"
+                isBlocked
+                  ? "Can't call a blocked user"
+                  : isCalling
+                  ? "Call already in progress"
+                  : "Start audio call"
               }
               className={`flex items-center cursor-pointer justify-center w-9 h-9 rounded-full transition-colors ${
-                isCalling
+                isCalling || isBlocked
                   ? "text-gray-400 cursor-not-allowed opacity-50"
                   : "text-slate-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-emerald-500 dark:hover:text-emerald-400"
               }`}

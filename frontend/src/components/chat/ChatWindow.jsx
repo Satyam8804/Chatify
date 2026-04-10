@@ -15,11 +15,16 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
   const [messages, setMessages] = useState([]);
   const [replyTo, setReplyTo] = useState(null);
 
-  const { socket, setUnreadCounts, setActiveChatId } = useSocket();
-  const { user } = useAuth();
-
   const receiveSoundRef = useRef(new Audio(receiveSoundFile));
   const seenSoundRef = useRef(new Audio(seenSoundFile));
+
+  const chatRef = useRef(chat);
+  useEffect(() => {
+    chatRef.current = chat; // keeps ref fresh on every render
+  }, [chat]);
+
+  const { socket, setUnreadCounts, setActiveChatId } = useSocket();
+  const { user, setUser } = useAuth();
 
   const handleNewMessage = (newMessage) => {
     setMessages((prev) => {
@@ -119,6 +124,38 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
       );
     };
 
+    const handleBlockStatusChanged = ({ byUserId, isBlocked }) => {
+      const latestChat = chatRef.current; // ✅ always fresh
+
+      if (!latestChat?.users || latestChat.isGroupChat) return;
+
+      const currentFriend = latestChat.users.find(
+        (u) => u._id?.toString() !== user._id?.toString()
+      );
+
+      if (!currentFriend || byUserId !== currentFriend._id.toString()) return;
+
+      setSelectedChat((prev) => {
+        if (!prev?.users) return prev;
+        return {
+          ...prev,
+          users: prev.users.map((u) =>
+            u._id.toString() === byUserId
+              ? {
+                  ...u,
+                  blockedUsers: isBlocked
+                    ? [...(u.blockedUsers || []), user._id.toString()]
+                    : (u.blockedUsers || []).filter(
+                        (id) => id.toString() !== user._id.toString()
+                      ),
+                }
+              : u
+          ),
+        };
+      });
+    };
+
+    socket.on("block-status-changed", handleBlockStatusChanged);
     socket.on("message-deleted", handleMessageDeleted);
     socket.on("receive-message", handleReceiveMessage);
     socket.on("message-seen", handleSeen);
@@ -128,12 +165,27 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
       socket.off("receive-message", handleReceiveMessage);
       socket.off("message-seen", handleSeen);
       socket.off("call-log-saved", handleCallLog);
-      socket.off("message-deleted", handleMessageDeleted); // 👈 add this
-
-      setActiveChatId(null);
+      socket.off("message-deleted", handleMessageDeleted);
+      socket.off("block-status-changed", handleBlockStatusChanged); // ✅
+      setActiveChatId(null); // ✅ now runs
     };
   }, [chat?._id, socket, user?._id]); // ✅ safe access in deps
 
+  if (!chat || !chat.users) return null;
+
+  const friend = !chat.isGroupChat
+    ? chat.users?.find((u) => u._id?.toString() !== user._id?.toString())
+    : null;
+
+  const isBlockedByMe = user?.blockedUsers
+    ?.map((id) => id.toString())
+    .includes(friend?._id?.toString());
+
+  const isBlockedByThem = friend?.blockedUsers
+    ?.map((id) => id.toString())
+    .includes(user?._id?.toString());
+
+    
   const handleDeleteMessage = async (messageId) => {
     try {
       const res = await api.delete(`/messages/${messageId}`); // removed extra /api/
@@ -150,6 +202,15 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
     }
   };
 
+  const handleUnblock = async () => {
+    try {
+      const res = await api.patch("/users/block", { userId: friend._id }); // ✅ correct route
+      setUser((prev) => ({ ...prev, blockedUsers: res.data.blockedUsers })); // ✅ sync context
+    } catch (err) {
+      console.error("Unblock failed:", err);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-slate-900">
       <ChatHeader
@@ -159,6 +220,8 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
         onClearChat={() => setMessages([])}
         startCall={startCall}
         isCalling={isCalling}
+        isBlockedByMe={isBlockedByMe} // ✅ add
+        isBlockedByThem={isBlockedByThem}
       />
 
       <div className="flex-1 overflow-hidden bg-slate-50 dark:bg-slate-950">
@@ -176,6 +239,9 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
         onMessageSent={handleNewMessage}
         replyTo={replyTo}
         setReplyTo={setReplyTo}
+        isBlockedByMe={isBlockedByMe}
+        isBlockedByThem={isBlockedByThem}
+        onUnblock={handleUnblock}
       />
     </div>
   );

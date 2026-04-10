@@ -1,5 +1,5 @@
 import { Router } from "express";
-import passport from "../utils/passport.js"
+import passport from "../utils/passport.js";
 import {
   registerUser,
   loginUser,
@@ -9,6 +9,7 @@ import {
   updateMe,
   searchUsers,
   googleCallback,
+  toggleBlock,
 } from "../controller/auth.controller.js";
 
 import { uploadSingle } from "../middlewares/upload.js";
@@ -55,5 +56,7 @@ router.get(
   }),
   googleCallback
 );
+
+router.patch("/block", protect, toggleBlock);
 
 export default router;

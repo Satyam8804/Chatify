@@ -16,7 +16,6 @@ import path from "path";
 import adminRoute from "./routes/admin.route.js";
 import appealRoute from "./routes/appeal.route.js";
 
-
 const __dirname = path.resolve();
 
 connectDB();
@@ -40,7 +39,6 @@ app.use((req, res, next) => {
   next();
 });
 
-
 app.use(express.json());
 app.use(cookieParser());
 app.use(passport.initialize());
@@ -53,7 +51,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: process.env.CLIENT_URL | "http://localhost:5173",
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -70,7 +68,7 @@ app.use("/api/users", userRoute);
 app.use("/api/chats", chatRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/admin", adminRoute);
-app.use("/api/appeals",appealRoute)
+app.use("/api/appeals", appealRoute);
 
 setupSocket(io);
 

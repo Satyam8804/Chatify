@@ -23,6 +23,7 @@ import AudioPlayer from "./AudioPlayer";
 import ImagePreview from "./ImagePreview";
 import { getDateLabel } from "../../utils/dateUtils.js";
 import { PhoneCall, Video, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { DoubleTick, SingleTick } from "../common/TickIcons.jsx";
 
 const DeleteConfirmModal = ({ onConfirm, onCancel, isDeleted }) => (
   <div
@@ -523,9 +524,9 @@ const MessageBubble = ({
                 </span>
                 {isOwn &&
                   (message.readBy?.length > 1 ? (
-                    <BsCheckAll color="#34d399" size={14} />
+                    <DoubleTick color="#34d399" size={14} />
                   ) : (
-                    <BsCheck color="gray" size={14} />
+                    <SingleTick color="#94a3b8" size={14} />
                   ))}
               </div>
             )}
@@ -630,9 +631,9 @@ const CallBubble = ({ message, isOwn, onStartCall, chat, time }) => {
 
           {isOwn &&
             (message.readBy?.length > 1 ? (
-              <BsCheckAll color="#22c55e" size={12} />
+              <DoubleTick color="#34d399" size={12} />
             ) : (
-              <BsCheck color="gray" size={12} />
+              <SingleTick color="#94a3b8" size={12} />
             ))}
         </div>
       </div>

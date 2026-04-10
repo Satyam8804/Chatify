@@ -4,9 +4,24 @@ export const accessChat = async (req, res) => {
   try {
     const { userId } = req.body;
 
-    if (!userId) {
-      return res.status(400).json({ message: "UserId is Required !" });
-    }
+    if (!userId)
+      return res.status(400).json({ message: "UserId is Required!" });
+
+    // ✅ Block checks
+    const currentUser = await User.findById(req.user._id);
+    const otherUser = await User.findById(userId);
+
+    if (!otherUser) return res.status(404).json({ message: "User not found" });
+
+    if (currentUser.blockedUsers.map((id) => id.toString()).includes(userId))
+      return res.status(403).json({ message: "You have blocked this user" });
+
+    if (
+      otherUser.blockedUsers
+        .map((id) => id.toString())
+        .includes(req.user._id.toString())
+    )
+      return res.status(403).json({ message: "You cannot message this user" });
 
     const chat = await Chat.findOne({
       isGroupChat: false,
@@ -15,9 +30,7 @@ export const accessChat = async (req, res) => {
       .populate("users", "-password")
       .populate("lastMessage");
 
-    if (chat) {
-      return res.json(chat); // existing chat — no need to emit
-    }
+    if (chat) return res.json(chat);
 
     const newChat = await Chat.create({
       isGroupChat: false,
@@ -29,7 +42,6 @@ export const accessChat = async (req, res) => {
       "-password"
     );
 
-    // ✅ notify both users to join the new chat room
     fullChat.users.forEach((u) => {
       req.io.to(u._id.toString()).emit("new-chat-created", fullChat);
     });
@@ -170,5 +182,64 @@ export const removeFromGroup = async (req, res) => {
     res.json({ updated, message: `User Removed from the group` });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const updateChat = async (req, res) => {
+  try {
+    const chat = await Chat.findById(req.params.id);
+
+    if (!chat) return res.status(404).json({ message: "Chat not found" });
+
+    if (!chat.users.some((u) => u.toString() === req.user._id.toString()))
+      return res.status(403).json({ message: "Not authorized" });
+
+    const allowed = ["isFavourite", "isPinned", "chatName", "groupAvatar"];
+
+    allowed.forEach((field) => {
+      if (req.body[field] !== undefined) chat[field] = req.body[field];
+    });
+
+    if (req.body.toggle) {
+      const field = req.body.toggle;
+      if (allowed.includes(field)) chat[field] = !chat[field];
+    }
+
+    await chat.save();
+
+    // ✅ Re-fetch with full population instead of returning raw save
+    const updated = await Chat.findById(chat._id)
+      .populate("users", "-password")
+      .populate("groupAdmin", "-password")
+      .populate({
+        path: "lastMessage",
+        populate: { path: "sender", select: "fName avatar" },
+      });
+
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const deleteChat = async (req, res) => {
+  try {
+    const chat = await Chat.findById(req.params.id);
+
+    if (!chat) return res.status(404).json({ message: "Chat not found" });
+
+    if (!chat.users.some((u) => u.toString() === req.user._id.toString()))
+      return res.status(403).json({ message: "Not authorized" });
+
+    await Chat.findByIdAndDelete(req.params.id);
+
+    // Notify all members
+    chat.users.forEach((u) => {
+      req.io.to(u.toString()).emit("chat-deleted", { chatId: req.params.id });
+    });
+
+    res.json({ message: "Chat deleted" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
