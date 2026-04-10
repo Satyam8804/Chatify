@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState,useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useAuth } from "../../context/authContext";
 import Avatar from "../common/Avatar";
 import { useSocket } from "../../context/socketContext";
@@ -641,6 +641,15 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn, time }) => {
   const name = media?.name || "";
   const extension = name.split(".").pop()?.toLowerCase();
 
+  const formatSize = (bytes) => {
+    if (!bytes) return "";
+    const kb = bytes / 1024;
+    const mb = kb / 1024;
+    return mb >= 1 ? `${mb.toFixed(1)} MB` : `${kb.toFixed(0)} KB`;
+  };
+
+  const fileSize = formatSize(media?.size);
+
   const isImage =
     ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(extension) ||
     media?.type?.startsWith("image/");
@@ -719,21 +728,39 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn, time }) => {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`relative p-2 rounded-xl max-w-[70vw] sm:max-w-[250px] flex items-center gap-2 cursor-pointer transition-colors
-        ${
-          isOwn
-            ? "bg-emerald-200 dark:bg-emerald-800 hover:bg-emerald-300 dark:hover:bg-emerald-700"
-            : "bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600"
-        }`}
+      className={`relative px-3 py-3 rounded-2xl 
+  max-w-[70vw] sm:max-w-[240px]
+  flex items-start gap-3 cursor-pointer transition-all duration-200
+  shadow-sm hover:shadow-md
+  ${
+    isOwn
+      ? "bg-emerald-200 dark:bg-emerald-800 hover:bg-emerald-300 dark:hover:bg-emerald-700"
+      : "bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600"
+  }`}
     >
-      <FaFilePdf color="red" size={22} />
-      <div className="min-w-0 flex-1">
-        <span className="block text-sm truncate break-all text-gray-800 dark:text-slate-200">
-          {name}
-        </span>
+      {/* ICON */}
+      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900/40 shrink-0">
+        <FaFilePdf className="text-red-600 dark:text-red-400" size={20} />
       </div>
 
-      <span className="shrink-0 text-[9px] text-gray-400 dark:text-slate-500 ml-2 self-end">
+      {/* FILE INFO */}
+      <div className="min-w-0 flex-1 pr-10">
+        <p className="text-sm font-medium truncate text-gray-800 dark:text-slate-200">
+          {name}
+        </p>
+
+        <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-500 dark:text-slate-400">
+          <span className="px-1.5 py-[1px] rounded bg-red-500 text-white text-[9px] font-semibold">
+            PDF
+          </span>
+
+          {/* ✅ FIXED */}
+          {fileSize && <span>{fileSize}</span>}
+        </div>
+      </div>
+
+      {/* TIME */}
+      <span className="absolute bottom-1 right-2 text-[10px] text-gray-400 dark:text-slate-500">
         {time}
       </span>
 
