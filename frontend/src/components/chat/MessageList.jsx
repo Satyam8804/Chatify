@@ -264,8 +264,10 @@ const MessageBubble = ({
     },
   ].filter((i) => i.show);
 
-  const menuSideClass = isOwn ? "left-[-30px]" : "right-[-30px]";
-  const menuPanelSide = isOwn ? "left-0" : "right-0";
+  const menuSideClass = isOwn
+    ? "left-0 -translate-x-full"
+    : "right-0 translate-x-full";
+  const menuPanelSide = isOwn ? "right-0" : "left-0";
 
   return (
     <>
@@ -295,6 +297,7 @@ const MessageBubble = ({
           <div
             ref={menuRef}
             className={`absolute top-1/2 -translate-y-1/2 z-20 ${menuSideClass}`}
+            style={{ maxWidth: "calc(100vw - 40px)" }}
           >
             <button
               onClick={() => setMenuOpen((p) => !p)}
@@ -306,7 +309,11 @@ const MessageBubble = ({
 
             {menuOpen && (
               <div
-                className={`absolute top-[calc(100%+4px)] ${menuPanelSide} min-w-[130px] z-50 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-100 dark:border-slate-700 overflow-hidden py-1`}
+                className={`absolute top-[calc(100%+6px)] ${menuPanelSide}
+      min-w-[130px] max-w-[200px]
+      bg-white dark:bg-slate-800
+      rounded-lg shadow-lg border border-gray-100 dark:border-slate-700
+      overflow-hidden py-1`}
               >
                 {menuItems.map((item, i) => (
                   <button
@@ -469,12 +476,14 @@ const MessageBubble = ({
                     uploading={message.uploading}
                     setPreviewImage={setPreviewImage}
                     isOwn={isOwn}
+                    time={time}
                   />
                 ))}
             </>
           )}
 
-          {!isCall && (
+          {/* Time + tick (only for text messages, NOT media) */}
+          {!isCall && !(message.media?.length > 0) && (
             <div className="flex justify-end items-center gap-1 mt-[2px]">
               <span className="text-[9px] text-gray-400 dark:text-slate-500">
                 {time}
@@ -549,7 +558,7 @@ const CallBubble = ({ message, isOwn, onStartCall, chat, time }) => {
           ${
             isOwn
               ? "bg-emerald-700 hover:bg-emerald-600"
-              : "bg-slate-800 hover:bg-slate-700"
+              : "bg-slate-700 hover:bg-slate-800"
           }`}
       >
         {/* Icon circle */}
@@ -597,56 +606,81 @@ const CallBubble = ({ message, isOwn, onStartCall, chat, time }) => {
   );
 };
 
-const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn }) => {
+const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn, time }) => {
   const url = media?.url || "";
   const name = media?.name || "";
   const extension = name.split(".").pop()?.toLowerCase();
+
   const isImage =
     ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(extension) ||
     media?.type?.startsWith("image/");
+
   const isVideo =
     ["mp4", "webm", "mov"].includes(extension) ||
     media?.type?.startsWith("video/");
+
   const isAudio =
     ["mp3", "wav", "ogg"].includes(extension) ||
     media?.type?.startsWith("audio/");
 
   const uploadingOverlay = (
-    <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-black/40 rounded-lg">
-      <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+    <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-lg z-10">
+      <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
   if (isImage)
     return (
-      <div className="relative w-full">
+      <div className="relative w-full overflow-hidden rounded-lg">
         <img
           src={url}
           alt="media"
           onClick={() => !uploading && setPreviewImage(url)}
-          className="w-full max-h-[250px] rounded-lg cursor-pointer hover:opacity-90 object-cover"
+          className="w-full max-h-[250px] rounded-lg cursor-pointer object-cover block"
         />
+        <div className="absolute bottom-2 right-2 z-20">
+          <span className="text-[9px] px-2 py-[2px] rounded-full bg-black/45 text-white backdrop-blur-sm">
+            {time}
+          </span>
+        </div>
         {uploading && uploadingOverlay}
       </div>
     );
 
   if (isVideo)
     return (
-      <div className="relative w-full">
+      <div className="relative w-full overflow-hidden rounded-lg">
         <video
           controls
           className="w-full max-h-[250px] rounded-lg object-cover"
         >
           <source src={url} />
         </video>
+        <div className="absolute bottom-2 right-2 z-20">
+          <span className="text-[9px] px-2 py-[2px] rounded-full bg-black/45 text-white backdrop-blur-sm">
+            {time}
+          </span>
+        </div>
         {uploading && uploadingOverlay}
       </div>
     );
 
   if (isAudio)
     return (
-      <div className="w-full">
+      <div
+        className={`relative w-full rounded-lg px-2 py-2 ${
+          isOwn
+            ? "bg-emerald-200 dark:bg-emerald-800"
+            : "bg-gray-100 dark:bg-slate-700"
+        }`}
+      >
         <AudioPlayer url={url} />
+        <div className="mt-1 flex justify-end">
+          <span className="text-[9px] text-gray-400 dark:text-slate-500">
+            {time}
+          </span>
+        </div>
+        {uploading && uploadingOverlay}
       </div>
     );
 
@@ -663,9 +697,16 @@ const MediaRenderer = ({ media, uploading, setPreviewImage, isOwn }) => {
         }`}
     >
       <FaFilePdf color="red" size={22} />
-      <span className="text-sm truncate break-all text-gray-800 dark:text-slate-200">
-        {name}
+      <div className="min-w-0 flex-1">
+        <span className="block text-sm truncate break-all text-gray-800 dark:text-slate-200">
+          {name}
+        </span>
+      </div>
+
+      <span className="shrink-0 text-[9px] text-gray-400 dark:text-slate-500 ml-2 self-end">
+        {time}
       </span>
+
       {uploading && uploadingOverlay}
     </a>
   );
