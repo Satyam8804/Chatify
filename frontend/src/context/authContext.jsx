@@ -75,31 +75,31 @@ export const AuthProvider = ({ children }) => {
       try {
         const token = getToken();
 
-        if (token) {
-          const { data } = await api.get("/users/me");
-          setUser(data.user);
-          
-        } else {
-          // ✅ First attempt
-          try {
-            await refreshAccessToken();
-          } catch (firstErr) {
-            logger("First refresh attempt failed, retrying...", firstErr);
-            setLoaderText("Server waking up, retrying...");
-
-            await new Promise((r) => setTimeout(r, 3000));
-
-            await refreshAccessToken();
-          }
-          const { data } = await api.get("/users/me");
-          setUser(data.user);
-          console.log(data.user)
+        if (!token) {
+          // No token → try refresh directly
+          await refreshAccessToken();
         }
+
+        // Try fetching user
+        const { data } = await api.get("/users/me");
+        setUser(data.user);
       } catch (error) {
-        // Both attempts failed — genuinely not authenticated
-        logger(error);
-        clearToken();
-        setUser(null);
+        try {
+          // 🔁 If failed (likely expired token), try refresh
+          logger("Token expired, trying refresh...", error);
+
+          setLoaderText("Refreshing session...");
+
+          await refreshAccessToken();
+
+          const { data } = await api.get("/users/me");
+          setUser(data.user);
+        } catch (refreshError) {
+          // ❌ Refresh also failed → logout
+          logger("Refresh failed", refreshError);
+          clearToken();
+          setUser(null);
+        }
       } finally {
         setLoading(false);
         setAppReady(true);
@@ -117,7 +117,7 @@ export const AuthProvider = ({ children }) => {
     const { data } = await api.post("/users/login-user", credentials);
     setToken(data.accessToken);
     setUser(data.user);
-    console.log(data.user)
+    console.log(data.user);
 
     return data;
   }, []);

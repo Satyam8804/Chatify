@@ -37,7 +37,7 @@ export const refreshAccessToken = () => {
     .catch((err) => {
       logger(err);
       clearToken();
-    
+
       return Promise.reject(err);
     })
     .finally(() => {
@@ -80,20 +80,18 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     const status = error.response?.status;
 
-    // No token → don't try refresh
-    if (!getToken()) {
-      return Promise.reject(error);
-    }
-
     // Retry once on 401
     if (status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
       try {
         const newToken = await refreshAccessToken();
+
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
+
         return api(originalRequest);
       } catch (err) {
+        clearToken();
         return Promise.reject(err);
       }
     }
