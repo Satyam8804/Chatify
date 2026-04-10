@@ -57,8 +57,7 @@ const AudioPlayer = ({ url }) => {
         {playing ? <FaPause size={12} /> : <FaPlay size={12} />}
       </button>
 
-      {/* ✅ CENTERED BLOCK */}
-      <div className="flex flex-col justify-center flex-1 min-w-0 gap-2 py-2">
+      <div className="flex flex-col justify-center flex-1 min-w-0 gap-1 py-1">
         {/* Seekbar */}
         <input
           type="range"
@@ -73,7 +72,7 @@ const AudioPlayer = ({ url }) => {
         />
 
         {/* Timers */}
-        <div className="flex justify-between leading-none">
+        <div className="flex justify-between leading-tight">
           <span className="text-[10px] text-gray-500 dark:text-slate-400">
             {formatTime(currentTime)}
           </span>
