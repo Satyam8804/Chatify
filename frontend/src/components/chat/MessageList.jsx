@@ -14,8 +14,8 @@ import {
   Ban,
   Image as ImageIcon,
   Video as VideoIcon,
-  Music ,
-  Paperclip 
+  Music,
+  Paperclip,
 } from "lucide-react";
 import { getAvatarColor } from "../../utils/getAvatarColor";
 import { FaFilePdf } from "react-icons/fa";
@@ -403,7 +403,7 @@ const MessageBubble = ({
         ref={(el) => {
           if (el) messageRefs.current[message._id] = el;
         }}
-        className={`group relative flex mb-1 items-end gap-1 ${
+        className={`group relative flex mb-2 items-end gap-1 ${
           isOwn ? "justify-end" : "justify-start"
         }`}
       >
@@ -424,7 +424,12 @@ const MessageBubble = ({
               <button
                 ref={triggerRef}
                 onClick={() => setMenuOpen((p) => !p)}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-700/80 text-slate-200 shadow-lg ring-1 ring-white/10 hover:bg-slate-600 transition"
+                className="cursor-pointer flex h-5 w-5 items-center justify-center rounded-full 
+    bg-gray-200 dark:bg-slate-700/80 
+    text-gray-600 dark:text-slate-200 
+    shadow-lg ring-1 ring-black/10 dark:ring-white/10 
+    hover:bg-gray-300 dark:hover:bg-slate-600 
+    transition"
                 aria-label="Open message menu"
                 aria-expanded={menuOpen}
                 aria-haspopup="menu"

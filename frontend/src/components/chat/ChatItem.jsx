@@ -293,6 +293,9 @@ const ChatItem = ({
     );
   };
 
+  // Add this near your other state declarations
+  const isMobile = window.matchMedia("(hover: none)").matches;
+
   return (
     <div className="h-20">
       {previewImage !== undefined && (
@@ -363,9 +366,12 @@ const ChatItem = ({
             <div className="text-right">{renderTimestamp()}</div>
 
             <div className="relative flex items-center justify-end min-h-[22px]">
+              {/* Badge + pin row */}
               <div
                 className={`flex items-center gap-2 pr-1 transition-transform duration-200 ${
-                  hovered || menuOpen ? "-translate-x-5" : "translate-x-0"
+                  isMobile || hovered || menuOpen
+                    ? "-translate-x-5"
+                    : "translate-x-0"
                 }`}
               >
                 {chat.isPinned && (
@@ -374,7 +380,6 @@ const ChatItem = ({
                     className="shrink-0 text-emerald-500 rotate-45"
                   />
                 )}
-
                 {unread > 0 && (
                   <div className="bg-emerald-500 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center">
                     <span className="text-white font-bold text-[10px]">
@@ -384,9 +389,10 @@ const ChatItem = ({
                 )}
               </div>
 
+              {/* Chevron + context menu */}
               <div
                 className={`absolute right-0 top-0 z-20 transition-all duration-200 ${
-                  hovered || menuOpen
+                  isMobile || hovered || menuOpen
                     ? "opacity-100 translate-x-0 pointer-events-auto"
                     : "opacity-0 translate-x-2 pointer-events-none"
                 }`}

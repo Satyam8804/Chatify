@@ -1,3 +1,4 @@
+import User from "../models/user.model.js"; // ← add this
 import Chat from "../models/chat.model.js";
 
 export const accessChat = async (req, res) => {

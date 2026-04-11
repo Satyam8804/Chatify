@@ -8,7 +8,7 @@ import NewGroupChatModal from "./NewGroupChatModal";
 import { logger } from "../../utils/logger";
 import {
   MoreVertical,
-  MessageSquare,
+  MessageSquareText ,
   Phone,
   Search, // ← add
   X,
@@ -389,7 +389,7 @@ const Sidebar = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search chats..."
-                className="w-full pl-8 pr-7 py-2 text-[14px] font-bold rounded-2xl bg-gray-100 dark:bg-slate-800/70 text-gray-700 dark:text-slate-300 placeholder-gray-400 dark:placeholder-slate-600 border border-transparent focus:border-emerald-400/40 dark:focus:border-emerald-600/40 focus:outline-none focus:bg-white dark:focus:bg-slate-800 transition-all duration-200"
+                className="w-full pl-8 pr-7 py-3 text-[14px] font-bold rounded-3xl bg-gray-100 dark:bg-slate-800/70 text-gray-700 dark:text-slate-300 placeholder-gray-400 dark:placeholder-slate-600 border border-transparent focus:border-emerald-400/40 dark:focus:border-emerald-600/40 focus:outline-none focus:bg-white dark:focus:bg-slate-800 transition-all duration-200"
               />
               {searchQuery && (
                 <button
@@ -483,7 +483,7 @@ const Sidebar = ({
       </div>
 
       {/* ── Bottom tabs ── */}
-      <div className="border-t border-gray-200 dark:border-slate-700 flex shrink-0">
+      <div className="border-t py-1 rounded-2xl border-gray-100 dark:border-slate-800 flex shrink-0">
         <button
           onClick={() => handleTabChange("chats")}
           className={`flex-1 flex flex-col cursor-pointer items-center justify-center py-2 text-[11px] font-medium transition-colors ${
@@ -492,8 +492,8 @@ const Sidebar = ({
               : "text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300"
           }`}
         >
-          <MessageSquare size={18} />
-          <span className="mt-0.5">Chats</span>
+          <MessageSquareText  size={20} />
+          <span className={`mt-0.5 text-[14px] ${activeTab == 'chats'?`font-bold`:``} `}>Chats</span>
           {activeTab === "chats" && (
             <span className="mt-1 w-1.5 h-1.5 rounded-full bg-emerald-500" />
           )}
@@ -508,14 +508,14 @@ const Sidebar = ({
           }`}
         >
           <div className="relative">
-            <Phone size={18} />
+            <Phone size={20}  />
             {missedCount > 0 && (
               <span className="absolute -top-1.5 -right-2.5 text-[9px] bg-rose-500 text-white min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center">
                 {missedCount}
               </span>
             )}
           </div>
-          <span className="mt-0.5">Calls</span>
+          <span className={`mt-0.5 text-[14px] ${activeTab == 'calls'?`font-bold`:``} `}>Calls</span>
           {ongoingCall && (
             <span className="relative flex h-2 w-2 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-60" />
