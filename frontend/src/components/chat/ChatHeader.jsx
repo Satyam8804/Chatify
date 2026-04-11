@@ -14,7 +14,7 @@ const ChatHeader = ({
   onClearChat,
   startCall,
   isCalling,
-  isBlockedByMe, // ✅ add
+  isBlockedByMe, 
   isBlockedByThem,
 }) => {
   const { user } = useAuth();

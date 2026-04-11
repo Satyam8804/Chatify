@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "../../context/authContext";
-import { formatLastSeen } from "../../utils/formatMessageDate";
 import Avatar from "../common/Avatar";
 import {
   Image,
@@ -190,7 +189,6 @@ const ChatItem = ({
     return () => document.removeEventListener("mousedown", handler);
   }, [menuOpen]);
 
-  // ── Last message preview ───────────────────────────────────────────────────
   const renderLastMessage = () => {
     if (!lastMsg) return <span>No messages yet</span>;
 
@@ -206,7 +204,6 @@ const ChatItem = ({
       );
     }
 
-    // Call message
     if (lastMsg.messageType === "call") {
       const isMissed = lastMsg.callData?.status === "missed";
       const isVideo = lastMsg.callData?.callType === "video";
@@ -264,7 +261,6 @@ const ChatItem = ({
     return <span>No messages yet</span>;
   };
 
-  // ── Timestamp ──────────────────────────────────────────────────────────────
   const renderTimestamp = () => {
     if (!lastMsg?.createdAt) return null;
     const date = new Date(lastMsg.createdAt);
@@ -298,7 +294,7 @@ const ChatItem = ({
   };
 
   return (
-    <>
+    <div className="h-20">
       {previewImage !== undefined && (
         <ImagePreview
           url={previewImage}
@@ -312,7 +308,7 @@ const ChatItem = ({
           setHovered(false);
         }}
         onClick={onClick}
-        className={`relative flex items-center gap-3 px-4 py-3 m-1 rounded-2xl cursor-pointer border-b border-gray-100 dark:border-slate-700/50 transition-colors
+        className={`relative flex items-center gap-3 px-4 py-3 m-1 rounded-2xl cursor-pointer transition-colors
           ${
             isActive
               ? "bg-emerald-50 dark:bg-emerald-900/20 border-transparent"
@@ -335,9 +331,9 @@ const ChatItem = ({
         )}
 
         {/* Middle Content */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 justify-between flex min-w-0">
           {/* Name row */}
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col gap-1">
             <p
               className={`text-sm truncate font-semibold ${
                 isActive
@@ -348,69 +344,81 @@ const ChatItem = ({
               {isGroup ? chat.chatName : `${friend?.fName} ${friend?.lName}`}
             </p>
 
-            {/* Timestamp + unread badge */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              <div className="flex gap-1">
-                {renderTimestamp()}
+            <div className="flex items-center gap-1 mt-0.5">
+              {lastMsg?.sender?._id === userId &&
+                (lastMsg?.readBy?.length > 1 ? (
+                  <DoubleTick size={14} color="#34d399" className="shrink-0" />
+                ) : (
+                  <SingleTick size={14} color="#94a3b8" className="shrink-0" />
+                ))}
+
+              <div className="text-[12px] text-gray-500 dark:text-slate-400 truncate flex items-center gap-1">
+                {renderLastMessage()}
+              </div>
+            </div>
+          </div>
+          {/* Timestamp + unread badge */}
+
+          <div className="flex flex-col items-end gap-1 shrink-0 min-w-[72px]">
+            <div className="text-right">{renderTimestamp()}</div>
+
+            <div className="relative flex items-center justify-end min-h-[22px]">
+              <div
+                className={`flex items-center gap-2 pr-1 transition-transform duration-200 ${
+                  hovered || menuOpen ? "-translate-x-5" : "translate-x-0"
+                }`}
+              >
                 {chat.isPinned && (
                   <Pin
-                    size={16}
+                    size={14}
                     className="shrink-0 text-emerald-500 rotate-45"
                   />
                 )}
+
+                {unread > 0 && (
+                  <div className="bg-emerald-500 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-[10px]">
+                      {unread > 99 ? "99+" : unread}
+                    </span>
+                  </div>
+                )}
               </div>
-              {unread > 0 && (
-                <span className="bg-emerald-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
-                  {unread}
-                </span>
-              )}
+
+              <div
+                className={`absolute right-0 top-0 z-20 transition-all duration-200 ${
+                  hovered || menuOpen
+                    ? "opacity-100 translate-x-0 pointer-events-auto"
+                    : "opacity-0 translate-x-2 pointer-events-none"
+                }`}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <button
+                  ref={triggerRef}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen((p) => !p);
+                  }}
+                  className="p-1 cursor-pointer rounded-full text-gray-400 hover:text-emerald-500 hover:bg-gray-200 dark:hover:bg-slate-700"
+                >
+                  <ChevronDown size={14} />
+                </button>
+
+                <ChatContextMenu
+                  isOpen={menuOpen}
+                  menuRef={menuRef}
+                  chat={chat}
+                  isBlockedByMe={isBlockedByMe}
+                  onClose={() => setMenuOpen(false)}
+                  onAction={(action) => onChatAction?.(action, chat)}
+                />
+              </div>
             </div>
           </div>
-
-          {/* Last message row */}
-          <div className="flex items-center gap-1 mt-0.5">
-            {lastMsg?.sender?._id === userId &&
-              (lastMsg?.readBy?.length > 1 ? (
-                <DoubleTick size={14} color="#34d399" className="shrink-0" />
-              ) : (
-                <SingleTick size={14} color="#94a3b8" className="shrink-0" />
-              ))}
-
-            <div className="text-[12px] text-gray-500 dark:text-slate-400 truncate flex items-center gap-1">
-              {renderLastMessage()}
-            </div>
-          </div>
-        </div>
-
-        {/* ▼ Hover menu trigger */}
-        <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
-          <button
-            ref={triggerRef}
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenuOpen((p) => !p);
-            }}
-            style={{
-              opacity: hovered || menuOpen ? 1 : 0,
-              transform: menuOpen ? "rotate(180deg)" : "rotate(0deg)",
-              transition: "opacity 0.15s, transform 0.2s ease",
-            }}
-            className="p-1 rounded-full text-gray-400 hover:text-emerald-500 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
-          >
-            <ChevronDown size={14} />
-          </button>
-
-          <ChatContextMenu
-            isOpen={menuOpen}
-            menuRef={menuRef}
-            chat={chat}
-            isBlockedByMe={isBlockedByMe}
-            onClose={() => setMenuOpen(false)}
-            onAction={(action) => onChatAction?.(action, chat)}
-          />
         </div>
       </div>
-    </>
+    </div>
   );
 };
 

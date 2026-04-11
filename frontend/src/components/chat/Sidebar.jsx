@@ -10,8 +10,8 @@ import {
   MoreVertical,
   MessageSquare,
   Phone,
-  UserPlus,
-  Users,
+  Search, // ← add
+  X,
 } from "lucide-react";
 import Menus from "../Menus";
 
@@ -46,6 +46,7 @@ const Sidebar = ({
   const [loading, setLoading] = useState(false);
   const [lastSeenCallTime, setLastSeenCallTime] = useState(null);
   const [chatFilter, setChatFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const menuRef = useRef(null);
   const joinedChatsRef = useRef(new Set());
@@ -284,6 +285,22 @@ const Sidebar = ({
       return bTime - aTime;
     });
 
+  const filteredChats = searchQuery.trim()
+    ? allChats.filter((chat) => {
+        const q = searchQuery.toLowerCase();
+        if (chat.isGroupChat) {
+          return chat.chatName?.toLowerCase().includes(q);
+        }
+        const otherUser = chat.users.find(
+          (u) => u._id?.toString() !== user._id?.toString()
+        );
+        const fullName = `${otherUser?.fName || ""} ${
+          otherUser?.lName || ""
+        }`.toLowerCase();
+        return fullName.includes(q);
+      })
+    : allChats;
+
   const filters = [
     { key: "all", label: "All" },
     { key: "direct", label: "Direct" },
@@ -342,8 +359,7 @@ const Sidebar = ({
 
   return (
     <div className="relative h-full flex flex-col bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-700 transition-colors">
-      {/* ── Header ── */}
-      <div className="flex justify-between items-center px-5 py-4 border-b-2 border-gray-300 dark:border-slate-500">
+      <div className="flex justify-between items-center px-5 py-4 ">
         <div className="flex items-center gap-2">
           <img src={ChatifyLogo} alt="" className="h-12" />
           <span className="text-3xl font-extrabold text-gray-500 dark:text-gray-200">
@@ -362,8 +378,30 @@ const Sidebar = ({
       <div className="flex-1 flex flex-col min-h-0">
         {activeTab === "chats" ? (
           <div className="flex-1 flex flex-col px-3 min-h-0">
+            {/* Search bar */}
+            <div className="relative mx-2 mb-3">
+              <Search
+                size={18}
+                className="absolute  left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 pointer-events-none"
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search chats..."
+                className="w-full pl-8 pr-7 py-2 text-[14px] font-bold rounded-2xl bg-gray-100 dark:bg-slate-800/70 text-gray-700 dark:text-slate-300 placeholder-gray-400 dark:placeholder-slate-600 border border-transparent focus:border-emerald-400/40 dark:focus:border-emerald-600/40 focus:outline-none focus:bg-white dark:focus:bg-slate-800 transition-all duration-200"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-gray-300 dark:bg-slate-600 flex items-center justify-center hover:bg-gray-400 dark:hover:bg-slate-500 transition-colors"
+                >
+                  <X size={9} className="text-gray-600 dark:text-slate-300" />
+                </button>
+              )}
+            </div>
             {/* Section header */}
-            <div className="flex justify-between items-center px-2 pt-3 pb-2">
+            <div className="flex justify-between items-center px-2 pt-1 pb-2">
               <h3 className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">
                 Messages
               </h3>
@@ -407,13 +445,15 @@ const Sidebar = ({
 
             {/* Merged chat list */}
             <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar">
-              {allChats.length === 0 ? (
+              {filteredChats.length === 0 ? (
                 <p className="px-3 py-2 text-xs text-gray-400 dark:text-slate-600">
-                  No conversations yet. Start chatting!
+                  {searchQuery
+                    ? `No chats matching "${searchQuery}"`
+                    : "No conversations yet. Start chatting!"}
                 </p>
               ) : (
                 <div className="space-y-0.5 pb-4">
-                  {allChats.map((chat) => (
+                  {filteredChats.map((chat) => (
                     <ChatSection
                       key={chat._id}
                       chat={chat}
