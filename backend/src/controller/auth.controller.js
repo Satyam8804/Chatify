@@ -195,7 +195,7 @@ export const logout = async (req, res) => {
   }
 };
 
-// auth.controller.js — meRoute
+
 export const meRoute = async (req, res) => {
   try {
     const user = req.user;

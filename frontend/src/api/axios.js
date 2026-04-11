@@ -36,7 +36,10 @@ export const refreshAccessToken = () => {
       return data.accessToken;
     })
     .catch((err) => {
-      logger("Refresh failed:", err);
+      // ← add this to see the real error
+      console.error("Refresh error status:", err?.response?.status);
+      console.error("Refresh error data:", err?.response?.data);
+      console.error("Refresh error message:", err?.message);
       clearToken();
       return Promise.reject(err);
     })
