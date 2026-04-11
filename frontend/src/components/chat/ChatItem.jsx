@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "../../context/authContext";
 import Avatar from "../common/Avatar";
 import {
@@ -10,25 +11,35 @@ import {
   Pin,
   MailOpen,
   Heart,
-  ListPlus,
   Ban,
   Trash2,
   XCircle,
   ChevronDown,
 } from "lucide-react";
-import { BsCheck, BsCheckAll } from "react-icons/bs";
 import ImagePreview from "../chat/ImagePreview.jsx";
 import { DoubleTick, SingleTick } from "../common/TickIcons.jsx";
 
 // ─── Chat Context Menu ────────────────────────────────────────────────────────
 const ChatContextMenu = ({
   isOpen,
-  chat,
   onClose,
   onAction,
-  menuRef,
+  chat,
   isBlockedByMe,
+  anchorRef,
 }) => {
+  const [coords, setCoords] = useState({ top: 0, right: 0 });
+
+  useEffect(() => {
+    if (isOpen && anchorRef?.current) {
+      const rect = anchorRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + 4, // ← open downward
+        right: window.innerWidth - rect.right,
+      });
+    }
+  }, [isOpen]);
+
   const menuItems = [
     {
       label: chat?.isPinned ? "Unpin chat" : "Pin chat",
@@ -37,11 +48,7 @@ const ChatContextMenu = ({
       ),
       action: "pin",
     },
-    {
-      label: "Mark as unread",
-      icon: <MailOpen size={14} />,
-      action: "unread",
-    },
+    { label: "Mark as unread", icon: <MailOpen size={14} />, action: "unread" },
     {
       label: chat?.isFavourite ? "Remove from favourites" : "Add to favourites",
       icon: (
@@ -54,9 +61,9 @@ const ChatContextMenu = ({
     },
     { divider: true },
     {
-      label: isBlockedByMe ? "Unblock" : "Block", // ✅ toggle label
+      label: isBlockedByMe ? "Unblock" : "Block",
       icon: <Ban size={14} className={isBlockedByMe ? "text-red-400" : ""} />,
-      action: "block", // same action — Sidebar toggles either way
+      action: "block",
       danger: true,
     },
     {
@@ -73,60 +80,83 @@ const ChatContextMenu = ({
     },
   ];
 
-  return (
-    <div
-      ref={menuRef}
-      style={{
-        position: "absolute",
-        bottom: "calc(100% + 4px)", // ← open upward instead of downward
-        right: 0,
-        minWidth: "190px",
-        zIndex: 9999, // ← higher z-index
-        transformOrigin: "bottom right", // ← animate from bottom
-        transform: isOpen ? "scale(1)" : "scale(0.88)",
-        opacity: isOpen ? 1 : 0,
-        pointerEvents: isOpen ? "auto" : "none",
-        transition:
-          "transform 0.15s cubic-bezier(0.34,1.56,0.64,1), opacity 0.12s ease",
-      }}
-      className="bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-100 dark:border-slate-700 overflow-hidden py-1"
-      onClick={(e) => e.stopPropagation()}
-    >
-      {menuItems.map((item, i) =>
-        item.divider ? (
-          <div
-            key={i}
-            className="border-t border-gray-100 dark:border-slate-700 my-1"
-          />
-        ) : (
-          <button
-            key={i}
-            onClick={(e) => {
-              e.stopPropagation();
-              onAction?.(item.action);
-              onClose();
-            }}
-            className={`w-full flex items-center gap-2.5 px-3 py-[8px] text-[12.5px] text-left cursor-pointer transition-colors
-              ${
-                item.danger
-                  ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                  : "text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700"
-              }`}
-          >
-            <span
-              className={
-                item.danger
-                  ? "text-red-400"
-                  : "text-gray-400 dark:text-slate-500"
-              }
+  if (!isOpen) return null;
+
+  return createPortal(
+    <>
+      {/* Backdrop — catches outside taps/clicks */}
+      <div
+        className="fixed inset-0 z-[9998]"
+        onClick={onClose}
+        onTouchEnd={(e) => {
+          e.preventDefault();
+          onClose();
+        }}
+      />
+      {/* Menu */}
+      <div
+        style={{
+          position: "fixed",
+          top: coords.top,
+          right: coords.right,
+          minWidth: "200px",
+          zIndex: 9999,
+          transformOrigin: "top right",
+          animation: "menuPop 0.15s cubic-bezier(0.34,1.56,0.64,1) forwards",
+        }}
+        className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-gray-100 dark:border-slate-700 overflow-hidden py-1"
+        onClick={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+      >
+        {menuItems.map((item, i) =>
+          item.divider ? (
+            <div
+              key={i}
+              className="border-t border-gray-100 dark:border-slate-700 my-1"
+            />
+          ) : (
+            <button
+              key={i}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAction?.(item.action);
+                onClose();
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onAction?.(item.action);
+                onClose();
+              }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-left transition-colors
+                ${
+                  item.danger
+                    ? "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    : "text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700"
+                }`}
             >
-              {item.icon}
-            </span>
-            {item.label}
-          </button>
-        )
-      )}
-    </div>
+              <span
+                className={
+                  item.danger
+                    ? "text-red-400"
+                    : "text-gray-400 dark:text-slate-500"
+                }
+              >
+                {item.icon}
+              </span>
+              {item.label}
+            </button>
+          )
+        )}
+      </div>
+      <style>{`
+        @keyframes menuPop {
+          from { opacity: 0; transform: scale(0.88); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
+    </>,
+    document.body
   );
 };
 
@@ -143,58 +173,31 @@ const ChatItem = ({
   const [previewImage, setPreviewImage] = useState(undefined);
   const [menuOpen, setMenuOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const menuRef = useRef(null);
-  const triggerRef = useRef(null);
   const [isMobile, setIsMobile] = useState(false);
+  const triggerRef = useRef(null);
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-
-    checkMobile(); // initial
-    window.addEventListener("resize", checkMobile);
-
-    return () => window.removeEventListener("resize", checkMobile);
+    const check = () => setIsMobile(window.innerWidth <= 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
   }, []);
-
-  // Close menu on outside click
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handler = (e) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(e.target) &&
-        triggerRef.current &&
-        !triggerRef.current.contains(e.target)
-      ) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [menuOpen]);
 
   if (!user || !chat?.users) return null;
 
   const userId = user._id;
   const isGroup = chat.isGroupChat;
-
-  let friend = null;
-  if (!isGroup && userId && Array.isArray(chat?.users)) {
-    friend = chat.users.find((u) => u?._id?.toString() !== userId?.toString());
-  }
+  const friend = !isGroup
+    ? chat.users.find((u) => u?._id?.toString() !== userId?.toString())
+    : null;
 
   const isBlockedByMe = user?.blockedUsers
     ?.map((id) => id.toString())
     .includes(friend?._id?.toString());
-
   const isBlockedByThem = friend?.blockedUsers
     ?.map((id) => id.toString())
     .includes(user?._id?.toString());
-
   const isBlocked = isBlockedByMe || isBlockedByThem;
-
   const isOnline = onlineUser?.has(friend?._id?.toString());
   const unread = unreadCounts?.[chat._id] || 0;
   const lastMsg = chat?.lastMessage;
@@ -203,9 +206,7 @@ const ChatItem = ({
 
   const renderLastMessage = () => {
     if (!lastMsg) return <span>No messages yet</span>;
-
-    // Deleted message
-    if (lastMsg.isDeleted) {
+    if (lastMsg.isDeleted)
       return (
         <span className="italic text-gray-400 dark:text-slate-500">
           🚫{" "}
@@ -214,8 +215,6 @@ const ChatItem = ({
             : "This message was deleted"}
         </span>
       );
-    }
-
     if (lastMsg.messageType === "call") {
       const isMissed = lastMsg.callData?.status === "missed";
       const isVideo = lastMsg.callData?.callType === "video";
@@ -234,13 +233,8 @@ const ChatItem = ({
         </>
       );
     }
-
-    // Text content
-    if (lastMsg.content) {
+    if (lastMsg.content)
       return <span className="truncate">{lastMsg.content}</span>;
-    }
-
-    // Media
     if (["png", "jpg", "jpeg", "webp", "gif"].includes(ext))
       return (
         <>
@@ -269,7 +263,6 @@ const ChatItem = ({
           <span>Document</span>
         </>
       );
-
     return <span>No messages yet</span>;
   };
 
@@ -277,33 +270,27 @@ const ChatItem = ({
     if (!lastMsg?.createdAt) return null;
     const date = new Date(lastMsg.createdAt);
     const now = new Date();
-    const diff = now - date;
-    const days = Math.floor(diff / 86400000);
-
-    let label = "";
-    if (days === 0) {
-      label = date.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    } else if (days === 1) {
-      label = "Yesterday";
-    } else if (days < 7) {
-      label = date.toLocaleDateString([], { weekday: "short" });
-    } else {
-      label = date.toLocaleDateString([], {
-        day: "2-digit",
-        month: "2-digit",
-        year: "2-digit",
-      });
-    }
-
+    const days = Math.floor((now - date) / 86400000);
+    const label =
+      days === 0
+        ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        : days === 1
+        ? "Yesterday"
+        : days < 7
+        ? date.toLocaleDateString([], { weekday: "short" })
+        : date.toLocaleDateString([], {
+            day: "2-digit",
+            month: "2-digit",
+            year: "2-digit",
+          });
     return (
       <span className="text-[10px] text-gray-400 dark:text-slate-500 whitespace-nowrap">
         {label}
       </span>
     );
   };
+
+  const showControls = isMobile || hovered || menuOpen;
 
   return (
     <div className="h-20">
@@ -314,6 +301,16 @@ const ChatItem = ({
         />
       )}
 
+      {/* Portal menu */}
+      <ChatContextMenu
+        isOpen={menuOpen}
+        anchorRef={triggerRef}
+        chat={chat}
+        isBlockedByMe={isBlockedByMe}
+        onClose={() => setMenuOpen(false)}
+        onAction={(action) => onChatAction?.(action, chat)}
+      />
+
       <div
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
@@ -323,7 +320,7 @@ const ChatItem = ({
         className={`relative flex items-center gap-3 px-4 py-3 m-1 rounded-2xl cursor-pointer transition-colors
           ${
             isActive
-              ? "bg-emerald-50 dark:bg-emerald-900/20 border-transparent"
+              ? "bg-emerald-50 dark:bg-emerald-900/20"
               : "hover:bg-gray-100 dark:hover:bg-slate-800"
           }`}
       >
@@ -342,10 +339,9 @@ const ChatItem = ({
           </div>
         )}
 
-        {/* Middle Content */}
+        {/* Content */}
         <div className="flex-1 justify-between flex min-w-0">
-          {/* Name row */}
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 min-w-0">
             <p
               className={`text-sm truncate font-semibold ${
                 isActive
@@ -355,7 +351,6 @@ const ChatItem = ({
             >
               {isGroup ? chat.chatName : `${friend?.fName} ${friend?.lName}`}
             </p>
-
             <div className="flex items-center gap-1 mt-0.5">
               {lastMsg?.sender?._id === userId &&
                 (lastMsg?.readBy?.length > 1 ? (
@@ -363,24 +358,21 @@ const ChatItem = ({
                 ) : (
                   <SingleTick size={14} color="#94a3b8" className="shrink-0" />
                 ))}
-
               <div className="text-[12px] text-gray-500 dark:text-slate-400 truncate flex items-center gap-1">
                 {renderLastMessage()}
               </div>
             </div>
           </div>
-          {/* Timestamp + unread badge */}
 
+          {/* Right side */}
           <div className="flex flex-col items-end gap-1 shrink-0 min-w-[72px]">
             <div className="text-right">{renderTimestamp()}</div>
 
             <div className="relative flex items-center justify-end min-h-[22px]">
-              {/* Badge + pin row */}
+              {/* Pin + unread */}
               <div
                 className={`flex items-center gap-2 pr-1 transition-transform duration-200 ${
-                  isMobile || hovered || menuOpen
-                    ? "-translate-x-5"
-                    : "translate-x-0"
+                  showControls ? "-translate-x-5" : "translate-x-0"
                 }`}
               >
                 {chat.isPinned && (
@@ -398,16 +390,17 @@ const ChatItem = ({
                 )}
               </div>
 
-              {/* Chevron + context menu */}
+              {/* Chevron trigger */}
               <div
-                className={`absolute right-0 top-0 z-20 transition-all duration-200 ${
-                  isMobile || hovered || menuOpen
-                    ? "opacity-100 translate-x-0 pointer-events-auto"
-                    : "opacity-0 translate-x-2 pointer-events-none"
-                }`}
+                className={`absolute right-0 top-0 z-20 transition-all duration-200
+                  ${
+                    showControls
+                      ? "opacity-100 translate-x-0 pointer-events-auto"
+                      : "opacity-0 translate-x-2 pointer-events-none"
+                  }`}
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
-                onTouchEnd={(e) => e.stopPropagation()} // ← add
+                onTouchEnd={(e) => e.stopPropagation()}
               >
                 <button
                   ref={triggerRef}
@@ -417,7 +410,6 @@ const ChatItem = ({
                     setMenuOpen((p) => !p);
                   }}
                   onTouchEnd={(e) => {
-                    // ← add
                     e.preventDefault();
                     e.stopPropagation();
                     setMenuOpen((p) => !p);
@@ -426,15 +418,6 @@ const ChatItem = ({
                 >
                   <ChevronDown size={14} />
                 </button>
-
-                <ChatContextMenu
-                  isOpen={menuOpen}
-                  menuRef={menuRef}
-                  chat={chat}
-                  isBlockedByMe={isBlockedByMe}
-                  onClose={() => setMenuOpen(false)}
-                  onAction={(action) => onChatAction?.(action, chat)}
-                />
               </div>
             </div>
           </div>
