@@ -145,6 +145,35 @@ const ChatItem = ({
   const [hovered, setHovered] = useState(false);
   const menuRef = useRef(null);
   const triggerRef = useRef(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    checkMobile(); // initial
+    window.addEventListener("resize", checkMobile);
+
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(e.target)
+      ) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
 
   if (!user || !chat?.users) return null;
 
@@ -171,23 +200,6 @@ const ChatItem = ({
   const lastMsg = chat?.lastMessage;
   const media = lastMsg?.media?.[0]?.name || "";
   const ext = media.split(".").pop()?.toLowerCase();
-
-  // Close menu on outside click
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handler = (e) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(e.target) &&
-        triggerRef.current &&
-        !triggerRef.current.contains(e.target)
-      ) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [menuOpen]);
 
   const renderLastMessage = () => {
     if (!lastMsg) return <span>No messages yet</span>;
@@ -292,9 +304,6 @@ const ChatItem = ({
       </span>
     );
   };
-
-  // Add this near your other state declarations
-  const isMobile = window.matchMedia("(hover: none)").matches;
 
   return (
     <div className="h-20">
