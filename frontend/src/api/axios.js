@@ -3,10 +3,18 @@ import toast from "react-hot-toast";
 import { logger } from "../utils/logger";
 
 let inMemoryToken = null;
+let isSilent = false; // suppress toasts during session restore
 
-export const setToken = (token) => { inMemoryToken = token; };
+export const setToken = (token) => {
+  inMemoryToken = token;
+};
 export const getToken = () => inMemoryToken;
-export const clearToken = () => { inMemoryToken = null; };
+export const clearToken = () => {
+  inMemoryToken = null;
+};
+export const setSilent = (val) => {
+  isSilent = val;
+};
 
 let refreshPromise = null;
 
@@ -28,7 +36,7 @@ export const refreshAccessToken = () => {
       return data.accessToken;
     })
     .catch((err) => {
-      logger(err);
+      logger("Refresh failed:", err);
       clearToken();
       return Promise.reject(err);
     })
@@ -58,7 +66,7 @@ api.interceptors.response.use(
     const isMutating = ["post", "put", "patch", "delete"].includes(method);
     const isMessage = url?.includes("/messages");
 
-    if (isMutating && !isMessage) {
+    if (isMutating && !isMessage && !isSilent) {
       toast.success(response?.data?.message || "Success", { duration: 2000 });
     }
 
@@ -81,8 +89,8 @@ api.interceptors.response.use(
       }
     }
 
-    // Don't toast on 401 — session expired, interceptor already handled it
-    if (status === 401) return Promise.reject(error);
+    // Don't toast on 401 or during silent restore
+    if (status === 401 || isSilent) return Promise.reject(error);
 
     toast.error(error?.response?.data?.message || "Something went wrong", {
       duration: 3000,

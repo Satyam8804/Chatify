@@ -413,11 +413,11 @@ const Sidebar = ({
                 <button
                   key={key}
                   onClick={() => setChatFilter(key)}
-                  className={`shrink-0 px-3 py-[3px] rounded-full text-[11px] font-medium transition-all cursor-pointer
+                  className={`shrink-0 px-4 py-1 rounded-full text-[11px] font-medium transition-all cursor-pointer
         ${
           chatFilter === key
             ? "bg-emerald-500 text-white shadow-sm"
-            : "bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700"
+            : "border-gray-200 border-2 dark:border-slate-800 text-gray-500 dark:text-slate-400 hover:border-gray-200 dark:hover:bg-slate-700"
         }`}
                 >
                   {label}

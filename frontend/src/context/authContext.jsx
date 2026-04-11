@@ -11,6 +11,7 @@ import api, {
   setToken,
   clearToken,
   getToken,
+  setSilent,
   refreshAccessToken,
 } from "../api/axios";
 import { logger } from "../utils/logger";
@@ -30,7 +31,6 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [appReady, setAppReady] = useState(false);
-
   const intervalRef = useRef(null);
 
   const setLoaderText = (text) => {
@@ -48,7 +48,6 @@ export const AuthProvider = ({ children }) => {
     const el = document.getElementById("loader-text");
     if (!el) return;
     el.innerText = LOADER_MESSAGES[0];
-
     intervalRef.current = setInterval(() => {
       const el = document.getElementById("loader-text");
       if (!el) return;
@@ -70,16 +69,27 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     startLoaderRotation();
+    setSilent(true); // suppress toasts during restore
 
     const restoreSession = async () => {
       try {
-        if (!getToken()) await refreshAccessToken();
+        // Step 1: get a fresh access token if none in memory
+        if (!getToken()) {
+          setLoaderText("Refreshing session...");
+          await refreshAccessToken();
+        }
+
+        // Step 2: fetch the user with the token
+        setLoaderText("Syncing conversations...");
         const { data } = await api.get("/users/me");
         setUser(data.user);
-      } catch {
+      } catch (err) {
+        // Refresh or /me failed — user must log in again
+        logger("Session restore failed:", err);
         clearToken();
         setUser(null);
       } finally {
+        setSilent(false);
         setLoading(false);
         setAppReady(true);
         stopLoaderRotation();
@@ -87,7 +97,6 @@ export const AuthProvider = ({ children }) => {
     };
 
     restoreSession();
-
     return () => stopLoaderRotation();
   }, []);
 

@@ -78,11 +78,11 @@ const ChatContextMenu = ({
       ref={menuRef}
       style={{
         position: "absolute",
-        top: "calc(100% - 8px)",
+        bottom: "calc(100% + 4px)", // ← open upward instead of downward
         right: 0,
         minWidth: "190px",
-        zIndex: 100,
-        transformOrigin: "top right",
+        zIndex: 9999, // ← higher z-index
+        transformOrigin: "bottom right", // ← animate from bottom
         transform: isOpen ? "scale(1)" : "scale(0.88)",
         opacity: isOpen ? 1 : 0,
         pointerEvents: isOpen ? "auto" : "none",
@@ -307,10 +307,10 @@ const ChatItem = ({
 
       <div
         onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => {
-          setHovered(false);
+        onMouseLeave={() => setHovered(false)}
+        onClick={() => {
+          if (!menuOpen) onClick();
         }}
-        onClick={onClick}
         className={`relative flex items-center gap-3 px-4 py-3 m-1 rounded-2xl cursor-pointer transition-colors
           ${
             isActive
@@ -398,11 +398,18 @@ const ChatItem = ({
                 }`}
                 onClick={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()} // ← add
               >
                 <button
                   ref={triggerRef}
                   type="button"
                   onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen((p) => !p);
+                  }}
+                  onTouchEnd={(e) => {
+                    // ← add
+                    e.preventDefault();
                     e.stopPropagation();
                     setMenuOpen((p) => !p);
                   }}
