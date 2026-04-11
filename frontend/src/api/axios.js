@@ -4,15 +4,9 @@ import { logger } from "../utils/logger";
 
 let inMemoryToken = null;
 
-export const setToken = (token) => {
-  inMemoryToken = token;
-};
-
+export const setToken = (token) => { inMemoryToken = token; };
 export const getToken = () => inMemoryToken;
-
-export const clearToken = () => {
-  inMemoryToken = null;
-};
+export const clearToken = () => { inMemoryToken = null; };
 
 let refreshPromise = null;
 
@@ -26,7 +20,6 @@ export const refreshAccessToken = () => {
       { withCredentials: true }
     ),
     new Promise((_, reject) =>
-      // ✅ 25s — Render free tier cold starts can take 15-30s
       setTimeout(() => reject(new Error("Refresh timeout")), 25000)
     ),
   ])
@@ -37,7 +30,6 @@ export const refreshAccessToken = () => {
     .catch((err) => {
       logger(err);
       clearToken();
-
       return Promise.reject(err);
     })
     .finally(() => {
@@ -52,12 +44,10 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Attach token
+// Attach token to every request
 api.interceptors.request.use((config) => {
   const token = getToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
@@ -69,9 +59,7 @@ api.interceptors.response.use(
     const isMessage = url?.includes("/messages");
 
     if (isMutating && !isMessage) {
-      toast.success(response?.data?.message || "Success", {
-        duration: 2000,
-      });
+      toast.success(response?.data?.message || "Success", { duration: 2000 });
     }
 
     return response;
@@ -83,18 +71,18 @@ api.interceptors.response.use(
     // Retry once on 401
     if (status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-
       try {
         const newToken = await refreshAccessToken();
-
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
-
         return api(originalRequest);
       } catch (err) {
         clearToken();
         return Promise.reject(err);
       }
     }
+
+    // Don't toast on 401 — session expired, interceptor already handled it
+    if (status === 401) return Promise.reject(error);
 
     toast.error(error?.response?.data?.message || "Something went wrong", {
       duration: 3000,

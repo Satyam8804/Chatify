@@ -17,21 +17,21 @@ import { logger } from "../utils/logger";
 
 const AuthContext = createContext(null);
 
+const LOADER_MESSAGES = [
+  "Restoring session...",
+  "Connecting securely...",
+  "Syncing conversations...",
+  "Almost ready...",
+  "Waking up server...",
+  "Almost there...",
+];
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [appReady, setAppReady] = useState(false);
 
   const intervalRef = useRef(null);
-
-  const loaderMessages = [
-    "Restoring session...",
-    "Connecting securely...",
-    "Syncing conversations...",
-    "Almost ready...",
-    "Waking up server...", // ✅ shown on cold start retry
-    "Almost there...",
-  ];
 
   const setLoaderText = (text) => {
     const el = document.getElementById("loader-text");
@@ -47,18 +47,18 @@ export const AuthProvider = ({ children }) => {
     let i = 0;
     const el = document.getElementById("loader-text");
     if (!el) return;
-    el.innerText = loaderMessages[0];
+    el.innerText = LOADER_MESSAGES[0];
 
     intervalRef.current = setInterval(() => {
       const el = document.getElementById("loader-text");
       if (!el) return;
       el.style.opacity = "0";
       setTimeout(() => {
-        i = (i + 1) % loaderMessages.length;
-        el.innerText = loaderMessages[i];
+        i = (i + 1) % LOADER_MESSAGES.length;
+        el.innerText = LOADER_MESSAGES[i];
         el.style.opacity = "1";
       }, 200);
-    }, 2500); // ✅ slower rotation — 2.5s gives time to read each message
+    }, 2500);
   };
 
   const stopLoaderRotation = () => {
@@ -73,38 +73,16 @@ export const AuthProvider = ({ children }) => {
 
     const restoreSession = async () => {
       try {
-        const token = getToken();
-
-        if (!token) {
-          // No token → try refresh directly
-          await refreshAccessToken();
-        }
-
-        // Try fetching user
+        if (!getToken()) await refreshAccessToken();
         const { data } = await api.get("/users/me");
         setUser(data.user);
-      } catch (error) {
-        try {
-          // 🔁 If failed (likely expired token), try refresh
-          logger("Token expired, trying refresh...", error);
-
-          setLoaderText("Refreshing session...");
-
-          await refreshAccessToken();
-
-          const { data } = await api.get("/users/me");
-          setUser(data.user);
-        } catch (refreshError) {
-          // ❌ Refresh also failed → logout
-          logger("Refresh failed", refreshError);
-          clearToken();
-          setUser(null);
-        }
+      } catch {
+        clearToken();
+        setUser(null);
       } finally {
         setLoading(false);
         setAppReady(true);
         stopLoaderRotation();
-        setLoaderText("Almost ready...");
       }
     };
 
@@ -117,8 +95,6 @@ export const AuthProvider = ({ children }) => {
     const { data } = await api.post("/users/login-user", credentials);
     setToken(data.accessToken);
     setUser(data.user);
-    console.log(data.user);
-
     return data;
   }, []);
 
@@ -161,7 +137,7 @@ export const AuthProvider = ({ children }) => {
       logout,
       refreshUser,
     }),
-    [user, loading, appReady]
+    [user, loading, appReady, login, loginWithToken, logout, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
