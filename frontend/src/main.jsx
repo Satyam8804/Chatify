@@ -11,6 +11,7 @@ import "@fontsource/inter/600.css";
 import { ThemeProvider } from "./context/themeContext";
 import AppWrapper from "./utils/AppWrapper.jsx";
 import { CallProvider } from "./context/callContext.jsx";
+import { BackgroundProvider } from "./context/backgoundContext.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <BrowserRouter>
@@ -18,9 +19,11 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <AuthProvider>
         <CallProvider>
           <SocketProvider>
-            <AppWrapper>
-              <App />
-            </AppWrapper>
+            <BackgroundProvider>
+              <AppWrapper>
+                <App />
+              </AppWrapper>
+            </BackgroundProvider>
           </SocketProvider>
         </CallProvider>
       </AuthProvider>

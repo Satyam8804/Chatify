@@ -18,6 +18,7 @@ import api from "../../api/axios";
 import { logger } from "../../utils/logger";
 import MediaModal from "../common/MediaModal.jsx";
 import ImagePreview from "../chat/ImagePreview.jsx";
+import BackgroundPickerDrawer from "../background/BackgroundPickerDrawer.jsx";
 
 const ChatInfo = ({
   chat,
@@ -39,6 +40,7 @@ const ChatInfo = ({
   const [searching, setSearching] = useState(false);
   const [showMedia, setShowMedia] = useState(false);
   const [previewImage, setPreviewImage] = useState(undefined); // ✅ undefined = closed, null = no photo, string = url
+  const [showBgPicker, setShowBgPicker] = useState(false);
 
   const isAdmin =
     groupChat?.groupAdmin?._id === user?._id ||
@@ -129,6 +131,15 @@ const ChatInfo = ({
         {/* Media Modal */}
         {showMedia && (
           <MediaModal messages={messages} onClose={() => setShowMedia(false)} />
+        )}
+
+        {showBgPicker && (
+          <BackgroundPickerDrawer
+            open={showBgPicker}
+            onClose={() => setShowBgPicker(false)}
+            chat={chat}
+            setSelectedChat={setSelectedChat} // ← add
+          />
         )}
 
         {/* Top accent bar */}
@@ -255,6 +266,34 @@ const ChatInfo = ({
               </p>
             </div>
           )}
+
+          {/* Chat Background */}
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+            <p className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide mb-3">
+              Chat Background
+            </p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="w-16 h-10 rounded-lg overflow-hidden border border-gray-200 dark:border-slate-700 bg-gray-100 dark:bg-slate-800 shrink-0">
+                {chat?.backgroundOverride?.backgroundRef ? (
+                  <img
+                    src={chat.backgroundOverride.backgroundRef.thumbnailUrl}
+                    alt="background"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-slate-600 text-xs">
+                    None
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setShowBgPicker(true)}
+                className="flex-1 text-sm py-2 rounded-xl border border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300 hover:border-emerald-400 hover:text-emerald-500 dark:hover:border-emerald-500 dark:hover:text-emerald-400 transition"
+              >
+                Change Background
+              </button>
+            </div>
+          </div>
 
           {/* Members (Group) */}
           {isGroup && (

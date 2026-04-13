@@ -16,7 +16,6 @@ export default function setupSocket(io) {
   console.log("🟢 Connected:", socket.userId);
 
   socket.join(socket.userId.toString());
-
   presenceSocket(io, socket);
   chatSocket(io, socket);
   typingSocket(io, socket);

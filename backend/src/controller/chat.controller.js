@@ -1,6 +1,5 @@
 import User from "../models/user.model.js"; // ← add this
 import Chat from "../models/chat.model.js";
-
 export const accessChat = async (req, res) => {
   try {
     const { userId } = req.body;
@@ -29,7 +28,11 @@ export const accessChat = async (req, res) => {
       users: { $all: [req.user._id, userId] },
     })
       .populate("users", "-password")
-      .populate("lastMessage");
+      .populate("lastMessage")
+      .populate({
+        path: "backgroundOverride.backgroundRef",
+        select: "assetUrl thumbnailUrl",
+      });
 
     if (chat) return res.json(chat);
 
@@ -61,9 +64,14 @@ export const fetchAllChat = async (req, res) => {
       .populate("users", "-password")
       .populate({
         path: "lastMessage",
-        populate: { path: "sender", select: "fName avatar" }, // ✅
+        populate: { path: "sender", select: "fName avatar" },
+      })
+      .populate({
+        path: "backgroundOverride.backgroundRef",
+        select: "assetUrl thumbnailUrl",
       })
       .sort({ updatedAt: -1 });
+
     res.json(chats);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -208,13 +216,16 @@ export const updateChat = async (req, res) => {
 
     await chat.save();
 
-    // ✅ Re-fetch with full population instead of returning raw save
     const updated = await Chat.findById(chat._id)
       .populate("users", "-password")
       .populate("groupAdmin", "-password")
       .populate({
         path: "lastMessage",
         populate: { path: "sender", select: "fName avatar" },
+      })
+      .populate({
+        path: "backgroundOverride.backgroundRef",
+        select: "assetUrl thumbnailUrl",
       });
 
     res.json(updated);

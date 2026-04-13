@@ -390,7 +390,6 @@ const ChatItem = ({
                 )}
               </div>
 
-              {/* Chevron trigger */}
               <div
                 className={`absolute right-0 top-0 z-20 transition-all duration-200
                   ${
@@ -416,7 +415,7 @@ const ChatItem = ({
                   }}
                   className="p-1 cursor-pointer rounded-full text-gray-400 hover:text-emerald-500 hover:bg-gray-200 dark:hover:bg-slate-700"
                 >
-                  <ChevronDown size={14} />
+                  <ChevronDown size={18} />
                 </button>
               </div>
             </div>

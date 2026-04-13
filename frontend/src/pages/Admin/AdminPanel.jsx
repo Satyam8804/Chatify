@@ -2,30 +2,37 @@ import { useState } from "react";
 import { useAuth } from "../../context/authContext.jsx";
 import { useTheme } from "../../context/themeContext.jsx";
 import { Avatar } from "./AdminHelper.jsx";
-import Dashboard    from "./Dashboard.jsx";
-import UsersPage    from "./UsersPage.jsx";
+import Dashboard from "./Dashboard.jsx";
+import UsersPage from "./UsersPage.jsx";
 import CallAnalytics from "./CallAnalytics.jsx";
-import AdminAppeals  from "./AdminAppeals.jsx";
+import AdminAppeals from "./AdminAppeals.jsx";
 import {
-  LayoutDashboard, Users, PhoneCall, Scale,
-  LogOut, Sun, Moon, Monitor,
+  LayoutDashboard,
+  Users,
+  PhoneCall,
+  Scale,
+  LogOut,
+  Sun,
+  Moon,
+  Monitor,
+  Images, // ← add Images
 } from "lucide-react";
-
-// ─── Theme Toggle ─────────────────────────────────────────────────────────────
+import BackgroundManager from "../../components/background/BackgroundManager.jsx";
 
 const THEME_OPTIONS = [
-  { value: "light",  icon: Sun,     label: "Light"  },
-  { value: "dark",   icon: Moon,    label: "Dark"   },
+  { value: "light", icon: Sun, label: "Light" },
+  { value: "dark", icon: Moon, label: "Dark" },
   { value: "system", icon: Monitor, label: "System" },
 ];
 
 const ThemeToggle = () => {
   const { theme, setTheme } = useTheme();
-  const current = THEME_OPTIONS.find((o) => o.value === theme) ?? THEME_OPTIONS[2];
+  const current =
+    THEME_OPTIONS.find((o) => o.value === theme) ?? THEME_OPTIONS[2];
   const Icon = current.icon;
 
   const cycle = () => {
-    const idx  = THEME_OPTIONS.findIndex((o) => o.value === theme);
+    const idx = THEME_OPTIONS.findIndex((o) => o.value === theme);
     const next = THEME_OPTIONS[(idx + 1) % THEME_OPTIONS.length];
     setTheme(next.value);
   };
@@ -42,16 +49,13 @@ const ThemeToggle = () => {
   );
 };
 
-// ─── Nav config ───────────────────────────────────────────────────────────────
-
 const PAGES = [
-  { id: "dashboard", label: "Dashboard",     icon: LayoutDashboard },
-  { id: "users",     label: "Users",         icon: Users           },
-  { id: "calls",     label: "Call analytics",icon: PhoneCall       },
-  { id: "appeals",   label: "Users Appeals", icon: Scale           },
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "users", label: "Users", icon: Users },
+  { id: "calls", label: "Call analytics", icon: PhoneCall },
+  { id: "appeals", label: "Users Appeals", icon: Scale },
+  { id: "backgrounds", label: "Backgrounds", icon: Images }, // ← add this
 ];
-
-// ─── AdminPanel ───────────────────────────────────────────────────────────────
 
 const AdminPanel = () => {
   const [activePage, setActivePage] = useState("dashboard");
@@ -59,17 +63,17 @@ const AdminPanel = () => {
 
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-gray-950 font-sans transition-colors duration-200">
-
       {/* Sidebar */}
       <aside className="w-56 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col dark:bg-gray-900 dark:border-white/[0.06]">
-
         {/* Logo */}
         <div className="flex items-center gap-2.5 px-4 py-4 border-b border-gray-200 dark:border-white/[0.06]">
           <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
             <LayoutDashboard size={15} className="text-emerald-500" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-gray-900 dark:text-white leading-none">Chatify</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white leading-none">
+              Chatify
+            </p>
             <p className="text-[10px] text-gray-400 mt-0.5">Admin panel</p>
           </div>
         </div>
@@ -121,10 +125,11 @@ const AdminPanel = () => {
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-6 lg:p-8">
-        {activePage === "dashboard" && <Dashboard    />}
-        {activePage === "users"     && <UsersPage    />}
-        {activePage === "calls"     && <CallAnalytics />}
-        {activePage === "appeals"   && <AdminAppeals  />}
+        {activePage === "dashboard" && <Dashboard />}
+        {activePage === "users" && <UsersPage />}
+        {activePage === "calls" && <CallAnalytics />}
+        {activePage === "appeals" && <AdminAppeals />}
+        {activePage === "backgrounds" && <BackgroundManager />}
       </main>
     </div>
   );

@@ -558,12 +558,7 @@ const ChatLayout = () => {
         }
       />
 
-      {/* ─────────────────────────────────────────────────────────────────────
-          CALL LAYER
-          VideoCall is NEVER unmounted while a call is active.
-          When minimized we hide the full overlay with CSS only, so WebRTC
-          connections, media tracks, and socket listeners stay intact.
-      ───────────────────────────────────────────────────────────────────── */}
+    
       {isCalling && (
         <>
           {/* ── Full-screen call overlay ──────────────────────────────────── */}

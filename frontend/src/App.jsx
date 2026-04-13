@@ -16,6 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import AdminAppeals from "./pages/Admin/AdminAppeals.jsx";
 import BannedPage from "./pages/BannedPage.jsx";
+import BackgroundManager from "./components/background/BackgroundManager.jsx";
 
 function App() {
   const { user, appReady } = useAuth();
@@ -104,6 +105,15 @@ function App() {
 
         <Route path="/auth/google/success" element={<GoogleAuthSuccess />} />
         <Route path="*" element={<Navigate to="/" replace />} />
+
+        <Route
+          path="/admin/backgrounds"
+          element={
+            <AdminRoute>
+              <BackgroundManager />
+            </AdminRoute>
+          }
+        />
       </Routes>
     </>
   );

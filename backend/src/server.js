@@ -15,8 +15,7 @@ import setupSocket from "./sockets/index.js";
 import path from "path";
 import adminRoute from "./routes/admin.route.js";
 import appealRoute from "./routes/appeal.route.js";
-
-const __dirname = path.resolve();
+import backgroundRoutes from "./routes/background.routes.js";
 
 connectDB();
 
@@ -69,6 +68,7 @@ app.use("/api/chats", chatRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/admin", adminRoute);
 app.use("/api/appeals", appealRoute);
+app.use("/api/backgrounds", backgroundRoutes);
 
 setupSocket(io);
 

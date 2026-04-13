@@ -45,7 +45,7 @@ export const SocketProvider = ({ children }) => {
     const token = getToken();
     if (!token) return;
 
-    const newSocket = io("https://chatify-jux9.onrender.com", {
+    const newSocket = io("https://chatify-1-8qeq.onrender.com", {
       auth: { token },
       transports: ["websocket"],
       reconnection: true,
@@ -154,7 +154,6 @@ export const SocketProvider = ({ children }) => {
       newSocket.disconnect();
     };
   }, [user?._id]);
-
 
   const contextValue = useMemo(
     () => ({

@@ -185,7 +185,6 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
     ?.map((id) => id.toString())
     .includes(user?._id?.toString());
 
-    
   const handleDeleteMessage = async (messageId) => {
     try {
       const res = await api.delete(`/messages/${messageId}`); // removed extra /api/
@@ -211,6 +210,11 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
     }
   };
 
+  const backgroundUrl =
+    chat?.backgroundOverride?.backgroundRef?.assetUrl ||
+    user?.defaultBackground?.backgroundRef?.assetUrl ||
+    null;
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-slate-900">
       <ChatHeader
@@ -231,6 +235,7 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
           onStartCall={startCall}
           chat={chat}
           onDeleteMessage={handleDeleteMessage}
+          backgroundUrl={backgroundUrl} // ← add this
         />
       </div>
 

@@ -29,7 +29,19 @@ const chatSchema = new mongoose.Schema(
       default: false,
     },
     isPinned: { type: Boolean, default: false },
-    isFavourite: { type: Boolean, default: false },
+
+    backgroundOverride: {
+      backgroundType: {
+        type: String,
+        enum: ["Background", "UserBackground"], // ← must match model names exactly
+        default: null,
+      },
+      backgroundRef: {
+        type: mongoose.Schema.Types.ObjectId,
+        refPath: "backgroundOverride.backgroundType",
+        default: null,
+      },
+    },
   },
   { timestamps: true }
 );

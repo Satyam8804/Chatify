@@ -78,6 +78,19 @@ const UserSchema = new mongoose.Schema(
         default: [],
       },
     ],
+
+    defaultBackground: {
+      backgroundType: {
+        type: String,
+        enum: ["Background", "UserBackground"], // ← must match model names exactly
+        default: null,
+      },
+      backgroundRef: {
+        type: mongoose.Schema.Types.ObjectId,
+        refPath: "defaultBackground.backgroundType", // dynamically refs correct model
+        default: null,
+      },
+    },
   },
 
   { timestamps: true }

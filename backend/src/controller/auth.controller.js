@@ -131,6 +131,7 @@ export const loginUser = async (req, res) => {
         lName: user.lName,
         email: user.email,
         isAdmin: user.isAdmin,
+        defaultBackground: user.defaultBackground, // ← add
       },
       message: "Logged in successfully",
     });
@@ -195,10 +196,13 @@ export const logout = async (req, res) => {
   }
 };
 
-
 export const meRoute = async (req, res) => {
   try {
-    const user = req.user;
+    const user = await User.findById(req.user._id).populate({
+      path: "defaultBackground.backgroundRef",
+      select: "assetUrl thumbnailUrl",
+    });
+
     const accessToken = generateAccessToken(user._id);
     res.json({
       user: {
@@ -208,7 +212,8 @@ export const meRoute = async (req, res) => {
         email: user.email,
         avatar: user.avatar,
         isAdmin: user.isAdmin,
-        blockedUsers: user.blockedUsers ?? [], // ✅ add this
+        blockedUsers: user.blockedUsers ?? [],
+        defaultBackground: user.defaultBackground, // ← add
       },
       accessToken,
     });
@@ -341,7 +346,6 @@ export const googleCallback = async (req, res) => {
     res.redirect(`${process.env.CLIENT_URL}/login?error=oauth_failed`);
   }
 };
-
 
 export const toggleBlock = async (req, res) => {
   try {
