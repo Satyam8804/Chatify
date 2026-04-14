@@ -375,13 +375,25 @@ const Sidebar = ({
             Chatify
           </span>
         </div>
-        <button
-          ref={menuButtonRef}
-          onClick={() => setShowMenus(!showMenus)}
-          className="w-8 h-8 cursor-pointer flex justify-center items-center rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 transition-colors"
-        >
-          <MoreVertical size={20} />
-        </button>
+        <div className="relative" ref={menuButtonRef}>
+          <button
+            onClick={() => setShowMenus(!showMenus)}
+            className="w-8 h-8 cursor-pointer flex justify-center items-center rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <MoreVertical size={20} />
+          </button>
+
+          {showMenus && (
+            <div ref={menuRef}>
+              <Menus
+                setShowProfile={setShowProfile}
+                setShowThemeModal={setShowThemeModal}
+                setShowDirectModal={setShowDirectModal}
+                setShowGroupModal={setShowGroupModal}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Body ── */}
@@ -565,20 +577,6 @@ const Sidebar = ({
           />
         )}
       </div>
-
-      {showMenus && (
-        <div
-          ref={menuRef}
-          className="animate-slideLeft z-50 absolute top-14 right-4"
-        >
-          <Menus
-            setShowProfile={setShowProfile}
-            setShowThemeModal={setShowThemeModal}
-            setShowDirectModal={setShowDirectModal}
-            setShowGroupModal={setShowGroupModal}
-          />
-        </div>
-      )}
       {showProfile && (
         <Profile onClose={() => setShowProfile(false)} user={user} />
       )}
