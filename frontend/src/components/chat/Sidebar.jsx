@@ -39,6 +39,8 @@ const Sidebar = ({
   const [showProfile, setShowProfile] = useState(false);
   const [showThemeModal, setShowThemeModal] = useState(false);
   const [ongoingCall, setOngoingCall] = useState(null);
+  // 1. Add a ref for the button
+  const menuButtonRef = useRef(null);
 
   const [callLogs, setCallLogs] = useState([]);
   const [page, setPage] = useState(1);
@@ -254,9 +256,16 @@ const Sidebar = ({
   }, [socket]);
 
   useEffect(() => {
+    // 3. Update the outside-click handler
     const handleClickOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target))
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target) &&
+        menuButtonRef.current && // ← add this
+        !menuButtonRef.current.contains(e.target) // ← and this
+      ) {
         setShowMenus(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -367,6 +376,7 @@ const Sidebar = ({
           </span>
         </div>
         <button
+          ref={menuButtonRef}
           onClick={() => setShowMenus(!showMenus)}
           className="w-8 h-8 cursor-pointer flex justify-center items-center rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
