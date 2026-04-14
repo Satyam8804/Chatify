@@ -367,7 +367,7 @@ const Sidebar = ({
   };
 
   return (
-    <div className="relative h-full flex flex-col bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-700 transition-colors">
+    <div className="relative h-full flex flex-col bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-700 transition-colors overflow-visible">
       <div className="flex justify-between items-center px-5 py-4 ">
         <div className="flex items-center gap-2">
           <img src={ChatifyLogo} alt="" className="h-12" />
@@ -567,7 +567,10 @@ const Sidebar = ({
       </div>
 
       {showMenus && (
-        <div ref={menuRef} className="animate-slideLeft">
+        <div
+          ref={menuRef}
+          className="animate-slideLeft z-50 absolute top-14 right-4"
+        >
           <Menus
             setShowProfile={setShowProfile}
             setShowThemeModal={setShowThemeModal}
