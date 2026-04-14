@@ -8,7 +8,7 @@ import NewGroupChatModal from "./NewGroupChatModal";
 import { logger } from "../../utils/logger";
 import {
   MoreVertical,
-  MessageSquareText ,
+  MessageSquareText,
   Phone,
   Search, // ← add
   X,
@@ -492,8 +492,14 @@ const Sidebar = ({
               : "text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300"
           }`}
         >
-          <MessageSquareText  size={20} />
-          <span className={`mt-0.5 text-[14px] ${activeTab == 'chats'?`font-bold`:``} `}>Chats</span>
+          <MessageSquareText size={20} />
+          <span
+            className={`mt-0.5 text-[14px] ${
+              activeTab == "chats" ? `font-bold` : ``
+            } `}
+          >
+            Chats
+          </span>
           {activeTab === "chats" && (
             <span className="mt-1 w-1.5 h-1.5 rounded-full bg-emerald-500" />
           )}
@@ -508,14 +514,20 @@ const Sidebar = ({
           }`}
         >
           <div className="relative">
-            <Phone size={20}  />
+            <Phone size={20} />
             {missedCount > 0 && (
               <span className="absolute -top-1.5 -right-2.5 text-[9px] bg-rose-500 text-white min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center">
                 {missedCount}
               </span>
             )}
           </div>
-          <span className={`mt-0.5 text-[14px] ${activeTab == 'calls'?`font-bold`:``} `}>Calls</span>
+          <span
+            className={`mt-0.5 text-[14px] ${
+              activeTab == "calls" ? `font-bold` : ``
+            } `}
+          >
+            Calls
+          </span>
           {ongoingCall && (
             <span className="relative flex h-2 w-2 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-60" />
@@ -545,12 +557,12 @@ const Sidebar = ({
       </div>
 
       {showMenus && (
-        <div ref={menuRef}>
+        <div ref={menuRef} className="animate-slideLeft">
           <Menus
             setShowProfile={setShowProfile}
             setShowThemeModal={setShowThemeModal}
-            setShowDirectModal={setShowDirectModal} // 👈 add
-            setShowGroupModal={setShowGroupModal} // 👈 add
+            setShowDirectModal={setShowDirectModal}
+            setShowGroupModal={setShowGroupModal}
           />
         </div>
       )}
