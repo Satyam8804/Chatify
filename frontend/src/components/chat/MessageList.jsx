@@ -119,61 +119,44 @@ const MessageList = ({
   }, [messages, typingUser]);
 
   return (
-    <div className="h-full relative">
-      {/* Background — sits behind scroll container */}
-      {backgroundUrl && (
-        <>
-          <img
-            src={backgroundUrl}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0"
-          />
-          <div className="absolute inset-0 bg-black/10 dark:bg-black/30 pointer-events-none z-0" />
-        </>
+    <div
+      className={`h-full overflow-y-auto gap-2 hide-scrollbar p-2 pb-4 bg-transparent`}
+    >
+      {messages.map((msg, index) => {
+        const currentLabel = getDateLabel(msg.createdAt);
+        const prevLabel =
+          index > 0 ? getDateLabel(messages[index - 1].createdAt) : null;
+        const showDivider = currentLabel !== prevLabel;
+        return (
+          <div key={msg._id}>
+            {showDivider && <DateDivider label={currentLabel} />}
+            <MessageBubble
+              message={msg}
+              setPreviewImage={setPreviewImage}
+              copiedId={copiedId}
+              setCopiedId={setCopiedId}
+              isOwn={msg.sender?._id === user?._id}
+              isGroup={isGroup}
+              onReply={onReply}
+              messageRefs={messageRefs}
+              onReplyClick={handleReplyClick}
+              onStartCall={onStartCall}
+              onDeleteMessage={onDeleteMessage}
+              chat={chat}
+            />
+          </div>
+        );
+      })}
+
+      {previewImage && (
+        <ImagePreview
+          url={previewImage}
+          onClose={() => setPreviewImage(null)}
+        />
       )}
 
-      {/* Scrollable messages — transparent so bg shows through */}
-      <div
-        className={`h-full overflow-y-auto gap-2 hide-scrollbar p-2 pb-4 relative z-10 ${
-          !backgroundUrl ? "bg-slate-50 dark:bg-slate-950" : "bg-transparent"
-        }`}
-      >
-        {messages.map((msg, index) => {
-          const currentLabel = getDateLabel(msg.createdAt);
-          const prevLabel =
-            index > 0 ? getDateLabel(messages[index - 1].createdAt) : null;
-          const showDivider = currentLabel !== prevLabel;
-          return (
-            <div key={msg._id}>
-              {showDivider && <DateDivider label={currentLabel} />}
-              <MessageBubble
-                message={msg}
-                setPreviewImage={setPreviewImage}
-                copiedId={copiedId}
-                setCopiedId={setCopiedId}
-                isOwn={msg.sender?._id === user?._id}
-                isGroup={isGroup}
-                onReply={onReply}
-                messageRefs={messageRefs}
-                onReplyClick={handleReplyClick}
-                onStartCall={onStartCall}
-                onDeleteMessage={onDeleteMessage}
-                chat={chat}
-              />
-            </div>
-          );
-        })}
-
-        {previewImage && (
-          <ImagePreview
-            url={previewImage}
-            onClose={() => setPreviewImage(null)}
-          />
-        )}
-
-        <TypingIndicator user={typingUser} />
-        <div ref={bottomRef}></div>
-      </div>
+      <TypingIndicator user={typingUser} />
+      <div ref={bottomRef}></div>
     </div>
   );
 };

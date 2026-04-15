@@ -34,7 +34,7 @@ const Menus = ({
         New Group Chat
       </button>
 
-      <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
+      <div className="menu-item my-1 border-t border-gray-100 dark:border-gray-700" />
 
       <button
         onClick={() => setShowProfile(true)}

@@ -224,30 +224,50 @@ const ChatWindow = ({ chat, setSelectedChat, startCall, isCalling }) => {
         onClearChat={() => setMessages([])}
         startCall={startCall}
         isCalling={isCalling}
-        isBlockedByMe={isBlockedByMe} // ✅ add
-        isBlockedByThem={isBlockedByThem}
-      />
-
-      <div className="flex-1 overflow-hidden bg-slate-50 dark:bg-slate-950">
-        <MessageList
-          messages={messages}
-          onReply={setReplyTo}
-          onStartCall={startCall}
-          chat={chat}
-          onDeleteMessage={handleDeleteMessage}
-          backgroundUrl={backgroundUrl} // ← add this
-        />
-      </div>
-
-      <MessageInput
-        chatId={chat._id}
-        onMessageSent={handleNewMessage}
-        replyTo={replyTo}
-        setReplyTo={setReplyTo}
         isBlockedByMe={isBlockedByMe}
         isBlockedByThem={isBlockedByThem}
-        onUnblock={handleUnblock}
       />
+
+      {/* Background wrapper — covers messages + input */}
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        {/* Background image */}
+        {backgroundUrl && (
+          <>
+            <img
+              src={backgroundUrl}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0"
+            />
+            <div className="absolute inset-0 bg-black/10 dark:bg-black/30 pointer-events-none z-0" />
+          </>
+        )}
+
+        {/* Messages */}
+        <div className="flex-1 overflow-hidden relative z-10">
+          <MessageList
+            messages={messages}
+            onReply={setReplyTo}
+            onStartCall={startCall}
+            chat={chat}
+            onDeleteMessage={handleDeleteMessage}
+            backgroundUrl={backgroundUrl}
+          />
+        </div>
+
+        {/* Input */}
+        <div className="relative z-10">
+          <MessageInput
+            chatId={chat._id}
+            onMessageSent={handleNewMessage}
+            replyTo={replyTo}
+            setReplyTo={setReplyTo}
+            isBlockedByMe={isBlockedByMe}
+            isBlockedByThem={isBlockedByThem}
+            onUnblock={handleUnblock}
+            hasBackground={!!backgroundUrl}
+          />
+        </div>
+      </div>
     </div>
   );
 };
