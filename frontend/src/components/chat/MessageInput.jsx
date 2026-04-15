@@ -16,67 +16,45 @@ import { logger } from "../../utils/logger";
 import sentSound from "../../assets/sound/sent.mp3";
 import { PhoneCall } from "lucide-react";
 
-/* ─── Inject keyframes once (module-level, runs once) ───────────────────── */
 const STYLE_ID = "msg-input-animations";
 if (!document.getElementById(STYLE_ID)) {
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
-    /* GPU compositing hints – eliminate sub-pixel flicker */
     .plus-icon-wrap {
       display: flex;
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
       will-change: transform;
-      backface-visibility: hidden;
-      -webkit-backface-visibility: hidden;
-      transform: translateZ(0) rotate(0deg) scale(1);
+    }
+    .plus-icon-wrap.is-open {
+      transform: rotate(45deg) scale(1.1);
+    }
+    .plus-icon-wrap.is-closed {
+      transform: rotate(0deg) scale(1);
     }
 
-    @keyframes plusOpen {
-      0%   { transform: translateZ(0) rotate(0deg)   scale(1);    }
-      55%  { transform: translateZ(0) rotate(210deg) scale(1.2);  }
-      75%  { transform: translateZ(0) rotate(140deg) scale(0.92); }
-      100% { transform: translateZ(0) rotate(135deg) scale(1);    }
-    }
-    @keyframes plusClose {
-      0%   { transform: translateZ(0) rotate(135deg) scale(1);    }
-      55%  { transform: translateZ(0) rotate(-30deg) scale(1.15); }
-      75%  { transform: translateZ(0) rotate(10deg)  scale(0.95); }
-      100% { transform: translateZ(0) rotate(0deg)   scale(1);    }
-    }
-
-    .plus-open  { animation: plusOpen  0.4s cubic-bezier(0.34, 1.45, 0.64, 1) forwards; }
-    .plus-close { animation: plusClose 0.38s cubic-bezier(0.34, 1.45, 0.64, 1) forwards; }
-
-    /* Menu container */
     @keyframes menuBloom {
-      0%   { opacity: 0; transform: translateZ(0) scale(0.6) translateY(10px); }
-      60%  { opacity: 1; transform: translateZ(0) scale(1.03) translateY(-2px); }
-      80%  { transform: translateZ(0) scale(0.98) translateY(0px); }
-      100% { transform: translateZ(0) scale(1) translateY(0px); }
+      0%   { opacity: 0; transform: scale(0.85) translateY(8px); }
+      70%  { opacity: 1; transform: scale(1.02) translateY(-2px); }
+      100% { transform: scale(1) translateY(0); }
     }
     .menu-bloom {
       transform-origin: bottom left;
-      will-change: transform, opacity;
-      backface-visibility: hidden;
-      animation: menuBloom 0.36s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+      animation: menuBloom 0.25s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
     }
 
-    /* Menu items */
     @keyframes itemSlide {
-      0%   { opacity: 0; transform: translateZ(0) translateX(-14px) scale(0.94); }
-      65%  { opacity: 1; transform: translateZ(0) translateX(3px)   scale(1.02); }
-      100% { opacity: 1; transform: translateZ(0) translateX(0px)   scale(1);    }
+      0%   { opacity: 0; transform: translateX(-10px); }
+      100% { opacity: 1; transform: translateX(0); }
     }
     .item-slide {
       opacity: 0;
-      will-change: transform, opacity;
-      backface-visibility: hidden;
-      animation: itemSlide 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      animation: itemSlide 0.2s ease forwards;
     }
     .item-slide:nth-child(1) { animation-delay: 0.03s; }
-    .item-slide:nth-child(2) { animation-delay: 0.09s; }
-    .item-slide:nth-child(3) { animation-delay: 0.15s; }
-    .item-slide:nth-child(4) { animation-delay: 0.21s; }
+    .item-slide:nth-child(2) { animation-delay: 0.08s; }
+    .item-slide:nth-child(3) { animation-delay: 0.13s; }
+    .item-slide:nth-child(4) { animation-delay: 0.18s; }
   `;
   document.head.appendChild(style);
 }
@@ -100,37 +78,11 @@ const MessageInput = ({
   const menuRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const iconRef = useRef(null); // stable ref for the Plus icon wrapper
-  const isFirstRender = useRef(true); // skip animation on mount
 
   const { socket } = useSocket();
   const { user } = useAuth();
 
   const isBlocked = isBlockedByMe || isBlockedByThem;
-
-  /* ── Animate icon imperatively on a stable DOM node ── */
-  useEffect(() => {
-    const el = iconRef.current;
-    if (!el) return;
-
-    // No animation on first render — icon is already at rest
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-
-    const addCls = showMenu ? "plus-open" : "plus-close";
-    const remCls = showMenu ? "plus-close" : "plus-open";
-
-    // Remove opposite class, force reflow, then add new class
-    el.classList.remove(remCls);
-    void el.offsetWidth; // reflow — makes browser recognise the class change
-    el.classList.add(addCls);
-
-    // Clean up after animation so future toggles start fresh
-    const cleanup = () => el.classList.remove(addCls);
-    el.addEventListener("animationend", cleanup, { once: true });
-    return () => el.removeEventListener("animationend", cleanup);
-  }, [showMenu]);
 
   /* ── Message send ── */
   const sendMessage = async () => {
@@ -409,7 +361,12 @@ const MessageInput = ({
                     : "text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800"
                 }`}
               >
-                <span ref={iconRef} className="plus-icon-wrap">
+                <span
+                  ref={iconRef}
+                  className={`plus-icon-wrap ${
+                    showMenu ? "is-open" : "is-closed"
+                  }`}
+                >
                   <Plus size={20} />
                 </span>
               </button>
