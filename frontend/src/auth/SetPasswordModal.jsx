@@ -252,7 +252,6 @@ const SetPasswordModal = ({
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  // ✅ fix
                   {hasPassword
                     ? "Verify & change password"
                     : "Verify & set password"}
