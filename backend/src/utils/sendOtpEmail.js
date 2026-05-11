@@ -5,8 +5,13 @@ client.authentications["api-key"].apiKey = process.env.BREVO_API_KEY;
 
 const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
 
+console.log("🔧 [Brevo] SDK initialized");
+console.log("🔑 [Brevo] API key present:", !!process.env.BREVO_API_KEY);
+console.log("📧 [Brevo] Sender email:", process.env.BREVO_SENDER_EMAIL);
+
 export const sendOtpEmail = async (to, otp) => {
-  console.log("📤 [sendOtpEmail] Sending via Brevo API to:", to);
+  console.log("📤 [sendOtpEmail] Starting send to:", to);
+  console.log("🔑 [sendOtpEmail] API key at call time:", !!process.env.BREVO_API_KEY);
 
   const otpCells = otp
     .split("")
@@ -26,7 +31,7 @@ export const sendOtpEmail = async (to, otp) => {
     )
     .join("");
 
-  await apiInstance.sendTransacEmail({
+  const emailData = {
     sender: {
       email: process.env.BREVO_SENDER_EMAIL,
       name: "Chatify",
@@ -43,52 +48,53 @@ export const sendOtpEmail = async (to, otp) => {
     <tr>
       <td align="center">
         <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.07);">
-
-          <!-- Header -->
           <tr>
             <td style="background:linear-gradient(135deg,#10b981,#14b8a6);padding:32px;text-align:center;">
               <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">Chatify</h1>
               <p style="margin:6px 0 0;color:rgba(255,255,255,0.8);font-size:13px;">Email Verification</p>
             </td>
           </tr>
-
-          <!-- Body -->
           <tr>
             <td style="padding:40px 32px;">
               <p style="margin:0 0 8px;color:#111827;font-size:16px;font-weight:600;">Verify your email address</p>
               <p style="margin:0 0 32px;color:#6b7280;font-size:14px;line-height:1.6;">
-                Use the code below to complete your Chatify registration. It expires in <strong>10 minutes</strong>.
+                Use the code below to complete your registration. It expires in <strong>10 minutes</strong>.
               </p>
-
-              <!-- OTP boxes -->
               <table cellpadding="0" cellspacing="0" style="margin:0 auto 32px;">
                 <tr>${otpCells}</tr>
               </table>
-
               <p style="margin:0;color:#9ca3af;font-size:12px;text-align:center;line-height:1.6;">
                 If you didn't create a Chatify account, you can safely ignore this email.<br/>
                 Never share this code with anyone.
               </p>
             </td>
           </tr>
-
-          <!-- Footer -->
           <tr>
             <td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:20px 32px;text-align:center;">
               <p style="margin:0;color:#9ca3af;font-size:11px;">
-                This is an automated message, please do not reply.<br/>
-                You are receiving this because you requested an account verification code.
+                This is an automated message, please do not reply.
               </p>
             </td>
           </tr>
-
         </table>
       </td>
     </tr>
   </table>
 </body>
 </html>`,
-  });
+  };
 
-  console.log("✅ [sendOtpEmail] Delivered successfully to:", to);
+  console.log("📨 [sendOtpEmail] Calling Brevo API...");
+
+  try {
+    const response = await apiInstance.sendTransacEmail(emailData);
+    console.log("✅ [sendOtpEmail] Delivered successfully to:", to);
+    console.log("📬 [sendOtpEmail] Brevo response:", JSON.stringify(response));
+  } catch (err) {
+    console.error("❌ [sendOtpEmail] Brevo API error:");
+    console.error("   status :", err?.status);
+    console.error("   message:", err?.message);
+    console.error("   body   :", JSON.stringify(err?.response?.body || err?.response || err));
+    throw err;
+  }
 };
