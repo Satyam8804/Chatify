@@ -5,8 +5,31 @@ client.authentications["api-key"].apiKey = process.env.BREVO_API_KEY;
 
 const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
 
+// type: "register" | "set-password" | "change-password"
+export const sendOtpEmail = async (to, otp, type = "register") => {
 
-export const sendOtpEmail = async (to, otp) => {
+  const config = {
+    "register": {
+      subject: "Verify your Chatify account",
+      heading: "Verify your email address",
+      subtext: "Use the code below to complete your Chatify registration. It expires in <strong>10 minutes</strong>.",
+      footer: "You are receiving this because you requested to create a Chatify account.",
+    },
+    "set-password": {
+      subject: "Set your Chatify password",
+      heading: "Set your password",
+      subtext: "Use the code below to verify it's you before setting your password. It expires in <strong>10 minutes</strong>.",
+      footer: "You are receiving this because you requested to add a password to your Chatify account.",
+    },
+    "change-password": {
+      subject: "Change your Chatify password",
+      heading: "Change your password",
+      subtext: "Use the code below to verify it's you before updating your password. It expires in <strong>10 minutes</strong>.",
+      footer: "You are receiving this because you requested a password change on your Chatify account.",
+    },
+  };
+
+  const { subject, heading, subtext, footer } = config[type] || config["register"];
 
   const otpCells = otp
     .split("")
@@ -32,7 +55,7 @@ export const sendOtpEmail = async (to, otp) => {
       name: "Chatify",
     },
     to: [{ email: to }],
-    subject: "Your Chatify verification code",
+    subject,
     textContent: `Your Chatify verification code is: ${otp}\n\nThis code expires in 10 minutes.\nDo not share it with anyone.\n\nIf you didn't request this, please ignore this email.`,
     htmlContent: `
 <!DOCTYPE html>
@@ -51,15 +74,12 @@ export const sendOtpEmail = async (to, otp) => {
           </tr>
           <tr>
             <td style="padding:40px 32px;">
-              <p style="margin:0 0 8px;color:#111827;font-size:16px;font-weight:600;">Verify your email address</p>
-              <p style="margin:0 0 32px;color:#6b7280;font-size:14px;line-height:1.6;">
-                Use the code below to complete your registration. It expires in <strong>10 minutes</strong>.
-              </p>
+              <p style="margin:0 0 8px;color:#111827;font-size:16px;font-weight:600;">${heading}</p>
+              <p style="margin:0 0 32px;color:#6b7280;font-size:14px;line-height:1.6;">${subtext}</p>
               <table cellpadding="0" cellspacing="0" style="margin:0 auto 32px;">
                 <tr>${otpCells}</tr>
               </table>
               <p style="margin:0;color:#9ca3af;font-size:12px;text-align:center;line-height:1.6;">
-                If you didn't create a Chatify account, you can safely ignore this email.<br/>
                 Never share this code with anyone.
               </p>
             </td>
@@ -67,7 +87,8 @@ export const sendOtpEmail = async (to, otp) => {
           <tr>
             <td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:20px 32px;text-align:center;">
               <p style="margin:0;color:#9ca3af;font-size:11px;">
-                This is an automated message, please do not reply.
+                This is an automated message, please do not reply.<br/>
+                ${footer}
               </p>
             </td>
           </tr>
@@ -79,11 +100,11 @@ export const sendOtpEmail = async (to, otp) => {
 </html>`,
   };
 
-
   try {
-    const response = await apiInstance.sendTransacEmail(emailData);
+    await apiInstance.sendTransacEmail(emailData);
+    console.log(`✅ [sendOtpEmail] [${type}] Delivered to:`, to);
   } catch (err) {
-    
+    console.error(`❌ [sendOtpEmail] [${type}] Failed:`, err?.response?.body || err?.message);
     throw err;
   }
 };

@@ -3,7 +3,13 @@ import { Lock, Mail, Eye, EyeOff, ShieldCheck, X } from "lucide-react";
 import api from "../api/axios";
 import Loader from "../utils/Loader";
 
-const SetPasswordModal = ({ isOpen, onClose, userEmail, onSuccess ,hasPassword }) => {
+const SetPasswordModal = ({
+  isOpen,
+  onClose,
+  userEmail,
+  onSuccess,
+  hasPassword,
+}) => {
   const [step, setStep] = useState(1); // 1 = send otp, 2 = enter otp + password
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [otpError, setOtpError] = useState("");
@@ -92,7 +98,10 @@ const SetPasswordModal = ({ isOpen, onClose, userEmail, onSuccess ,hasPassword }
   const handleSendOtp = async () => {
     setSending(true);
     try {
-      await api.post("/users/send-set-password-otp");
+      const endpoint = hasPassword
+        ? "send-reset-password-otp"
+        : "send-set-password-otp";
+      await api.post(`/users/${endpoint}`);
       setStep(2);
       startCooldown();
       setTimeout(() => otpRefs.current[0]?.focus(), 100);
@@ -109,7 +118,10 @@ const SetPasswordModal = ({ isOpen, onClose, userEmail, onSuccess ,hasPassword }
     setOtpError("");
     setSending(true);
     try {
-      await api.post("/users/send-set-password-otp");
+      const endpoint = hasPassword
+        ? "send-reset-password-otp"
+        : "send-set-password-otp";
+      await api.post(`/users/${endpoint}`);
       startCooldown();
       setTimeout(() => otpRefs.current[0]?.focus(), 100);
     } catch {
@@ -134,7 +146,8 @@ const SetPasswordModal = ({ isOpen, onClose, userEmail, onSuccess ,hasPassword }
 
     setSubmitting(true);
     try {
-      await api.post("/users/set-password", { otp: enteredOtp, password });
+      const endpoint = hasPassword ? "reset-password" : "set-password";
+      await api.post(`/users/${endpoint}`, { otp: enteredOtp, password });
       resetModal();
       onSuccess?.();
     } catch (err) {
@@ -239,7 +252,10 @@ const SetPasswordModal = ({ isOpen, onClose, userEmail, onSuccess ,hasPassword }
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  Verify & set password
+                  // ✅ fix
+                  {hasPassword
+                    ? "Verify & change password"
+                    : "Verify & set password"}
                 </h2>
                 <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">
                   Enter the code sent to{" "}

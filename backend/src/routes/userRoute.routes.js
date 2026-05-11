@@ -67,5 +67,8 @@ router.post("/send-otp", sendOtp);
 router.post("/send-set-password-otp", protect, sendSetPasswordOtp);
 router.post("/set-password", protect, setPassword);
 
+router.post("/send-reset-password-otp", protect, sendResetPasswordOtp);
+router.post("/reset-password", protect, resetPassword);
+
 
 export default router;

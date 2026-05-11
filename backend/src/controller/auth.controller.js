@@ -58,7 +58,7 @@ export const sendOtp = async (req, res) => {
 
     await OTP.create({ email: normalizedEmail, otp: hashedOtp });
 
-    await sendOtpEmail(normalizedEmail, otp);
+    await sendOtpEmail(normalizedEmail, otp, "register");
 
     res.status(200).json({ message: "OTP sent to your email" });
   } catch (error) {
@@ -499,7 +499,7 @@ export const sendSetPasswordOtp = async (req, res) => {
     const hashedOtp = await bcrypt.hash(otp, 10);
     await OTP.create({ email, otp: hashedOtp });
 
-    await sendOtpEmail(email, otp);
+    await sendOtpEmail(email, otp, "set-password");
 
 
     res.status(200).json({ message: "Verification code sent to your email" });
@@ -557,6 +557,91 @@ export const setPassword = async (req, res) => {
     await user.save();
 
     res.status(200).json({ message: "Password set successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+
+export const sendResetPasswordOtp = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select("+password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (!user.password) {
+      return res.status(400).json({
+        message: "No existing password. Use set password instead.",
+      });
+    }
+
+    const email = user.email;
+    const recentOtp = await OTP.findOne({ email });
+    if (recentOtp) {
+      const secondsSince = (Date.now() - new Date(recentOtp.createdAt).getTime()) / 1000;
+      if (secondsSince < 60) {
+        return res.status(429).json({
+          message: `Please wait ${Math.ceil(60 - secondsSince)}s before requesting a new code`,
+        });
+      }
+      await OTP.deleteOne({ email });
+    }
+
+    const otp = generateOtp();
+    const hashedOtp = await bcrypt.hash(otp, 10);
+    await OTP.create({ email, otp: hashedOtp });
+    await sendOtpEmail(email, otp, "change-password");
+
+    res.status(200).json({ message: "Verification code sent to your email" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to send OTP. Please try again." });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const { otp, password } = req.body;
+
+    if (!otp || !password) {
+      return res.status(400).json({ message: "OTP and password are required" });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
+
+    const user = await User.findById(req.user._id).select("+password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Prevent reusing same password
+    const isSame = await bcrypt.compare(password, user.password);
+    if (isSame) {
+      return res.status(400).json({
+        message: "New password must be different from your current password.",
+      });
+    }
+
+    const otpRecord = await OTP.findOne({ email: user.email });
+    if (!otpRecord) {
+      return res.status(400).json({ message: "OTP expired or not found. Please request a new one." });
+    }
+    if (otpRecord.attempts >= MAX_OTP_ATTEMPTS) {
+      await OTP.deleteOne({ email: user.email });
+      return res.status(400).json({ message: "Too many failed attempts. Please request a new OTP." });
+    }
+
+    const isOtpValid = await bcrypt.compare(otp, otpRecord.otp);
+    if (!isOtpValid) {
+      await OTP.updateOne({ email: user.email }, { $inc: { attempts: 1 } });
+      const remaining = MAX_OTP_ATTEMPTS - (otpRecord.attempts + 1);
+      return res.status(400).json({
+        message: `Invalid OTP. ${remaining} attempt${remaining !== 1 ? "s" : ""} remaining.`,
+      });
+    }
+
+    await OTP.deleteOne({ email: user.email });
+    user.password = await bcrypt.hash(password, 10);
+    await user.save();
+
+    res.status(200).json({ message: "Password updated successfully" });
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
   }
