@@ -1,9 +1,25 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,       // smtp-relay.brevo.com
+  port: Number(process.env.SMTP_PORT) || 2525,
+  secure: false,
+  auth: {
+    user: process.env.SMTP_USER,     // your brevo login email
+    pass: process.env.SMTP_PASS,     // your brevo SMTP key
+  },
+});
+
+transporter.verify((error) => {
+  if (error) {
+    console.error("❌ [SMTP] Connection failed:", error.message);
+  } else {
+    console.log("✅ [SMTP] Brevo server is ready to send emails");
+  }
+});
 
 export const sendOtpEmail = async (to, otp) => {
-  console.log("📤 [sendOtpEmail] Sending via Resend to:", to);
+  console.log("📤 [sendOtpEmail] Sending via Brevo to:", to);
 
   const otpCells = otp
     .split("")
@@ -23,8 +39,8 @@ export const sendOtpEmail = async (to, otp) => {
     )
     .join("");
 
-  const { data, error } = await resend.emails.send({
-    from: "Chatify <onboarding@resend.dev>",
+  const mailOptions = {
+    from: `"Chatify" <${process.env.SMTP_USER}>`,
     to,
     subject: "Your Chatify verification code",
     text: `Your Chatify verification code is: ${otp}\n\nThis code expires in 10 minutes.\nDo not share it with anyone.\n\nIf you didn't request this, please ignore this email.`,
@@ -82,12 +98,8 @@ export const sendOtpEmail = async (to, otp) => {
   </table>
 </body>
 </html>`,
-  });
+  };
 
-  if (error) {
-    console.error("❌ [sendOtpEmail] Resend error:", error);
-    throw new Error(error.message);
-  }
-
-  console.log("✅ [sendOtpEmail] Delivered — ID:", data.id);
+  const info = await transporter.sendMail(mailOptions);
+  console.log("✅ [sendOtpEmail] Delivered — accepted:", info.accepted, "| rejected:", info.rejected);
 };
