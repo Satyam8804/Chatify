@@ -13,6 +13,8 @@ import {
   sendOtp,
   sendSetPasswordOtp,
   setPassword,
+  sendResetPasswordOtp,
+  resetPassword,
 } from "../controller/auth.controller.js";
 
 import { uploadSingle } from "../middlewares/upload.js";
