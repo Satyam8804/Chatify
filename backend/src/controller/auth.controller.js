@@ -1,8 +1,10 @@
 import User from "../models/user.model.js";
+import OTP from "../models/otp.model.js";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import getInitials from "../utils/getInitials.js";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
-import cloudinary from "../utils/cloudinary.js"; // ✅ needed for destroy in updateMe
+import cloudinary from "../utils/cloudinary.js";
 import jwt from "jsonwebtoken";
 import Appeal from "../models/appeal.model.js";
 
@@ -11,12 +13,65 @@ import {
   generateRefreshToken,
 } from "../utils/generateToken.js";
 import { getPublicIdFromUrl } from "./message.controller.js";
+import { sendOtpEmail } from "../utils/sendOtpEmail.js";
+
+const generateOtp = () => String(crypto.randomInt(100000, 999999));
+
+const MAX_OTP_ATTEMPTS = 5;
+
+export const sendOtp = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Block if email is already registered
+    const existingUser = await User.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email is already registered" });
+    }
+
+    // Rate-limit: allow max 1 OTP request per minute per email
+    const recentOtp = await OTP.findOne({ email: normalizedEmail });
+    if (recentOtp) {
+      const secondsSinceCreated =
+        (Date.now() - new Date(recentOtp.createdAt).getTime()) / 1000;
+
+      if (secondsSinceCreated < 60) {
+        return res.status(429).json({
+          message: `Please wait ${Math.ceil(
+            60 - secondsSinceCreated
+          )}s before requesting a new code`,
+        });
+      }
+
+      // Delete the old OTP so we can create a fresh one
+      await OTP.deleteOne({ email: normalizedEmail });
+    }
+
+    const otp = generateOtp();
+    const hashedOtp = await bcrypt.hash(otp, 10);
+
+    await OTP.create({ email: normalizedEmail, otp: hashedOtp });
+
+    await sendOtpEmail(normalizedEmail, otp);
+
+    res.status(200).json({ message: "OTP sent to your email" });
+  } catch (error) {
+    console.error("SEND OTP ERROR 👉", error);
+    res.status(500).json({ message: "Failed to send OTP. Please try again." });
+  }
+};
 
 export const registerUser = async (req, res) => {
   try {
-    const { fName, lName, email, password } = req.body;
+    const { fName, lName, email, password, otp } = req.body;
 
-    if (!fName || !lName || !email || !password) {
+    if (!fName || !lName || !email || !password || !otp) {
       return res.status(400).json({
         message: "All required fields must be provided",
       });
@@ -24,14 +79,52 @@ export const registerUser = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
+    // ── 1. Verify OTP ──────────────────────────────────────────────
+    const otpRecord = await OTP.findOne({ email: normalizedEmail });
+
+    if (!otpRecord) {
+      return res.status(400).json({
+        message: "OTP expired or not found. Please request a new one.",
+      });
+    }
+
+    // Brute-force guard
+    if (otpRecord.attempts >= MAX_OTP_ATTEMPTS) {
+      await OTP.deleteOne({ email: normalizedEmail });
+      return res.status(400).json({
+        message: "Too many failed attempts. Please request a new OTP.",
+      });
+    }
+
+    const isOtpValid = await bcrypt.compare(otp, otpRecord.otp);
+
+    if (!isOtpValid) {
+      // Increment failed attempts
+      await OTP.updateOne(
+        { email: normalizedEmail },
+        { $inc: { attempts: 1 } }
+      );
+
+      const remaining = MAX_OTP_ATTEMPTS - (otpRecord.attempts + 1);
+      return res.status(400).json({
+        message: `Invalid OTP. ${remaining} attempt${
+          remaining !== 1 ? "s" : ""
+        } remaining.`,
+      });
+    }
+
+    // OTP is valid — delete it immediately (one-time use)
+    await OTP.deleteOne({ email: normalizedEmail });
+
+    // ── 2. Check duplicate email ────────────────────────────────────
     const userExist = await User.findOne({ email: normalizedEmail });
     if (userExist) {
       return res.status(400).json({ message: "User already exists" });
     }
 
+    // ── 3. Create user ──────────────────────────────────────────────
     const hashedPwd = await bcrypt.hash(password, 10);
 
-    // Create user first so we have the _id for the avatar public_id
     const newUser = await User.create({
       fName: fName.trim(),
       lName: lName.trim(),
@@ -41,7 +134,6 @@ export const registerUser = async (req, res) => {
     });
 
     if (req.file) {
-      // ✅ use newUser._id so avatar URL is unique per user
       const result = await uploadToCloudinary(
         req.file.buffer,
         req.file.originalname,
@@ -85,7 +177,6 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    // ✅ Ban check — before password verification
     if (user.isBanned) {
       const existingAppeal = await Appeal.findOne({
         user: user._id,
@@ -100,6 +191,10 @@ export const loginUser = async (req, res) => {
         userId: user._id,
         hasActiveAppeal: !!existingAppeal,
       });
+    }
+
+    if (!user.password) {
+      return res.status(401).json({ message: "Invalid email or password" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -131,7 +226,7 @@ export const loginUser = async (req, res) => {
         lName: user.lName,
         email: user.email,
         isAdmin: user.isAdmin,
-        defaultBackground: user.defaultBackground, // ← add
+        defaultBackground: user.defaultBackground,
       },
       message: "Logged in successfully",
     });
@@ -198,7 +293,9 @@ export const logout = async (req, res) => {
 
 export const meRoute = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).populate({
+    const user = await User.findById(req.user._id)
+    .select("+password") 
+    .populate({
       path: "defaultBackground.backgroundRef",
       select: "assetUrl thumbnailUrl",
     });
@@ -212,8 +309,9 @@ export const meRoute = async (req, res) => {
         email: user.email,
         avatar: user.avatar,
         isAdmin: user.isAdmin,
+        hasPassword: !!user.password,
         blockedUsers: user.blockedUsers ?? [],
-        defaultBackground: user.defaultBackground, // ← add
+        defaultBackground: user.defaultBackground,
       },
       accessToken,
     });
@@ -233,7 +331,6 @@ export const updateMe = async (req, res) => {
     if (req.file) {
       const currentUser = await User.findById(req.user._id);
 
-      // ✅ delete old avatar from Cloudinary before uploading new one
       if (currentUser?.avatar) {
         const public_id = getPublicIdFromUrl(currentUser.avatar);
         if (public_id) {
@@ -243,12 +340,11 @@ export const updateMe = async (req, res) => {
         }
       }
 
-      // ✅ fixed: req.file.buffer and req.file.originalname
       const result = await uploadToCloudinary(
         req.file.buffer,
         req.file.originalname,
         "avatars",
-        req.user._id // ✅ unique per user — no cache collisions
+        req.user._id
       );
       updates.avatar = result.secure_url;
     }
@@ -289,7 +385,7 @@ export const searchUsers = async (req, res) => {
 
     const users = await User.find({
       _id: { $ne: req.user._id },
-      email: email, // ✅ exact match only
+      email: email,
     }).select("-password");
 
     res.json({ users });
@@ -300,9 +396,8 @@ export const searchUsers = async (req, res) => {
 
 export const googleCallback = async (req, res) => {
   try {
-    const user = req.user; // set by passport
+    const user = req.user;
 
-    // 🔴 ✅ BAN CHECK (same as loginUser)
     if (user.isBanned) {
       const existingAppeal = await Appeal.findOne({
         user: user._id,
@@ -322,7 +417,6 @@ export const googleCallback = async (req, res) => {
       );
     }
 
-    // ✅ Normal login flow
     const accessToken = generateAccessToken(user._id);
     const refreshToken = generateRefreshToken(user._id);
 
@@ -365,10 +459,9 @@ export const toggleBlock = async (req, res) => {
 
     await currentUser.save();
 
-    // ✅ notify the affected user in real-time
     req.io.to(userId.toString()).emit("block-status-changed", {
       byUserId: req.user._id.toString(),
-      isBlocked: !isBlocked, // true = they blocked you, false = unblocked
+      isBlocked: !isBlocked,
     });
 
     res.json({
@@ -379,5 +472,92 @@ export const toggleBlock = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+};
+
+export const sendSetPasswordOtp = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+  
+    const email = user.email;
+
+    const recentOtp = await OTP.findOne({ email });
+    if (recentOtp) {
+      const secondsSince = (Date.now() - new Date(recentOtp.createdAt).getTime()) / 1000;
+      if (secondsSince < 60) {
+        const wait = Math.ceil(60 - secondsSince);
+        return res.status(429).json({
+          message: `Please wait ${wait}s before requesting a new code`,
+        });
+      }
+      await OTP.deleteOne({ email });
+    }
+
+    const otp = generateOtp();
+    const hashedOtp = await bcrypt.hash(otp, 10);
+    await OTP.create({ email, otp: hashedOtp });
+
+    await sendOtpEmail(email, otp);
+
+
+    res.status(200).json({ message: "Verification code sent to your email" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to send OTP. Please try again." });
+  }
+};
+
+export const setPassword = async (req, res) => {
+  try {
+    const { otp, password } = req.body;
+
+    if (!otp || !password) {
+      return res.status(400).json({ message: "OTP and password are required" });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+
+    // ── Verify OTP ─────────────────────────────────────────────────
+    const otpRecord = await OTP.findOne({ email: user.email });
+
+    if (!otpRecord) {
+      return res.status(400).json({
+        message: "OTP expired or not found. Please request a new one.",
+      });
+    }
+
+    if (otpRecord.attempts >= MAX_OTP_ATTEMPTS) {
+      await OTP.deleteOne({ email: user.email });
+      return res.status(400).json({
+        message: "Too many failed attempts. Please request a new OTP.",
+      });
+    }
+
+    const isOtpValid = await bcrypt.compare(otp, otpRecord.otp);
+    if (!isOtpValid) {
+      await OTP.updateOne({ email: user.email }, { $inc: { attempts: 1 } });
+      const remaining = MAX_OTP_ATTEMPTS - (otpRecord.attempts + 1);
+      return res.status(400).json({
+        message: `Invalid OTP. ${remaining} attempt${remaining !== 1 ? "s" : ""} remaining.`,
+      });
+    }
+
+    // OTP valid — delete immediately
+    await OTP.deleteOne({ email: user.email });
+
+    // ── Hash and save password ──────────────────────────────────────
+    user.password = await bcrypt.hash(password, 10);
+    await user.save();
+
+    res.status(200).json({ message: "Password set successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Server Error" });
   }
 };

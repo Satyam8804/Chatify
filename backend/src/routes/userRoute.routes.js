@@ -10,6 +10,9 @@ import {
   searchUsers,
   googleCallback,
   toggleBlock,
+  sendOtp,
+  sendSetPasswordOtp,
+  setPassword,
 } from "../controller/auth.controller.js";
 
 import { uploadSingle } from "../middlewares/upload.js";
@@ -58,5 +61,11 @@ router.get(
 );
 
 router.patch("/block", protect, toggleBlock);
+
+router.post("/send-otp", sendOtp);
+
+router.post("/send-set-password-otp", protect, sendSetPasswordOtp);
+router.post("/set-password", protect, setPassword);
+
 
 export default router;

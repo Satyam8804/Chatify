@@ -1,10 +1,19 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import AvatarUpload from "./uploadAvatar";
 import Loader from "../utils/Loader";
-import { Mail, Lock, User, ChevronLeft, Eye, EyeOff } from "lucide-react";
+import {
+  Mail,
+  Lock,
+  User,
+  ChevronLeft,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+} from "lucide-react";
 import GoogleLoginButton from "./common/GoogleLoginButton.jsx";
 import logo from "../assets/logo.png";
+import api from "../api/axios.js";
 
 const AuthForm = ({ mode = "login", onSubmit, loading }) => {
   const isLogin = mode === "login";
@@ -12,6 +21,12 @@ const AuthForm = ({ mode = "login", onSubmit, loading }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordStrength, setPasswordStrength] = useState("");
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpError, setOtpError] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const otpRefs = useRef([]);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -49,14 +64,99 @@ const AuthForm = ({ mode = "login", onSubmit, loading }) => {
     setStep(2);
   };
 
+  // Handle OTP digit input
+  const handleOtpChange = (index, value) => {
+    if (!/^\d*$/.test(value)) return; // digits only
+    const updated = [...otp];
+    updated[index] = value.slice(-1); // one digit per box
+    setOtp(updated);
+    setOtpError("");
+    if (value && index < 5) {
+      otpRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData
+      .getData("text")
+      .replace(/\D/g, "")
+      .slice(0, 6);
+    if (!pasted) return;
+    const updated = [...otp];
+    pasted.split("").forEach((char, i) => {
+      updated[i] = char;
+    });
+    setOtp(updated);
+    otpRefs.current[Math.min(pasted.length, 5)]?.focus();
+  };
+
+  const handleSendOtp = async (e) => {
+    e.preventDefault();
+    setOtpSending(true);
+    try {
+      await api.post("/users/send-otp", { email: formData.email });
+      setOtpSent(true);
+      setStep(3);
+      startResendCooldown();
+    } catch (err) {
+      setOtpError(err?.response?.data?.message || "Failed to send OTP");
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const startResendCooldown = () => {
+    setResendCooldown(30);
+    const interval = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    setOtp(["", "", "", "", "", ""]);
+    setOtpError("");
+    setOtpSending(true);
+    try {
+      await api.post("/users/send-otp", { email: formData.email });
+      startResendCooldown();
+    } catch (err) {
+      setOtpError(err?.response?.data?.message || "Failed to resend OTP");
+    } finally {
+      setOtpSending(false);
+      otpRefs.current[0]?.focus();
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
+
     if (mode === "register") {
+      const enteredOtp = otp.join("");
+      if (enteredOtp.length < 6) {
+        setOtpError("Please enter all 6 digits.");
+        return;
+      }
+
       const formDataToSend = new FormData();
       formDataToSend.append("email", formData.email.toLowerCase());
       formDataToSend.append("password", formData.password);
       formDataToSend.append("fName", formData.fName);
       formDataToSend.append("lName", formData.lName);
+      formDataToSend.append("otp", enteredOtp);
       if (formData.avatar) formDataToSend.append("avatar", formData.avatar);
       onSubmit(formDataToSend);
     } else {
@@ -66,6 +166,8 @@ const AuthForm = ({ mode = "login", onSubmit, loading }) => {
       });
     }
   };
+
+  const otpComplete = otp.every((d) => d !== "");
 
   return (
     <div className="w-full max-w-sm">
@@ -89,27 +191,33 @@ const AuthForm = ({ mode = "login", onSubmit, loading }) => {
         <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500" />
 
         <div className="p-8">
-          {/* Step indicator for register */}
+          {/* Step indicator for register — now 3 steps */}
           {!isLogin && (
             <div className="flex items-center gap-2 mb-6">
-              <div
-                className={`h-1.5 rounded-full flex-1 transition-all duration-500 ${
-                  step >= 1 ? "bg-emerald-500" : "bg-gray-200 dark:bg-slate-700"
-                }`}
-              />
-              <div
-                className={`h-1.5 rounded-full flex-1 transition-all duration-500 ${
-                  step >= 2 ? "bg-emerald-500" : "bg-gray-200 dark:bg-slate-700"
-                }`}
-              />
+              {[1, 2, 3].map((s) => (
+                <div
+                  key={s}
+                  className={`h-1.5 rounded-full flex-1 transition-all duration-500 ${
+                    step >= s
+                      ? "bg-emerald-500"
+                      : "bg-gray-200 dark:bg-slate-700"
+                  }`}
+                />
+              ))}
             </div>
           )}
 
           {/* Header */}
           <div className="mb-7">
-            {!isLogin && step === 2 && (
+            {!isLogin && step > 1 && (
               <button
-                onClick={() => setStep(1)}
+                onClick={() => {
+                  if (step === 3) {
+                    setOtp(["", "", "", "", "", ""]);
+                    setOtpError("");
+                  }
+                  setStep(step - 1);
+                }}
                 className="flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-emerald-500 mb-4 transition-colors"
               >
                 <ChevronLeft size={14} /> Back
@@ -120,14 +228,18 @@ const AuthForm = ({ mode = "login", onSubmit, loading }) => {
                 ? "Welcome back"
                 : step === 1
                 ? "Create account"
-                : "Your profile"}
+                : step === 2
+                ? "Your profile"
+                : "Verify email"}
             </h2>
             <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">
               {isLogin
                 ? "Sign in to continue to Chatify"
                 : step === 1
                 ? "Fill in your details to get started"
-                : "Almost done — add your name"}
+                : step === 2
+                ? "Almost done — add your name"
+                : `Enter the 6-digit code sent to ${formData.email}`}
             </p>
           </div>
 
@@ -160,7 +272,7 @@ const AuthForm = ({ mode = "login", onSubmit, loading }) => {
             </form>
           )}
 
-          {/* REGISTER STEP 1 */}
+          {/* REGISTER STEP 1 — credentials */}
           {!isLogin && step === 1 && (
             <form onSubmit={handleNext} className="space-y-4">
               <Field
@@ -223,9 +335,9 @@ const AuthForm = ({ mode = "login", onSubmit, loading }) => {
             </form>
           )}
 
-          {/* REGISTER STEP 2 */}
+          {/* REGISTER STEP 2 — profile + Send OTP */}
           {!isLogin && step === 2 && (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSendOtp} className="space-y-4">
               <AvatarUpload onChange={handleChange} />
               <div className="grid grid-cols-2 gap-3">
                 <Field
@@ -243,7 +355,97 @@ const AuthForm = ({ mode = "login", onSubmit, loading }) => {
                   onChange={handleChange}
                 />
               </div>
-              <SubmitButton loading={loading} text="Create Account" />
+
+              <button
+                type="submit"
+                disabled={otpSending || !formData.fName || !formData.lName}
+                className="w-full h-11 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2"
+              >
+                {otpSending ? (
+                  <Loader />
+                ) : (
+                  <>
+                    <Mail size={15} />
+                    Send OTP
+                  </>
+                )}
+              </button>
+            </form>
+          )}
+
+          {/* REGISTER STEP 3 — OTP verification */}
+          {!isLogin && step === 3 && (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Shield icon */}
+              <div className="flex justify-center">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 flex items-center justify-center">
+                  <ShieldCheck size={26} className="text-emerald-500" />
+                </div>
+              </div>
+
+              {/* 6-digit OTP boxes */}
+              <div>
+                <label className="block text-xs font-semibold mb-3 text-center text-gray-600 dark:text-slate-400">
+                  Enter verification code
+                </label>
+                <div
+                  className="flex justify-center gap-2.5"
+                  onPaste={handleOtpPaste}
+                >
+                  {otp.map((digit, i) => (
+                    <input
+                      key={i}
+                      ref={(el) => (otpRefs.current[i] = el)}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleOtpChange(i, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                      className={`w-11 h-13 text-center text-lg font-bold rounded-xl border-2 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none transition-all duration-200 ${
+                        otpError
+                          ? "border-red-400 focus:border-red-400 focus:ring-2 focus:ring-red-400/30"
+                          : digit
+                          ? "border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+                          : "border-gray-200 dark:border-slate-700 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30"
+                      }`}
+                      style={{ width: "2.75rem", height: "3.25rem" }}
+                    />
+                  ))}
+                </div>
+
+                {otpError && (
+                  <p className="text-xs text-red-400 mt-2.5 text-center flex items-center justify-center gap-1">
+                    <span className="inline-block w-1 h-1 rounded-full bg-red-400" />
+                    {otpError}
+                  </p>
+                )}
+              </div>
+
+              {/* Resend */}
+              <p className="text-xs text-center text-gray-400 dark:text-slate-500">
+                Didn't receive a code?{" "}
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={resendCooldown > 0 || otpSending}
+                  className={`font-medium transition-colors ${
+                    resendCooldown > 0 || otpSending
+                      ? "text-gray-300 dark:text-slate-600 cursor-not-allowed"
+                      : "text-emerald-500 hover:text-emerald-400 cursor-pointer"
+                  }`}
+                >
+                  {resendCooldown > 0
+                    ? `Resend in ${resendCooldown}s`
+                    : "Resend OTP"}
+                </button>
+              </p>
+
+              <SubmitButton
+                loading={loading}
+                text="Verify & Create Account"
+                disabled={!otpComplete}
+              />
             </form>
           )}
 
