@@ -5,13 +5,8 @@ client.authentications["api-key"].apiKey = process.env.BREVO_API_KEY;
 
 const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
 
-console.log("🔧 [Brevo] SDK initialized");
-console.log("🔑 [Brevo] API key present:", !!process.env.BREVO_API_KEY);
-console.log("📧 [Brevo] Sender email:", process.env.BREVO_SENDER_EMAIL);
 
 export const sendOtpEmail = async (to, otp) => {
-  console.log("📤 [sendOtpEmail] Starting send to:", to);
-  console.log("🔑 [sendOtpEmail] API key at call time:", !!process.env.BREVO_API_KEY);
 
   const otpCells = otp
     .split("")
@@ -84,17 +79,11 @@ export const sendOtpEmail = async (to, otp) => {
 </html>`,
   };
 
-  console.log("📨 [sendOtpEmail] Calling Brevo API...");
 
   try {
     const response = await apiInstance.sendTransacEmail(emailData);
-    console.log("✅ [sendOtpEmail] Delivered successfully to:", to);
-    console.log("📬 [sendOtpEmail] Brevo response:", JSON.stringify(response));
   } catch (err) {
-    console.error("❌ [sendOtpEmail] Brevo API error:");
-    console.error("   status :", err?.status);
-    console.error("   message:", err?.message);
-    console.error("   body   :", JSON.stringify(err?.response?.body || err?.response || err));
+    
     throw err;
   }
 };
