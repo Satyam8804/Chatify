@@ -1,41 +1,33 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: process.env.SMTP_SECURE === "true",
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
-transporter.verify((error) => {
-  if (error) {
-    console.error("❌ [SMTP] Connection failed:", error.message);
-  } else {
-    console.log("✅ [SMTP] Server is ready to send emails");
-  }
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export const sendOtpEmail = async (to, otp) => {
-  const mailOptions = {
-    from: `"Chatify" <${process.env.SMTP_USER}>`,
+  console.log("📤 [sendOtpEmail] Sending via Resend to:", to);
+
+  const otpCells = otp
+    .split("")
+    .map(
+      (d) => `
+      <td style="padding:0 4px;">
+        <div style="
+          width:48px;height:56px;
+          background:#f0fdf4;
+          border:2px solid #10b981;
+          border-radius:12px;
+          font-size:26px;font-weight:700;
+          color:#065f46;
+          text-align:center;line-height:56px;
+        ">${d}</div>
+      </td>`
+    )
+    .join("");
+
+  const { data, error } = await resend.emails.send({
+    from: "Chatify <onboarding@chatify.dev>",
     to,
     subject: "Your Chatify verification code",
-
-    // ── Anti-spam headers ──────────────────────────────────────────
-    headers: {
-      "X-Priority": "1",
-      "X-Mailer": "Nodemailer",
-      "X-Category": "transactional",
-      Precedence: "transactional",
-      "List-Unsubscribe": `<mailto:${process.env.SMTP_USER}?subject=unsubscribe>`,
-    },
-
-    // Plain text fallback — required to avoid spam score penalty
     text: `Your Chatify verification code is: ${otp}\n\nThis code expires in 10 minutes.\nDo not share it with anyone.\n\nIf you didn't request this, please ignore this email.`,
-
     html: `
 <!DOCTYPE html>
 <html lang="en">
@@ -62,11 +54,9 @@ export const sendOtpEmail = async (to, otp) => {
                 Use the code below to complete your Chatify registration. It expires in <strong>10 minutes</strong>.
               </p>
 
-              <!-- OTP boxes (table-based for email clients) -->
+              <!-- OTP boxes -->
               <table cellpadding="0" cellspacing="0" style="margin:0 auto 32px;">
-                <tr>
-                  OTPPLACEHOLDER
-                </tr>
+                <tr>${otpCells}</tr>
               </table>
 
               <p style="margin:0;color:#9ca3af;font-size:12px;text-align:center;line-height:1.6;">
@@ -92,27 +82,12 @@ export const sendOtpEmail = async (to, otp) => {
   </table>
 </body>
 </html>`,
-  };
+  });
 
-  // Build OTP digit cells and inject
-  const otpCells = otp
-    .split("")
-    .map(
-      (d) => `
-      <td style="padding:0 4px;">
-        <div style="
-          width:48px;height:56px;
-          background:#f0fdf4;
-          border:2px solid #10b981;
-          border-radius:12px;
-          font-size:26px;font-weight:700;
-          color:#065f46;
-          text-align:center;line-height:56px;
-        ">${d}</div>
-      </td>`
-    )
-    .join("");
+  if (error) {
+    console.error("❌ [sendOtpEmail] Resend error:", error);
+    throw new Error(error.message);
+  }
 
-  mailOptions.html = mailOptions.html.replace("OTPPLACEHOLDER", otpCells);
-  await transporter.sendMail(mailOptions);
+  console.log("✅ [sendOtpEmail] Delivered — ID:", data.id);
 };
