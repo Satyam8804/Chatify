@@ -1,25 +1,12 @@
-import nodemailer from "nodemailer";
+import SibApiV3Sdk from "sib-api-v3-sdk";
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,       // smtp-relay.brevo.com
-  port: Number(process.env.SMTP_PORT) || 2525,
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,     // your brevo login email
-    pass: process.env.SMTP_PASS,     // your brevo SMTP key
-  },
-});
+const client = SibApiV3Sdk.ApiClient.instance;
+client.authentications["api-key"].apiKey = process.env.BREVO_API_KEY;
 
-transporter.verify((error) => {
-  if (error) {
-    console.error("❌ [SMTP] Connection failed:", error.message);
-  } else {
-    console.log("✅ [SMTP] Brevo server is ready to send emails");
-  }
-});
+const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
 
 export const sendOtpEmail = async (to, otp) => {
-  console.log("📤 [sendOtpEmail] Sending via Brevo to:", to);
+  console.log("📤 [sendOtpEmail] Sending via Brevo API to:", to);
 
   const otpCells = otp
     .split("")
@@ -39,12 +26,15 @@ export const sendOtpEmail = async (to, otp) => {
     )
     .join("");
 
-  const mailOptions = {
-    from: `"Chatify" <${process.env.SMTP_USER}>`,
-    to,
+  await apiInstance.sendTransacEmail({
+    sender: {
+      email: process.env.BREVO_SENDER_EMAIL,
+      name: "Chatify",
+    },
+    to: [{ email: to }],
     subject: "Your Chatify verification code",
-    text: `Your Chatify verification code is: ${otp}\n\nThis code expires in 10 minutes.\nDo not share it with anyone.\n\nIf you didn't request this, please ignore this email.`,
-    html: `
+    textContent: `Your Chatify verification code is: ${otp}\n\nThis code expires in 10 minutes.\nDo not share it with anyone.\n\nIf you didn't request this, please ignore this email.`,
+    htmlContent: `
 <!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -98,8 +88,7 @@ export const sendOtpEmail = async (to, otp) => {
   </table>
 </body>
 </html>`,
-  };
+  });
 
-  const info = await transporter.sendMail(mailOptions);
-  console.log("✅ [sendOtpEmail] Delivered — accepted:", info.accepted, "| rejected:", info.rejected);
+  console.log("✅ [sendOtpEmail] Delivered successfully to:", to);
 };
