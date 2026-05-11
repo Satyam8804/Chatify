@@ -24,7 +24,7 @@ export const sendOtpEmail = async (to, otp) => {
     .join("");
 
   const { data, error } = await resend.emails.send({
-    from: "Chatify <onboarding@chatify.dev>",
+    from: "Chatify <onboarding@resend.dev>",
     to,
     subject: "Your Chatify verification code",
     text: `Your Chatify verification code is: ${otp}\n\nThis code expires in 10 minutes.\nDo not share it with anyone.\n\nIf you didn't request this, please ignore this email.`,
