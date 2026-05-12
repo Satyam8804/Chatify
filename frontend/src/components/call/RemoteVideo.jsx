@@ -43,7 +43,7 @@ const RemoteVideo = ({ stream }) => {
         autoPlay
         playsInline
         muted={false}
-        className="w-full h-full object-contain transform-gpu"
+        className="w-full h-full object-cover transform-gpu"
       />
     </div>
   );
