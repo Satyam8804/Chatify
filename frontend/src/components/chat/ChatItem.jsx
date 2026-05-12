@@ -208,7 +208,7 @@ const ChatItem = ({
     if (!lastMsg) return <span>No messages yet</span>;
     if (lastMsg.isDeleted)
       return (
-        <span className="flex gap-1italic text-gray-400 dark:text-slate-500">
+        <span className="flex gap-1 justify-center items-center italic text-gray-400 dark:text-slate-500">
           <Ban size={12} className="opacity-70" />
           {lastMsg.sender?._id === userId
             ? "You deleted this message"
