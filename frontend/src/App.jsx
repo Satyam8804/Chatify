@@ -11,32 +11,33 @@ import GoogleAuthSuccess from "./auth/google/success/GoogleAuthSuccess";
 import AdminPanel from "./pages/Admin/AdminPanel.jsx";
 import AdminRoute from "./routes/AdminRoute.jsx";
 
-import { useAuth } from "./context/authContext";
-import { useNavigate } from "react-router-dom";
-import { useEffect } from "react";
+// import { useAuth } from "./context/authContext";
+// import { useNavigate } from "react-router-dom";
+// import { useEffect } from "react";
 import AdminAppeals from "./pages/Admin/AdminAppeals.jsx";
 import BannedPage from "./pages/BannedPage.jsx";
 import BackgroundManager from "./components/background/BackgroundManager.jsx";
 
 function App() {
-  const { user, appReady } = useAuth();
-  const navigate = useNavigate();
+  // const { user, appReady } = useAuth();
+  // const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!appReady) return;
+  // useEffect(() => {
+  //   if (!appReady) return;
 
-    const path = window.location.pathname;
+  //   const path = window.location.pathname;
 
-    // ✅ If already on admin, don't override
-    if (path.startsWith("/admin")) return;
+  //   // ✅ If already on admin, don't override
+  //   if (path.startsWith("/admin")) return;
 
-    // 🔥 Role-based redirect
-    if (user?.isAdmin) {
-      navigate("/admin", { replace: true });
-    } else if (user) {
-      navigate("/chat", { replace: true });
-    }
-  }, [user, appReady]);
+  //   // 🔥 Role-based redirect
+  //   if (user?.isAdmin) {
+  //     navigate("/admin", { replace: true });
+  //   } else if (user) {
+  //     navigate("/chat", { replace: true });
+  //   }
+  // }, [user, appReady]);
+
   return (
     <>
       <Toaster
