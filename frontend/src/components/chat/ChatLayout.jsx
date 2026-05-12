@@ -1,14 +1,21 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  forwardRef,
+  useImperativeHandle,
+} from "react"; // ✅ change 1: added forwardRef, useImperativeHandle
 import { useSocket } from "../../context/socketContext";
 import { useAuth } from "../../context/authContext";
-import { useCallContext } from "../../context/callContext"; // ← NEW
+import { useCallContext } from "../../context/callContext";
 import EmptyChatState from "./EmptyChatState";
 import VideoCall from "../call/VideoCall.jsx";
-import MiniCallPlayer from "../call/MiniCallPlayer.jsx"; // ← NEW
+import MiniCallPlayer from "../call/MiniCallPlayer.jsx";
 import outgoingRingFile from "../../assets/sound/outgoing-ring.mp3";
 import IncomingCallModal from "../common/IncomingCallModal.jsx";
 import api from "../../api/axios.js";
-import { Minimize2 } from "lucide-react"; // ← NEW
+import { Minimize2 } from "lucide-react";
 
 import { lazy, Suspense } from "react";
 import Loader from "../../utils/Loader";
@@ -29,7 +36,8 @@ const SIDEBAR_MAX_WIDTH = 520;
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
-const ChatLayout = () => {
+// ✅ change 2: wrap with forwardRef so Chat.jsx can pass a ref in
+const ChatLayout = forwardRef((props, ref) => {
   const [selectedChat, setSelectedChat] = useState(null);
   const [isCalling, setIsCalling] = useState(false);
   const [callTargetName, setCallTargetName] = useState("");
@@ -43,15 +51,12 @@ const ChatLayout = () => {
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [isDesktop, setIsDesktop] = useState(true);
 
-  // ── Mini call state ──────────────────────────────────────────────────────
-  // Streams captured at minimize time. MediaStream refs are stable so the
-  // mini video keeps playing even though VideoCall owns the track lifecycle.
   const [miniStreams, setMiniStreams] = useState({ local: null, remotes: [] });
   const [miniIsMuted, setMiniIsMuted] = useState(false);
   const [miniIsVideoOff, setMiniIsVideoOff] = useState(false);
 
   const { isMinimized, minimizeCall, maximizeCall, resetMinimize } =
-    useCallContext(); // ← NEW
+    useCallContext();
 
   const { socket } = useSocket();
   const { user } = useAuth();
@@ -77,6 +82,14 @@ const ChatLayout = () => {
     startX: 0,
     startWidth: SIDEBAR_DEFAULT_WIDTH,
   });
+
+  // ✅ change 3: expose closeChat() so Chat.jsx can call it on Android back press.
+  // On mobile, this collapses the chat window and shows the contacts sidebar.
+  useImperativeHandle(ref, () => ({
+    closeChat: () => {
+      setSelectedChat(null);
+    },
+  }));
 
   // ── Viewport detection ───────────────────────────────────────────────────
   useEffect(() => {
@@ -187,10 +200,10 @@ const ChatLayout = () => {
     setIsGroupCall(false);
     setInitiator(null);
     setCallType("video");
-    setMiniStreams({ local: null, remotes: [] }); // ← NEW: clear captured streams
+    setMiniStreams({ local: null, remotes: [] });
     setMiniIsMuted(false);
     setMiniIsVideoOff(false);
-    resetMinimize(); // ← NEW: always un-minimize on end
+    resetMinimize();
 
     isCallingRef.current = false;
     callChatIdRef.current = null;
@@ -428,12 +441,7 @@ const ChatLayout = () => {
     [socket]
   );
 
-  // ── Minimize handler — captures stream snapshots before hiding ───────────
-  /**
-   * We snapshot the MediaStream references from VideoCall's exposed ref API.
-   * MediaStream objects are stable references; the underlying tracks keep
-   * flowing regardless of UI visibility, so the mini video stays live.
-   */
+  // ── Minimize handler ─────────────────────────────────────────────────────
   const handleMinimize = useCallback(() => {
     if (videoCallRef.current) {
       setMiniStreams({
@@ -558,7 +566,6 @@ const ChatLayout = () => {
         }
       />
 
-    
       {isCalling && (
         <>
           {/* ── Full-screen call overlay ──────────────────────────────────── */}
@@ -617,7 +624,7 @@ const ChatLayout = () => {
               </div>
             </div>
 
-            {/* VideoCall body — always mounted, streams stay alive */}
+            {/* VideoCall body */}
             <div className="flex-1 min-h-0 w-full">
               <Suspense
                 fallback={
@@ -638,7 +645,7 @@ const ChatLayout = () => {
             </div>
           </div>
 
-          {/* ── Floating mini player (rendered when minimized) ────────────── */}
+          {/* ── Floating mini player ──────────────────────────────────────── */}
           {isMinimized && (
             <MiniCallPlayer
               callTargetName={callTargetName}
@@ -657,6 +664,9 @@ const ChatLayout = () => {
       )}
     </div>
   );
-};
+});
+
+// ✅ Display name for React DevTools
+ChatLayout.displayName = "ChatLayout";
 
 export default ChatLayout;

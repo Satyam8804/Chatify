@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 
 import ProtectedRoute from "./routes/ProtectedRoute";
@@ -11,32 +11,64 @@ import GoogleAuthSuccess from "./auth/google/success/GoogleAuthSuccess";
 import AdminPanel from "./pages/Admin/AdminPanel.jsx";
 import AdminRoute from "./routes/AdminRoute.jsx";
 
-// import { useAuth } from "./context/authContext";
-// import { useNavigate } from "react-router-dom";
-// import { useEffect } from "react";
+import { useAuth } from "./context/authContext";
+import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import AdminAppeals from "./pages/Admin/AdminAppeals.jsx";
 import BannedPage from "./pages/BannedPage.jsx";
 import BackgroundManager from "./components/background/BackgroundManager.jsx";
 
+// Routes where the back button should NOT exit the app
+const MAIN_ROUTES = ["/chat", "/admin", "/admin/appeals", "/admin/backgrounds"];
+
 function App() {
-  // const { user, appReady } = useAuth();
-  // const navigate = useNavigate();
+  const { user, appReady } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  // useEffect(() => {
-  //   if (!appReady) return;
+  // Role-based redirect on login
+  useEffect(() => {
+    if (!appReady) return;
 
-  //   const path = window.location.pathname;
+    const path = window.location.pathname;
 
-  //   // ✅ If already on admin, don't override
-  //   if (path.startsWith("/admin")) return;
+    // If already on admin, don't override
+    if (path.startsWith("/admin")) return;
 
-  //   // 🔥 Role-based redirect
-  //   if (user?.isAdmin) {
-  //     navigate("/admin", { replace: true });
-  //   } else if (user) {
-  //     navigate("/chat", { replace: true });
-  //   }
-  // }, [user, appReady]);
+    if (user?.isAdmin) {
+      navigate("/admin", { replace: true });
+    } else if (user) {
+      navigate("/chat", { replace: true });
+    }
+  }, [user, appReady]);
+
+  // ✅ Android back button fix:
+  // When the user is on a main screen, push a dummy history entry so
+  // the back button has somewhere to go instead of closing the app.
+  // On popstate (back press), we re-push to stay in the app, and
+  // dispatch a custom event so child components (e.g. ChatLayout)
+  // can react (e.g. close the active chat panel).
+  useEffect(() => {
+    const isMainRoute = MAIN_ROUTES.some((route) =>
+      location.pathname.startsWith(route)
+    );
+
+    if (!isMainRoute) return;
+
+    // Push a state so the browser has a history entry to "go back" to
+    history.pushState({ chatify: true }, "", window.location.href);
+
+    const handlePopState = (e) => {
+      // Re-push to prevent the app from closing
+      history.pushState({ chatify: true }, "", window.location.href);
+
+      // Notify child components (ChatLayout listens to this)
+      window.dispatchEvent(new CustomEvent("chatify:backpress"));
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [location.pathname]);
 
   return (
     <>
@@ -83,7 +115,7 @@ function App() {
           }
         />
 
-        {/* ✅ Admin panel */}
+        {/* Admin panel */}
         <Route
           path="/admin"
           element={
