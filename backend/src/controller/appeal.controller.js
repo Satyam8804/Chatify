@@ -8,7 +8,9 @@ export const submitAppeal = async (req, res) => {
     const { userId, reason } = req.body;
 
     if (!userId || !reason)
-      return res.status(400).json({ message: "userId and reason are required" });
+      return res
+        .status(400)
+        .json({ message: "userId and reason are required" });
 
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -18,9 +20,15 @@ export const submitAppeal = async (req, res) => {
     // Prevent duplicate pending appeals
     const existing = await Appeal.findOne({ user: userId, status: "pending" });
     if (existing)
-      return res.status(409).json({ message: "You already have a pending appeal" });
+      return res
+        .status(409)
+        .json({ message: "You already have a pending appeal" });
 
-    const appeal = await Appeal.create({ user: userId, reason ,bannedAt:Date.now });
+    const appeal = await Appeal.create({
+      user: userId,
+      reason,
+      bannedAt: Date.now,
+    });
 
     res.status(201).json({ message: "Appeal submitted successfully", appeal });
   } catch (error) {
@@ -38,7 +46,10 @@ export const getAppeals = async (req, res) => {
       .populate("reviewedBy", "fName lName")
       .sort({ createdAt: -1 });
 
-    res.json({ appeals });
+    // Filter out appeals whose user was deleted
+    const validAppeals = appeals.filter((appeal) => appeal.user !== null);
+
+    res.json({ appeals: validAppeals });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -51,7 +62,9 @@ export const reviewAppeal = async (req, res) => {
     const { action, adminNote } = req.body; // action: "approved" | "rejected"
 
     if (!["approved", "rejected"].includes(action))
-      return res.status(400).json({ message: "action must be approved or rejected" });
+      return res
+        .status(400)
+        .json({ message: "action must be approved or rejected" });
 
     const appeal = await Appeal.findById(id).populate("user");
     if (!appeal) return res.status(404).json({ message: "Appeal not found" });
