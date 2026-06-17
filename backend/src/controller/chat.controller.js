@@ -27,7 +27,7 @@ export const accessChat = async (req, res) => {
       isGroupChat: false,
       users: { $all: [req.user._id, userId] },
     })
-      .populate("users", "-password")
+      .populate("users", "-password -refreshToken")
       .populate("lastMessage")
       .populate({
         path: "backgroundOverride.backgroundRef",
@@ -61,7 +61,7 @@ export const fetchAllChat = async (req, res) => {
     const chats = await Chat.find({
       users: { $in: [req.user._id] },
     })
-      .populate("users", "-password")
+      .populate("users", "-password -refreshToken")
       .populate({
         path: "lastMessage",
         populate: { path: "sender", select: "fName avatar" },
