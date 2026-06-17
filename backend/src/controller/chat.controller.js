@@ -7,28 +7,27 @@ export const accessChat = async (req, res) => {
     if (!userId)
       return res.status(400).json({ message: "UserId is Required!" });
 
-    // ✅ Block checks
-    const currentUser = await User.findById(req.user._id);
-    const otherUser = await User.findById(userId);
+    const currentUser = await User.findById(req.user._id).select("blockedUsers");
+    const otherUser = await User.findById(userId).select("blockedUsers");
 
     if (!otherUser) return res.status(404).json({ message: "User not found" });
 
     if (currentUser.blockedUsers.map((id) => id.toString()).includes(userId))
       return res.status(403).json({ message: "You have blocked this user" });
 
-    if (
-      otherUser.blockedUsers
-        .map((id) => id.toString())
-        .includes(req.user._id.toString())
-    )
+    if (otherUser.blockedUsers.map((id) => id.toString()).includes(req.user._id.toString()))
       return res.status(403).json({ message: "You cannot message this user" });
 
     const chat = await Chat.findOne({
       isGroupChat: false,
       users: { $all: [req.user._id, userId] },
     })
-      .populate("users", "-password -refreshToken")
-      .populate("lastMessage")
+      .populate("users", "fName lName avatar isOnline lastSeen")  // ✅ whitelist only
+      .populate({
+        path: "lastMessage",
+        select: "content messageType createdAt isDeleted",         // ✅ was leaking everything
+        populate: { path: "sender", select: "fName avatar" },
+      })
       .populate({
         path: "backgroundOverride.backgroundRef",
         select: "assetUrl thumbnailUrl",
@@ -43,7 +42,7 @@ export const accessChat = async (req, res) => {
 
     const fullChat = await Chat.findById(newChat._id).populate(
       "users",
-      "-password"
+      "fName lName avatar isOnline lastSeen"  // ✅ was missing -refreshToken + still too broad
     );
 
     fullChat.users.forEach((u) => {
@@ -59,11 +58,12 @@ export const accessChat = async (req, res) => {
 export const fetchAllChat = async (req, res) => {
   try {
     const chats = await Chat.find({
-      users: { $in: [req.user._id] },
+      users: req.user._id,  // ✅ $in unnecessary for single value
     })
-      .populate("users", "-password -refreshToken")
+      .populate("users", "fName lName avatar isOnline lastSeen")  // ✅ whitelist
       .populate({
         path: "lastMessage",
+        select: "content messageType createdAt isDeleted",
         populate: { path: "sender", select: "fName avatar" },
       })
       .populate({
