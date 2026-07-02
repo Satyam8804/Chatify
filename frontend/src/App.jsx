@@ -48,6 +48,7 @@ function App() {
   // On popstate (back press), we re-push to stay in the app, and
   // dispatch a custom event so child components (e.g. ChatLayout)
   // can react (e.g. close the active chat panel).
+
   useEffect(() => {
     const isMainRoute = MAIN_ROUTES.some((route) =>
       location.pathname.startsWith(route)
@@ -81,14 +82,7 @@ function App() {
       />
 
       <Routes>
-        <Route
-          path="/"
-          element={
-            <PublicRoute>
-              <Login />
-            </PublicRoute>
-          }
-        />
+        
         <Route
           path="/login"
           element={

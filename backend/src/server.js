@@ -46,6 +46,10 @@ app.get("/", (req, res) => {
   res.send("Chatify API running");
 });
 
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -74,3 +78,14 @@ setupSocket(io);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+
+setInterval(() => {
+  https
+    .get(`${process.env.BASE_URL}/health`, (res) => {
+      console.log(`Keep alive: ${res.statusCode}`);
+    })
+    .on("error", (err) => {
+      console.error("Keep alive failed:", err.message);
+    });
+}, 14 * 60 * 1000);

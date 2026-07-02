@@ -21,7 +21,7 @@ const AuthPage = ({ children }) => {
           </div>
 
           <div className="flex flex-col gap-2 mt-4">
-            {["🔒 End-to-end encrypted", "⚡ Real-time messaging", "👥 Group chats"].map((f) => (
+            {["⚡ Real-time messaging", "👥 Group chats","1-1 call and group call"].map((f) => (
               <div key={f} className="px-4 py-2 rounded-full bg-white/5 border border-white/10 text-slate-300 text-sm text-left">
                 {f}
               </div>
