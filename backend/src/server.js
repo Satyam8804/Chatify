@@ -80,12 +80,12 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 
-setInterval(() => {
-  https
-    .get(`${process.env.BASE_URL}/health`, (res) => {
-      console.log(`Keep alive: ${res.statusCode}`);
-    })
-    .on("error", (err) => {
-      console.error("Keep alive failed:", err.message);
-    });
-}, 14 * 60 * 1000);
+// setInterval(() => {
+//   https
+//     .get(`${process.env.BASE_URL}/health`, (res) => {
+//       console.log(`Keep alive: ${res.statusCode}`);
+//     })
+//     .on("error", (err) => {
+//       console.error("Keep alive failed:", err.message);
+//     });
+// }, 14 * 60 * 1000);

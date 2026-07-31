@@ -141,7 +141,7 @@ export const useCallMedia = ({
       if (sender?.track) sender.track.enabled = !muted;
     });
 
-    // FIX: was sending chatId, backend expects roomId
+  
     socket.emit("mute-state", {
       roomId: chatId,
       isMuted: muted,
